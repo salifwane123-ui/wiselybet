@@ -1634,7 +1634,6 @@
     </div>
   </div>
 
-  <button id="simulate-alert" type="button">🔔 Test notification</button>
   <div id="toast-stack" aria-live="polite"></div>
   <div id="tracker-dock">
     <div id="score-stack" aria-live="polite"></div>
@@ -3221,14 +3220,6 @@
         new Notification("WiselyBet", { body: text });
       }
     }
-
-    document.querySelector("#simulate-alert").addEventListener("click", () => {
-      const bell = document.querySelector("#simulate-alert");
-      bell.classList.remove("ring");
-      void bell.offsetWidth;
-      bell.classList.add("ring");
-      runScoringDemo();
-    });
 
     let bellUnread = 0;
     const bellPanel = document.querySelector("#bell-panel");
