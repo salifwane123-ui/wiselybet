@@ -1078,6 +1078,7 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`Odds demo running at http://127.0.0.1:${port}`);
+const host = process.env.HOST || "127.0.0.1";
+server.listen(port, host, () => {
+  console.log(`Odds demo running at http://${host}:${port}`);
 });
