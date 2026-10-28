@@ -1376,6 +1376,18 @@
     .settings-body section { border-bottom-style: dashed; border-bottom-color: rgba(201,239,91,.14); }
     @media print { #settings-panel { display: none !important; } }
     @media print { #tracker-dock, #toast-stack, #simulate-alert, #bell-wrap, #settings-wrap, #age-gate, #app-banner { display: none !important; } }
+    @media (max-width: 560px) {
+      .topbar { display: grid; grid-template-columns: minmax(0,1fr); gap: 10px; padding-top: 12px; padding-bottom: 12px; }
+      .topbar-actions { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; align-items: stretch; max-width: none; }
+      .feed-status { grid-column: 1 / 3; max-width: none; min-width: 0; align-self: center; }
+      #refresh { grid-column: 3 / 5; width: 100%; min-height: 38px; border-radius: 12px; font-size: .74rem; }
+      #trial-badge { grid-column: 1 / -1; justify-content: center; height: 38px; border-radius: 12px; font-size: .8rem; }
+      #tour-button, #news-button, #bell-button, #settings-button { width: 100%; height: 44px; padding: 0 4px; border-radius: 12px; font-size: .74rem; white-space: nowrap; }
+      #bell-button, #settings-button { font-size: 1.15rem; }
+      #bell-wrap, #settings-wrap { position: static; display: block; }
+      #bell-panel { position: fixed; top: 150px; right: 12px; left: 12px; width: auto; max-height: 60vh; overflow-y: auto; }
+      #settings-panel { top: 150px; }
+    }
   </style>
 </head>
 <body>
