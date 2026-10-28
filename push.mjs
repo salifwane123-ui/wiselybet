@@ -1,12 +1,21 @@
 import webpush from "web-push";
 import { getSubscription, getUserData, listPushUsers, pushDataKey, updateUserData } from "./auth.mjs";
 
-const publicKey = process.env.VAPID_PUBLIC || "";
-const privateKey = process.env.VAPID_PRIVATE || "";
-export const pushEnabled = Boolean(publicKey && privateKey);
-if (pushEnabled) {
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:salifwane1996@hotmail.com", publicKey, privateKey);
+const publicKey = (process.env.VAPID_PUBLIC || "").replace(/\s+/g, "");
+const privateKey = (process.env.VAPID_PRIVATE || "").replace(/\s+/g, "");
+let enabled = false;
+if (publicKey && privateKey) {
+  try {
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:salifwane1996@hotmail.com", publicKey, privateKey);
+    enabled = true;
+  } catch (caught) {
+    // A bad key must not take the whole site down.
+    console.error(`Phone alerts disabled: VAPID keys are invalid (public ${publicKey.length} chars, private ${privateKey.length} chars; expected 87 and 43). ${caught.message}`);
+  }
+} else {
+  console.log("Phone alerts are off: set VAPID_PUBLIC and VAPID_PRIVATE to turn them on.");
 }
+export const pushEnabled = enabled;
 export const vapidPublicKey = publicKey;
 
 const allowedHosts = [/(^|\.)fcm\.googleapis\.com$/, /(^|\.)push\.services\.mozilla\.com$/, /(^|\.)push\.apple\.com$/, /(^|\.)notify\.windows\.com$/];
