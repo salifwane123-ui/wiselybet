@@ -1423,6 +1423,26 @@
       .prop-controls button { min-width: 0; width: 100%; min-height: 42px; }
       .date-filter { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
       .date-filter select, .date-filter input { width: 100%; min-width: 0; }
+      /* Player prop cards: name row, action row, then full-width lines */
+      #prop-results { padding: 6px 10px 14px; gap: 10px; }
+      .prop-player-header { flex-wrap: wrap; gap: 8px 8px; padding: 11px 12px; }
+      .prop-player-header h3 { flex: 1 1 0; min-width: 0; font-size: .92rem; }
+      .prop-rank { margin-right: 6px; }
+      .prop-best-pct { margin-left: 0; flex: 0 0 auto; }
+      .prop-player-actions { flex: 1 1 100%; justify-content: flex-start; gap: 8px; }
+      .prop-line-count { margin-right: auto; }
+      .follow-toggle { padding: 6px 12px !important; font-size: .74rem; }
+      .prop-line { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; padding: 10px 10px 12px; }
+      .prop-line-number { grid-column: 1 / -1; align-self: auto; font-size: .8rem; color: #c9ef5b; }
+      .prop-line-number::before { content: "Line "; color: var(--muted); font-weight: 600; }
+      .prop-side { padding: 8px 10px; }
+      .prop-price { font-size: 1.05rem; }
+      .prop-side-meta { white-space: normal; font-size: .62rem; }
+      .market-pick-suggestion { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 3px 8px; padding: 7px 10px; font-size: .62rem; }
+      .market-pick-suggestion > span { grid-column: 1 / -1; }
+      .market-pick-suggestion strong { font-size: .74rem; }
+      .prop-results-heading { flex-wrap: wrap; gap: 4px 10px; }
+      html[data-theme="light"] .prop-line-number { color: #3d6208; }
     }
   </style>
 </head>
