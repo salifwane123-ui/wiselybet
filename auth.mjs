@@ -29,6 +29,17 @@ export function firebaseWebConfig() {
     return null;
   }
 }
+// Accepts raw JSON or base64 JSON, and repairs private keys whose newlines were pasted as "\n" text.
+function readServiceAccount() {
+  let text = (firebaseKeyEnv || readFileSync(firebaseKeyFile, "utf8")).trim();
+  if (!text.startsWith("{")) text = Buffer.from(text, "base64").toString("utf8");
+  const account = JSON.parse(text);
+  if (typeof account.private_key === "string") account.private_key = account.private_key.replace(/\\n/g, "\n");
+  if (typeof account.private_key !== "string" || !account.private_key.includes("BEGIN PRIVATE KEY")) {
+    throw new Error(`FIREBASE_KEY_JSON is incomplete (found keys: ${Object.keys(account).join(", ")})`);
+  }
+  return account;
+}
 const firebaseNames = new Map();
 let firebasePromise = null;
 function firebase() {
@@ -36,7 +47,7 @@ function firebase() {
     const { initializeApp, cert } = await import("firebase-admin/app");
     const { getAuth } = await import("firebase-admin/auth");
     const { getFirestore } = await import("firebase-admin/firestore");
-    const app = initializeApp({ credential: cert(JSON.parse(firebaseKeyEnv || readFileSync(firebaseKeyFile, "utf8"))) });
+    const app = initializeApp({ credential: cert(readServiceAccount()) });
     return { auth: getAuth(app), db: getFirestore(app) };
   })();
   return firebasePromise;
