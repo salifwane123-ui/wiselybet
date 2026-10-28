@@ -1508,6 +1508,12 @@
                   <button type="button" id="set-test-sound" class="settings-link">▶ Play test sound</button>
                 </section>
                 <section>
+                  <h3>Phone alerts</h3>
+                  <label class="settings-row"><span>Push to this phone</span><input type="checkbox" id="set-push"></label>
+                  <p id="push-status" class="settings-note"></p>
+                  <button type="button" id="push-test" class="settings-link" hidden>🔔 Send a test alert</button>
+                </section>
+                <section>
                   <h3>Alerts to show</h3>
                   <label class="settings-row"><span>On court / benched</span><input type="checkbox" id="set-alert-court"></label>
                   <label class="settings-row"><span>Fouls</span><input type="checkbox" id="set-alert-foul"></label>
@@ -5422,6 +5428,69 @@
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
+
+    // Phone push alerts: the server watches the games and pushes even when the app is closed.
+    (function setupPush() {
+      const toggle = document.querySelector("#set-push");
+      const status = document.querySelector("#push-status");
+      const testButton = document.querySelector("#push-test");
+      if (!toggle) return;
+      const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+      const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+      const say = text => { status.textContent = text; };
+      const post = (path, body) => fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+      const toKey = value => {
+        const raw = atob(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "="));
+        return Uint8Array.from(raw, char => char.charCodeAt(0));
+      };
+      async function currentSubscription() {
+        const registration = await navigator.serviceWorker.ready;
+        return registration.pushManager.getSubscription();
+      }
+      async function refresh() {
+        if (!window.wiselyUser) { toggle.disabled = true; say("Sign in to get phone alerts."); return; }
+        if (!supported) {
+          toggle.disabled = true;
+          say(ios && !standalone ? "On iPhone: tap Share → Add to Home Screen, then open WiselyBet from the Home Screen to turn this on." : "This browser doesn't support phone alerts.");
+          return;
+        }
+        const sub = await currentSubscription().catch(() => null);
+        toggle.checked = Boolean(sub) && Notification.permission === "granted";
+        testButton.hidden = !toggle.checked;
+        say(Notification.permission === "denied" ? "Alerts are blocked. Allow notifications for this site in your phone settings." : toggle.checked ? "On. You'll get target, close-to-target, final, court, foul and injury alerts, even when the app is closed." : "Off.");
+      }
+      toggle.addEventListener("change", async () => {
+        toggle.disabled = true;
+        try {
+          if (toggle.checked) {
+            const keyReply = await fetch("/api/push/key");
+            const { key } = await keyReply.json();
+            if (!key) throw new Error("Phone alerts aren't set up on the server yet.");
+            if (await Notification.requestPermission() !== "granted") throw new Error("Permission was not granted.");
+            const registration = await navigator.serviceWorker.ready;
+            const sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(key) });
+            const reply = await post("/api/push/subscribe", { subscription: sub.toJSON(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+            if (!reply.ok) throw new Error((await reply.json().catch(() => ({}))).error || "Could not save the subscription.");
+          } else {
+            const sub = await currentSubscription();
+            if (sub) { await post("/api/push/unsubscribe", { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+          }
+        } catch (caught) {
+          toggle.checked = !toggle.checked;
+          say(caught.message || "Something went wrong.");
+          toggle.disabled = false;
+          return;
+        }
+        toggle.disabled = false;
+        refresh();
+      });
+      testButton.addEventListener("click", async () => {
+        const reply = await post("/api/push/test");
+        say(reply.ok ? "Test sent — check your notifications." : "Could not send the test. Try turning alerts off and on.");
+      });
+      refresh();
+    })();
     renderHistory();
 
     async function loadOdds() {

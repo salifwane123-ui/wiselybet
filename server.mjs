@@ -2,7 +2,9 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { displayName, firebaseEnabled, firebaseSignIn, firebaseWebConfig, getSessionUser, getSubscription, getUserData, logIn, logOut, queueEmail, reportActive, signUp, subscribe, updateUserData } from "./auth.mjs";
+import { displayName, firebaseEnabled, firebaseSignIn, firebaseWebConfig, getSessionUser, getSubscription, getUserData, logIn, logOut, pushDataKey, queueEmail, reportActive, signUp, subscribe, updateUserData } from "./auth.mjs";
+import { randomBytes } from "node:crypto";
+import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -166,6 +168,7 @@ async function cached(key, ttl, load) {
 const rateWindowMs = 60_000;
 const rateLimit = 240;
 const rateBuckets = new Map();
+const internalToken = randomBytes(16).toString("hex");
 
 function isRateLimited(address) {
   const now = Date.now();
@@ -226,7 +229,22 @@ const webManifest = JSON.stringify({
   theme_color: "#12150f",
   icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }]
 });
-const serviceWorker = `const shell = "courtside-shell-v3";
+const serviceWorker = `const shell = "courtside-shell-v4";
+self.addEventListener("push", event => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (error) { data = { body: event.data && event.data.text() }; }
+  event.waitUntil(self.registration.showNotification(data.title || "WiselyBet", {
+    body: data.body || "", tag: data.tag, icon: "/icon-192.png", badge: "/icon-192.png", data: { url: data.url || "/" }, renotify: Boolean(data.tag)
+  }));
+});
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+    for (const client of list) if ("focus" in client) return client.focus();
+    return self.clients.openWindow(target);
+  }));
+});
 self.addEventListener("install", event => { self.skipWaiting(); });
 self.addEventListener("activate", event => {
   event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== shell).map(key => caches.delete(key)))).then(() => self.clients.claim()));
@@ -361,7 +379,7 @@ const server = createServer(async (request, response) => {
 
   const requestPath = (request.url || "").split("?")[0];
   if (request.method !== "GET") {
-    const postRoutes = ["/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/firebase", "/api/send-parlay-email", "/api/subscription/subscribe"];
+    const postRoutes = ["/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/firebase", "/api/send-parlay-email", "/api/subscription/subscribe", "/api/push/subscribe", "/api/push/unsubscribe", "/api/push/test"];
     const allowed = (request.method === "POST" && postRoutes.includes(requestPath)) ||
       (request.method === "PUT" && requestPath === "/api/user-data");
     if (!allowed) {
@@ -392,6 +410,15 @@ const server = createServer(async (request, response) => {
         const body = await readJsonBody(request, 500);
         return await sendJson(response, 200, await subscribe(userKey, String(body?.plan || "")));
       }
+      if (requestPath === "/api/push/subscribe") {
+        await addSubscription(userKey, await readJsonBody(request, 4000));
+        return await sendJson(response, 200, { ok: true });
+      }
+      if (requestPath === "/api/push/unsubscribe") {
+        await removeSubscription(userKey, String((await readJsonBody(request, 2000))?.endpoint || ""));
+        return await sendJson(response, 200, { ok: true });
+      }
+      if (requestPath === "/api/push/test") return await sendJson(response, 200, await sendTest(userKey));
       return await handleSendEmail(request, response);
     } catch (caught) {
       return sendJson(response, caught.status || 500, { error: caught.message || "Request failed." });
@@ -399,7 +426,7 @@ const server = createServer(async (request, response) => {
   }
 
   const url = new URL(request.url || "/", "http://localhost");
-  if (url.pathname.startsWith("/api/") && isRateLimited(request.socket.remoteAddress || "local")) {
+  if (url.pathname.startsWith("/api/") && request.headers["x-wb-internal"] !== internalToken && isRateLimited(request.socket.remoteAddress || "local")) {
     response.writeHead(429, { "Retry-After": "30", "Content-Type": "application/json; charset=utf-8" });
     response.end(JSON.stringify({ error: "Too many requests. Please slow down and try again shortly." }));
     return;
@@ -446,10 +473,12 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (url.pathname === "/api/auth/me") return await sendJson(response, 200, { username: displayName(userKey) });
+    if (url.pathname === "/api/push/key") return await sendJson(response, 200, { key: pushEnabled ? vapidPublicKey : "" });
     if (url.pathname === "/api/user-data") {
       let data = {};
       try {
-        data = await getUserData(userKey);
+        data = { ...(await getUserData(userKey)) };
+        delete data[pushDataKey];
       } catch (caught) {
         console.error("Could not load account data:", caught.message);
       }
@@ -1081,4 +1110,10 @@ const server = createServer(async (request, response) => {
 const host = process.env.HOST || "127.0.0.1";
 server.listen(port, host, () => {
   console.log(`Odds demo running at http://${host}:${port}`);
+  startPushChecker(async (sport, date, home, away) => {
+    const params = new URLSearchParams({ sport, date, home, away });
+    const reply = await fetch(`http://127.0.0.1:${port}/api/live-game?${params}`, { headers: { "x-wb-internal": internalToken } });
+    if (!reply.ok) throw new Error(`live-game ${reply.status}`);
+    return reply.json();
+  });
 });

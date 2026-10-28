@@ -251,7 +251,20 @@ export async function getUserData(userKey) {
 }
 
 // Stores only the app's own "courtside.*" keys. A null value deletes a key.
-export async function updateUserData(userKey, body) {
+// Push subscriptions live in the same record but only the server may write them (internal = true).
+export const pushDataKey = "courtside.push.v1";
+
+export async function listPushUsers() {
+  if (firebaseEnabled) {
+    const { db } = await firebase();
+    const snapshot = await db.collection("users").where("hasPush", "==", true).get();
+    return snapshot.docs.map(doc => ({ userKey: doc.id, data: doc.data().data || {} }));
+  }
+  await load();
+  return Object.entries(users).filter(([, user]) => user.data?.[pushDataKey]).map(([userKey, user]) => ({ userKey, data: user.data }));
+}
+
+export async function updateUserData(userKey, body, internal = false) {
   if (!firebaseEnabled) await load();
   const user = firebaseEnabled ? {} : users[userKey];
   if (!user || !body || typeof body.data !== "object" || !body.data || Array.isArray(body.data)) {
@@ -260,6 +273,7 @@ export async function updateUserData(userKey, body) {
   const next = { ...(firebaseEnabled ? await getUserData(userKey) : user.data) };
   for (const [key, value] of Object.entries(body.data)) {
     if (!/^courtside\.[\w.-]{1,60}$/.test(key)) continue;
+    if (key === pushDataKey && !internal) continue;
     if (value === null) delete next[key];
     else if (typeof value === "string") next[key] = value;
   }
@@ -283,7 +297,7 @@ export async function updateUserData(userKey, body) {
       } catch { readable[field] = []; }
     }
     const email = firebaseNames.get(userKey);
-    await db.collection("users").doc(userKey).set({ ...(email ? { email } : {}), data: next, ...readable, updatedAt: new Date().toISOString() }, { merge: true });
+    await db.collection("users").doc(userKey).set({ ...(email ? { email } : {}), data: next, hasPush: Boolean(next[pushDataKey]), ...readable, updatedAt: new Date().toISOString() }, { merge: true });
     return;
   }
   user.data = next;
