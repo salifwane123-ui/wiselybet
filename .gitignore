@@ -1,0 +1,6 @@
+node_modules/
+data/
+firebase-key.json
+.env
+*.log
+start-server.ps1

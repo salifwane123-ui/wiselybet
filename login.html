@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="WiselyBet">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#0f1412">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <title>Sign in | WiselyBet</title>
+  <style>
+    :root { color-scheme: dark; font: 15px/1.5 "Segoe UI", system-ui, sans-serif; --muted: #9aa59f; --gold: #f3c64d; --green: #3ecf6e; --line: rgba(255, 255, 255, .1); --panel: #14181a; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; color: #f1f4f2; background: #0a0d0c; }
+    .top { display: flex; align-items: center; justify-content: space-between; padding: 12px 28px; border-bottom: 3px solid var(--gold); background: #0f1412; }
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .brand-mark { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 50%; background: var(--gold); color: #1b1500; font-size: 1.15rem; font-weight: 900; }
+    .brand-name { font-size: 1.35rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .brand-name b { color: var(--gold); }
+    .top-note { color: var(--muted); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; }
+    .ticker { overflow: hidden; border-bottom: 1px solid var(--line); background: #121816; white-space: nowrap; }
+    .ticker-track { display: inline-flex; gap: 38px; padding: 8px 0; animation: scroll 38s linear infinite; }
+    .ticker span { font-size: .8rem; color: #cfd8d3; }
+    .ticker b { margin: 0 6px; color: var(--gold); font-weight: 700; }
+    .ticker i { color: var(--green); font-style: normal; font-weight: 700; }
+    @keyframes scroll { to { transform: translateX(-50%); } }
+    @media (prefers-reduced-motion: reduce) { .ticker-track { animation: none; } }
+    .stage { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(340px, 440px); gap: 40px; align-items: center; max-width: 1180px; min-height: calc(100vh - 110px); margin: 0 auto; padding: 36px 28px; }
+    .hero { position: relative; }
+    .hero::before { content: ""; position: absolute; inset: -30px -40px; z-index: -1; background: radial-gradient(ellipse at 30% 20%, rgba(243, 198, 77, .13), transparent 60%); }
+    .badge { display: inline-block; padding: 4px 11px; border-radius: 3px; background: var(--gold); color: #1b1500; font-size: .74rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    h1 { margin: 14px 0 10px; font-size: clamp(2rem, 4.4vw, 3.3rem); line-height: 1.05; font-weight: 900; letter-spacing: -.01em; text-transform: uppercase; }
+    h1 em { color: var(--gold); font-style: normal; }
+    .lead { max-width: 34rem; margin: 0 0 22px; color: #b9c3be; font-size: 1.02rem; }
+    .board { max-width: 34rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); overflow: hidden; }
+    .board-head { display: flex; justify-content: space-between; padding: 8px 14px; background: #1b2220; color: var(--muted); font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .game { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 11px 14px; border-top: 1px solid var(--line); }
+    .game small { display: block; color: var(--muted); font-size: .72rem; }
+    .game strong { font-size: .95rem; }
+    .odds { min-width: 64px; padding: 7px 10px; border: 1px solid rgba(243, 198, 77, .45); border-radius: 4px; background: #0e1311; color: var(--gold); text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .perks { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 20px 0 0; padding: 0; list-style: none; color: #cfd8d3; font-size: .86rem; }
+    .perks li::before { content: "✔"; margin-right: 7px; color: var(--green); }
+    .card { padding: 0 0 22px; border: 1px solid var(--line); border-top: 4px solid var(--gold); border-radius: 6px; background: var(--panel); box-shadow: 0 22px 60px rgba(0, 0, 0, .55); }
+    .card-title { margin: 0; padding: 18px 26px 4px; font-size: 1.15rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+    .card-sub { margin: 0; padding: 0 26px 14px; color: var(--muted); font-size: .84rem; }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .tabs button { padding: 12px; border: 0; border-bottom: 3px solid transparent; background: #101513; color: var(--muted); font: inherit; font-size: .82rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+    .tabs button[aria-selected="true"] { border-bottom-color: var(--gold); background: var(--panel); color: var(--gold); }
+    form { padding: 6px 26px 0; }
+    label { display: block; margin: 14px 0 6px; color: #d5dcd7; font-size: .74rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    input { width: 100%; padding: 12px; border: 1px solid #2b3430; border-radius: 4px; background: #0b0f0d; color: inherit; font: inherit; }
+    input:focus { border-color: var(--gold); outline: 2px solid rgba(243, 198, 77, .3); outline-offset: 0; }
+    .hint { margin: 6px 0 0; color: var(--muted); font-size: .76rem; }
+    .submit { width: 100%; margin-top: 20px; padding: 14px; border: 0; border-radius: 4px; background: var(--green); color: #04210f; font: inherit; font-size: .95rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; transition: filter .15s, transform .15s; }
+    .submit:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+    .submit:disabled { opacity: .6; cursor: wait; }
+    .error { min-height: 1.3em; margin: 12px 0 0; color: #ff8d86; font-size: .84rem; }
+    .google { width: 100%; margin-top: 10px; padding: 12px; border: 1px solid #36403b; border-radius: 4px; background: transparent; color: inherit; font: inherit; font-size: .86rem; font-weight: 700; cursor: pointer; }
+    .google:hover { border-color: var(--gold); color: var(--gold); }
+    .link { display: block; margin: 14px auto 0; border: 0; background: none; color: var(--gold); font: inherit; font-size: .82rem; cursor: pointer; }
+    .fine { margin: 18px 26px 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: .72rem; text-align: center; }
+    footer { padding: 14px 28px 24px; color: #6f7a74; font-size: .72rem; text-align: center; }
+    @media (max-width: 860px) { .stage { grid-template-columns: 1fr; gap: 28px; padding: 24px 16px; } .hero { order: 2; } .top { padding: 12px 16px; } .top-note { display: none; } }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">W</span>
+      <span class="brand-name">Wisely<b>Bet</b></span>
+    </div>
+    <span class="top-note">Market Board · Live Odds</span>
+  </header>
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track">
+      <span>🏀 NBA <b>Player props</b> <i>live</i></span><span>🏒 NHL <b>Goals · Shots · Saves</b> <i>live</i></span><span>🎟 <b>Parlay</b> builder</span><span>🎯 <b>Live tracker</b> with alerts</span><span>📊 <b>Best price</b> across books</span>
+      <span>🏀 NBA <b>Player props</b> <i>live</i></span><span>🏒 NHL <b>Goals · Shots · Saves</b> <i>live</i></span><span>🎟 <b>Parlay</b> builder</span><span>🎯 <b>Live tracker</b> with alerts</span><span>📊 <b>Best price</b> across books</span>
+    </div>
+  </div>
+  <div class="stage">
+    <section class="hero" aria-label="About WiselyBet">
+      <span class="badge">Live odds</span>
+      <h1>Bet <em>smarter.</em><br>Track every pick live.</h1>
+      <p class="lead">Compare player props and game lines across sportsbooks, build parlays, and follow your picks in real time.</p>
+      <div class="board" aria-hidden="true">
+        <div class="board-head"><span>Today's board</span><span>Spread · ML</span></div>
+        <div class="game"><div><strong>Lakers</strong><small>vs Warriors · 7:30 PM</small></div><span class="odds">-3.5</span><span class="odds">-155</span></div>
+        <div class="game"><div><strong>Celtics</strong><small>vs Knicks · 8:00 PM</small></div><span class="odds">-6.0</span><span class="odds">-260</span></div>
+        <div class="game"><div><strong>Flyers</strong><small>@ Capitals · 7:00 PM</small></div><span class="odds">+1.5</span><span class="odds">+120</span></div>
+      </div>
+      <ul class="perks"><li>Real-time player tracker</li><li>Alerts when picks hit</li><li>Saved to your account</li></ul>
+    </section>
+    <main class="card">
+      <h2 class="card-title" id="card-title">Welcome back</h2>
+      <p class="card-sub" id="card-sub">Sign in to open your market board.</p>
+      <div class="tabs" role="tablist" aria-label="Account">
+        <button type="button" role="tab" id="tab-login" aria-selected="true">Sign in</button>
+        <button type="button" role="tab" id="tab-signup" aria-selected="false">Join now</button>
+      </div>
+      <form id="form" novalidate>
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" maxlength="30" required autofocus>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" maxlength="200" required>
+        <p class="hint" id="password-hint" hidden>At least 8 characters.</p>
+        <div id="confirm-row" hidden>
+          <label for="confirm">Confirm password</label>
+          <input id="confirm" type="password" autocomplete="new-password" maxlength="200">
+        </div>
+        <p class="error" id="error" role="alert"></p>
+        <button class="submit" id="submit" type="submit">Sign in</button>
+        <div id="extras" hidden>
+          <button class="google" id="google" type="button">Continue with Google</button>
+          <button class="link" id="forgot" type="button">Forgot password?</button>
+        </div>
+      </form>
+      <p class="fine">Your trackers, parlays and settings are saved to your account. Informational only; not betting advice.</p>
+    </main>
+  </div>
+  <footer>18+ · Please gamble responsibly. Odds are for information only.</footer>
+  <script>
+    let mode = "login";
+    const form = document.querySelector("#form");
+    const error = document.querySelector("#error");
+    const submit = document.querySelector("#submit");
+    const password = document.querySelector("#password");
+
+    function setMode(next) {
+      mode = next;
+      const signup = next === "signup";
+      document.querySelector("#tab-login").setAttribute("aria-selected", String(!signup));
+      document.querySelector("#tab-signup").setAttribute("aria-selected", String(signup));
+      document.querySelector("#confirm-row").hidden = !signup;
+      document.querySelector("#password-hint").hidden = !signup;
+      password.autocomplete = signup ? "new-password" : "current-password";
+      submit.textContent = signup ? "Create account" : "Sign in";
+      document.querySelector("#card-title").textContent = signup ? "Create your account" : "Welcome back";
+      document.querySelector("#card-sub").textContent = signup ? "Join free and start tracking your picks." : "Sign in to open your market board.";
+      error.textContent = "";
+    }
+    document.querySelector("#tab-login").addEventListener("click", () => setMode("login"));
+    document.querySelector("#tab-signup").addEventListener("click", () => setMode("signup"));
+
+    // Firebase mode (when the server has Firebase set up): email sign-in, Google, and password reset.
+    let firebaseApi = null;
+    const usernameInput = document.querySelector("#username");
+    const friendly = code => ({
+      "auth/invalid-credential": "Wrong email or password.",
+      "auth/invalid-email": "Enter a valid email address.",
+      "auth/email-already-in-use": "An account with that email already exists.",
+      "auth/weak-password": "Password must be at least 8 characters.",
+      "auth/too-many-requests": "Too many attempts. Try again in a few minutes.",
+      "auth/network-request-failed": "Network problem. Check your connection."
+    })[code] || "Something went wrong. Try again.";
+
+    async function finishFirebase(credential) {
+      const idToken = await credential.user.getIdToken();
+      const reply = await fetch("/api/auth/firebase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken })
+      });
+      const body = await reply.json().catch(() => ({}));
+      if (!reply.ok) throw new Error(body.error || "Sign-in failed.");
+      await firebaseApi.signOut(firebaseApi.auth);
+      location.replace("/");
+    }
+
+    async function setupFirebase() {
+      let config = null;
+      try {
+        config = (await (await fetch("/api/auth/config")).json()).firebase;
+      } catch { /* fall back to local accounts */ }
+      if (!config) return;
+      const base = "https://www.gstatic.com/firebasejs/11.0.2/";
+      const [{ initializeApp }, auth] = await Promise.all([import(`${base}firebase-app.js`), import(`${base}firebase-auth.js`)]);
+      firebaseApi = { ...auth, auth: auth.getAuth(initializeApp(config)) };
+      usernameInput.previousElementSibling.textContent = "Email";
+      usernameInput.type = "email";
+      usernameInput.autocomplete = "email";
+      usernameInput.removeAttribute("maxlength");
+      document.querySelector("#extras").hidden = false;
+    }
+    setMode(location.hash === "#signup" ? "signup" : "login");
+    const firebaseReady = setupFirebase();
+
+    document.querySelector("#google").addEventListener("click", async () => {
+      error.textContent = "";
+      try {
+        await finishFirebase(await firebaseApi.signInWithPopup(firebaseApi.auth, new firebaseApi.GoogleAuthProvider()));
+      } catch (caught) {
+        if (caught.code !== "auth/popup-closed-by-user" && caught.code !== "auth/cancelled-popup-request") {
+          error.textContent = caught.code ? friendly(caught.code) : caught.message;
+        }
+      }
+    });
+    document.querySelector("#forgot").addEventListener("click", async () => {
+      const email = usernameInput.value.trim();
+      if (!email) { error.textContent = "Enter your email first, then press Forgot password."; return; }
+      try {
+        await firebaseApi.sendPasswordResetEmail(firebaseApi.auth, email);
+      } catch { /* same message either way so emails can't be probed */ }
+      error.style.color = "#c9ef5b";
+      error.textContent = "If that email has an account, a reset link is on its way.";
+    });
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      error.textContent = "";
+      const username = document.querySelector("#username").value.trim();
+      if (!username || !password.value) {
+        error.textContent = "Enter your username and password.";
+        return;
+      }
+      if (mode === "signup") {
+        if (password.value.length < 8) { error.textContent = "Password must be at least 8 characters."; return; }
+        if (password.value !== document.querySelector("#confirm").value) { error.textContent = "Passwords do not match."; return; }
+      }
+      submit.disabled = true;
+      error.style.color = "";
+      try {
+        await firebaseReady;
+        if (firebaseApi) {
+          const email = username.toLowerCase();
+          if (mode === "signup") {
+            const created = await firebaseApi.createUserWithEmailAndPassword(firebaseApi.auth, email, password.value);
+            await firebaseApi.sendEmailVerification(created.user);
+            await firebaseApi.signOut(firebaseApi.auth);
+            setMode("login");
+            password.value = "";
+            document.querySelector("#confirm").value = "";
+            error.style.color = "#c9ef5b";
+            error.textContent = `Account created. We sent a verification link to ${email}. Open it, then sign in here.`;
+            submit.disabled = false;
+            return;
+          }
+          const credential = await firebaseApi.signInWithEmailAndPassword(firebaseApi.auth, email, password.value);
+          if (!credential.user.emailVerified) {
+            await firebaseApi.sendEmailVerification(credential.user).catch(() => {});
+            await firebaseApi.signOut(firebaseApi.auth);
+            error.textContent = `Please verify your email first. We just sent a new link to ${email}.`;
+            submit.disabled = false;
+            return;
+          }
+          await finishFirebase(credential);
+          return;
+        }
+        const reply = await fetch(`/api/auth/${mode}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password: password.value })
+        });
+        const body = await reply.json().catch(() => ({}));
+        if (!reply.ok) throw new Error(body.error || "Something went wrong. Try again.");
+        location.replace("/");
+      } catch (caught) {
+        error.textContent = caught.code ? friendly(caught.code) : caught.message;
+        submit.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

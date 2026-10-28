@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="WiselyBet">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <title>WiselyBet | Subscribe</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; color: #e8efe9; background: #0e1514; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 24px; background: #0a100f; border-bottom: 3px solid #d4a72c; }
+    header a.brand { color: #fff; font-weight: 800; font-size: 1.2rem; text-decoration: none; letter-spacing: .02em; }
+    header a.brand span { color: #d4a72c; }
+    header button { background: none; border: 1px solid rgba(255,255,255,.25); color: #e8efe9; padding: 7px 14px; border-radius: 4px; cursor: pointer; font: inherit; }
+    main { max-width: 900px; margin: 0 auto; padding: 36px 20px 20px; }
+    .status { padding: 14px 18px; border-left: 4px solid #d4a72c; background: rgba(212,167,44,.1); margin-bottom: 26px; line-height: 1.5; }
+    .status.expired { border-color: #e5534b; background: rgba(229,83,75,.12); }
+    .status.active { border-color: #3fb26b; background: rgba(63,178,107,.12); }
+    .status strong { font-size: 1.05rem; }
+    h1 { margin: 0 0 6px; font-size: 2rem; }
+    .lead { margin: 0 0 24px; opacity: .8; }
+    .perks { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin: 0 0 28px; padding: 0; list-style: none; }
+    .perks li { padding: 12px 14px; background: #16201e; border: 1px solid rgba(255,255,255,.08); border-radius: 4px; font-size: .92rem; }
+    .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .plan { position: relative; display: grid; gap: 10px; padding: 24px 22px; background: #16201e; border: 1px solid rgba(255,255,255,.12); border-top: 3px solid #d4a72c; border-radius: 4px; }
+    .plan.best { border-color: #d4a72c; box-shadow: 0 0 0 1px #d4a72c; }
+    .ribbon { position: absolute; top: -12px; right: 14px; padding: 3px 10px; background: #d4a72c; color: #1b1500; font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; border-radius: 3px; }
+    .plan h2 { margin: 0; font-size: 1.15rem; }
+    .price { font-size: 2.2rem; font-weight: 800; }
+    .price small { font-size: .9rem; font-weight: 400; opacity: .7; }
+    .plan p { margin: 0; opacity: .75; font-size: .9rem; }
+    .plan button { margin-top: 6px; padding: 13px; border: 0; border-radius: 4px; background: #2e9e5b; color: #fff; font: inherit; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
+    .plan button:hover { background: #38b36a; }
+    .plan button:disabled { opacity: .6; cursor: wait; }
+    #message { min-height: 1.4em; margin-top: 16px; text-align: center; }
+    #message.error { color: #ff8b84; }
+    .demo { margin-top: 22px; padding: 10px 14px; border: 1px dashed rgba(255,255,255,.25); font-size: .85rem; opacity: .8; text-align: center; }
+    footer { max-width: 900px; margin: 10px auto 40px; padding: 0 20px; font-size: .78rem; opacity: .6; line-height: 1.5; }
+    footer a { color: inherit; }
+    .back { display: inline-block; margin-top: 18px; color: #d4a72c; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">Wisely<span>Bet</span></a>
+    <button id="sign-out" type="button">Sign out</button>
+  </header>
+  <main>
+    <div id="status" class="status" role="status">Checking your plan…</div>
+    <h1>Go Pro with WiselyBet</h1>
+    <p class="lead">Keep every pick, every prop market and the live tracker. Cancel any time.</p>
+    <ul class="perks">
+      <li>✅ Every player prop and market</li>
+      <li>✅ Live player tracker with alerts</li>
+      <li>✅ Parlays, groups and final reports</li>
+      <li>✅ Follow players across games</li>
+    </ul>
+    <div class="plans">
+      <section class="plan">
+        <h2>Monthly</h2>
+        <div class="price">$9.99 <small>/ month</small></div>
+        <p>Full access, billed every 30 days.</p>
+        <button type="button" data-plan="monthly">Subscribe monthly</button>
+      </section>
+      <section class="plan best">
+        <span class="ribbon">Best value</span>
+        <h2>Yearly</h2>
+        <div class="price">$79.99 <small>/ year</small></div>
+        <p>Full access for a year. Save about 33%.</p>
+        <button type="button" data-plan="yearly">Subscribe yearly</button>
+      </section>
+    </div>
+    <div id="message" role="status" aria-live="polite"></div>
+    <div id="demo" class="demo" hidden>Demo checkout: no card is charged and no payment provider is connected yet.</div>
+    <a class="back" id="back" href="/" hidden>← Back to the dashboard</a>
+  </main>
+  <footer>
+    18+ only. Informational only, not betting advice. Gambling involves risk, so only wager what you can afford to lose.
+    Need help? Call <a href="tel:18004262537">1-800-GAMBLER</a> or visit <a href="https://www.ncpgambling.org" target="_blank" rel="noopener noreferrer">ncpgambling.org</a>.
+  </footer>
+  <script>
+    const statusBox = document.querySelector("#status");
+    const message = document.querySelector("#message");
+    let endsAt = 0;
+    let timer = null;
+
+    function render(sub) {
+      clearInterval(timer);
+      statusBox.className = "status";
+      document.querySelector("#demo").hidden = false;
+      if (sub.status === "active") {
+        statusBox.classList.add("active");
+        const until = new Date(sub.planUntil).toLocaleDateString();
+        statusBox.innerHTML = "";
+        const strong = document.createElement("strong");
+        strong.textContent = `⭐ You're a Pro member (${sub.plan}).`;
+        statusBox.append(strong, document.createElement("br"), `Your access runs until ${until}.`);
+        document.querySelector("#back").hidden = false;
+      } else if (sub.status === "trial") {
+        endsAt = Date.now() + sub.remainingMs;
+        const update = () => {
+          const left = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+          statusBox.textContent = `⏱ Your free trial ends in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}. Subscribe now to keep full access.`;
+          if (left <= 0) { clearInterval(timer); load(); }
+        };
+        timer = setInterval(update, 1000);
+        update();
+        document.querySelector("#back").hidden = false;
+      } else {
+        statusBox.classList.add("expired");
+        statusBox.textContent = "Your 5-minute free trial has ended. Subscribe to unlock every pick, prop and the live tracker.";
+        document.querySelector("#back").hidden = true;
+      }
+    }
+
+    async function load() {
+      try {
+        const reply = await fetch("/api/subscription");
+        if (reply.status === 401 || reply.redirected) { location.replace("/login"); return; }
+        render(await reply.json());
+      } catch {
+        statusBox.textContent = "Could not check your plan. Please refresh.";
+      }
+    }
+
+    for (const button of document.querySelectorAll("[data-plan]")) {
+      button.addEventListener("click", async () => {
+        for (const other of document.querySelectorAll("[data-plan]")) other.disabled = true;
+        message.className = "";
+        message.textContent = "Processing…";
+        try {
+          const reply = await fetch("/api/subscription/subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ plan: button.dataset.plan })
+          });
+          const body = await reply.json().catch(() => ({}));
+          if (!reply.ok) throw new Error(body.error || "Could not subscribe.");
+          message.textContent = "🎉 You're subscribed! Taking you to the dashboard…";
+          render(body);
+          setTimeout(() => location.assign("/"), 1200);
+        } catch (error) {
+          message.className = "error";
+          message.textContent = error.message;
+          for (const other of document.querySelectorAll("[data-plan]")) other.disabled = false;
+        }
+      });
+    }
+
+    document.querySelector("#sign-out").addEventListener("click", async () => {
+      try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* leave anyway */ }
+      location.replace("/");
+    });
+    load();
+  </script>
+</body>
+</html>

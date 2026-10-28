@@ -1,0 +1,1256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="WiselyBet">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#12150f">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <title>WiselyBet | Live Game Tracker</title>
+  <script>
+    try {
+      if (JSON.parse(localStorage.getItem("courtside.settings.v1") || "{}").theme === "light") document.documentElement.dataset.theme = "light";
+    } catch {}
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      font: 15px/1.5 Inter, "Segoe UI", system-ui, sans-serif;
+      background: #0b1019;
+      color: #edf2f8;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      max-width: 1080px;
+      margin: 30px auto;
+      padding: 0 18px 40px;
+    }
+
+    a { color: #bdcaff; }
+    .muted { color: #aab3c5; }
+    .topbar, .game-meta, .court-score, .team-score, .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .topbar { margin-bottom: 20px; }
+    .topbar a { text-decoration: none; }
+    .topbar a:hover { text-decoration: underline; }
+    .game-meta { flex-wrap: wrap; margin: 14px 0; color: #aab3c5; }
+    .status {
+      padding: 5px 10px;
+      border-radius: 99px;
+      background: #30394a;
+      color: #eef2ff;
+      font-size: .9rem;
+    }
+    .status.live { background: #662d35; color: #ffd5d8; }
+    .status.scheduled { background: #30394a; }
+    .status.final { background: #213f35; color: #b7f0cc; }
+    .game-clock.live strong { color: #ffb6bd; }
+
+    .court-card, .panel {
+      margin: 16px 0;
+      padding: 18px;
+      border: 1px solid #30394a;
+      border-radius: 12px;
+      background: #1a2130;
+    }
+
+    .court {
+      position: relative;
+      min-height: 270px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      border: 3px solid #edc58e;
+      border-radius: 10px;
+      background: repeating-linear-gradient(
+        90deg,
+        #bd8054 0,
+        #bd8054 88px,
+        #c78d60 89px,
+        #c78d60 176px
+      );
+    }
+
+    .court svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      fill: none;
+      stroke: rgba(255, 239, 213, .78);
+      stroke-width: 3;
+    }
+    .baseball-field-lines { display: none; }
+    .football-field-lines { display: none; }
+    .hockey-rink-lines { display: none; }
+    .court-card.baseball-scoreboard .court {
+      border-color: #9cbd82;
+      background:
+        radial-gradient(ellipse at 50% 78%, rgba(198, 155, 99, .98) 0 22%, transparent 22.5%),
+        repeating-linear-gradient(115deg, #33744f 0 76px, #3c8257 77px 152px);
+    }
+    .court-card.baseball-scoreboard .court svg { stroke: rgba(255, 245, 217, .88); }
+    .court-card.baseball-scoreboard .basketball-court-lines { display: none; }
+    .court-card.baseball-scoreboard .baseball-field-lines { display: block; }
+    .court-card.football-scoreboard .court {
+      border-color: #9cbd82;
+      background: repeating-linear-gradient(
+        90deg,
+        #286344 0,
+        #286344 54px,
+        #33734d 55px,
+        #33734d 108px
+      );
+    }
+    .court-card.football-scoreboard .court svg { stroke: rgba(235, 248, 218, .76); }
+    .court-card.football-scoreboard .basketball-court-lines,
+    .court-card.football-scoreboard .baseball-field-lines { display: none; }
+    .court-card.football-scoreboard .football-field-lines { display: block; }
+    .court-card.football-scoreboard .court-score { border-color: rgba(220, 244, 218, .22); }
+    .court-card.hockey-scoreboard .court {
+      border-color: #d7e8f4;
+      background:
+        linear-gradient(90deg, transparent 0 32%, rgba(223, 72, 81, .78) 32% 33%, transparent 33% 67%, rgba(223, 72, 81, .78) 67% 68%, transparent 68%),
+        linear-gradient(90deg, transparent 0 20%, rgba(82, 146, 207, .8) 20% 21%, transparent 21% 79%, rgba(82, 146, 207, .8) 79% 80%, transparent 80%),
+        repeating-linear-gradient(90deg, #eaf5fb 0, #eaf5fb 88px, #f8fcff 89px, #f8fcff 176px);
+    }
+    .court-card.hockey-scoreboard .court svg { stroke: rgba(57, 91, 119, .72); }
+    .court-card.hockey-scoreboard .basketball-court-lines,
+    .court-card.hockey-scoreboard .baseball-field-lines,
+    .court-card.hockey-scoreboard .football-field-lines { display: none; }
+    .court-card.hockey-scoreboard .hockey-rink-lines { display: block; }
+    .court-card.hockey-scoreboard .court-score {
+      border-color: rgba(215, 232, 244, .45);
+      background: rgba(16, 25, 38, .94);
+    }
+
+    .court-score {
+      position: relative;
+      z-index: 1;
+      width: min(680px, calc(100% - 28px));
+      padding: 22px;
+      border: 1px solid rgba(255, 255, 255, .16);
+      border-radius: 12px;
+      background: rgba(16, 21, 34, .94);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .28);
+      text-align: center;
+    }
+
+    .team-score { flex: 1; min-width: 0; flex-direction: column; }
+    .team-score img { width: 52px; height: 52px; object-fit: contain; }
+    .team-name { font-weight: 650; }
+    .score {
+      font-size: clamp(2.2rem, 8vw, 4rem);
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.15;
+    }
+    .game-clock { min-width: 112px; }
+    .game-clock strong { display: block; font-size: 1.15rem; }
+    .game-clock span { color: #aab3c5; font-size: .85rem; }
+    .court-note { margin: 10px 0 0; font-size: .85rem; }
+
+    .section-heading { align-items: baseline; margin-bottom: 12px; }
+    h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2rem); }
+    h2 { margin: 0; font-size: 1.2rem; }
+    .updates { display: grid; gap: 8px; padding: 0; list-style: none; }
+    .updates li {
+      padding: 10px 12px;
+      border-left: 3px solid #7c9cff;
+      border-radius: 0 7px 7px 0;
+      background: #242e40;
+    }
+    .updates li.team-colored, .play-item.team-colored {
+      border-left: 3px solid var(--team-accent);
+      background: color-mix(in srgb, var(--team-accent) 15%, #172331);
+    }
+    .update-team, .play-team {
+      display: inline-block;
+      margin-right: 7px;
+      color: color-mix(in srgb, var(--team-accent) 48%, white);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #ffb6bd;
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff6977;
+      box-shadow: 0 0 0 4px rgba(255, 105, 119, .14);
+    }
+
+    .leader-grid, .lineup-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+
+    .team-panel {
+      min-width: 0;
+      padding: 14px;
+      border: 1px solid #30394a;
+      border-radius: 9px;
+      background: #202a3a;
+    }
+
+    .team-panel h3 { margin: 0 0 10px; }
+    .leader-row, .lineup-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 7px 0;
+      border-bottom: 1px solid #354054;
+    }
+
+    .leader-row:last-child, .lineup-row:last-child { border-bottom: 0; }
+    .leader-value { color: #9ee6bb; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .lineup-player { min-width: 0; }
+    .lineup-player strong { display: block; }
+    .lineup-player span { color: #aab3c5; font-size: .8rem; }
+
+    .play-list { display: grid; gap: 8px; padding: 0; list-style: none; }
+    .play-item {
+      display: grid;
+      grid-template-columns: 90px auto minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 8px 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #242e40;
+    }
+
+    .play-clock { color: #bdcaff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .play-text { min-width: 0; }
+    .play-score { color: #aab3c5; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .play-item.scoring { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team-accent, #9ee6bb) 32%, transparent); }
+    .stats-note { margin: -4px 0 12px; font-size: .85rem; }
+    button {
+      border: 1px solid #46516a;
+      border-radius: 7px;
+      padding: 9px 12px;
+      background: #1a2130;
+      color: inherit;
+      font: inherit;
+    }
+    button:disabled { opacity: .6; cursor: wait; }
+    button { cursor: pointer; }
+    .period-table, .player-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .period-table th, .period-table td,
+    .player-table th, .player-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #30394a;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .period-table th:first-child, .period-table td:first-child,
+    .player-table th:first-child, .player-table td:first-child {
+      position: sticky;
+      left: 0;
+      background: #1a2130;
+      text-align: left;
+    }
+
+    .table-scroll { overflow-x: auto; }
+    .team-boxscore { margin-top: 20px; }
+    .team-boxscore h3 { margin: 0 0 8px; }
+    .player-table { font-size: .9rem; }
+    #error { color: #ffaaaa; }
+    #loading { min-height: 1.5em; }
+
+    body {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 24px 64px;
+      background: radial-gradient(ellipse at 82% 0%, rgba(48, 101, 111, .14), transparent 34rem), #0b1019;
+    }
+
+    a { color: #76e0bd; }
+    .topbar { padding-bottom: 16px; border-bottom: 1px solid rgba(145, 161, 179, .16); }
+    .topbar a { font-weight: 700; }
+    .muted, .game-meta, .game-clock span, .lineup-player span { color: #91a1b3; }
+    .court-card, .panel {
+      border-color: #29394a;
+      border-radius: 15px;
+      background: linear-gradient(145deg, rgba(20, 31, 44, .98), rgba(15, 23, 34, .98));
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .16);
+    }
+
+    .panel { padding: 20px; }
+    .team-panel { border-color: #2d3e50; border-radius: 11px; background: #172331; }
+    .updates li:not(.team-colored), .play-item:not(.team-colored) { background: #172331; }
+    a { color: #c3a7ff; }
+    .updates li:not(.team-colored) { border-left-color: #b996ff; }
+    .leader-value { color: #c3a7ff; }
+    .live-badge { color: #c3a7ff; }
+    .live-dot { background: #b996ff; box-shadow: 0 0 0 4px rgba(185, 150, 255, .12); }
+    .status { background: #1d2b39; color: #d3deea; }
+    .status.live { background: rgba(167, 124, 255, .16); color: #d3baff; }
+    .status.final { background: #213f35; color: #b7f0cc; }
+    .play-clock { color: #c3a7ff; }
+    button {
+      border: 1px solid rgba(195, 167, 255, .25);
+      background: rgba(167, 124, 255, .16);
+      color: #e0d1ff;
+      font-weight: 750;
+    }
+
+    button:hover:not(:disabled) { background: rgba(167, 124, 255, .27); }
+
+    /* Match the main dashboard's charcoal and lime theme. */
+    html { scroll-behavior: smooth; background: #0b0e0c; }
+    body {
+      max-width: 1680px;
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 0 25px 42px;
+      background:
+        radial-gradient(ellipse at 53% 34%, rgba(116, 95, 74, .24), transparent 34rem),
+        radial-gradient(ellipse at 15% 84%, rgba(92, 113, 58, .12), transparent 34rem),
+        linear-gradient(180deg, #171714 0%, #101310 50%, #0b0e0c 100%);
+      background-attachment: fixed;
+    }
+    body > :not(.topbar):not(iframe):not(script) { max-width: 1180px; margin-left: auto; margin-right: auto; }
+    a { color: #c9ef5b; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      min-height: 76px;
+      margin: 0 -25px 20px;
+      padding: 0 25px;
+      border-bottom: 1px solid rgba(225, 233, 229, .09);
+      background: rgba(18, 19, 17, .74);
+      backdrop-filter: blur(22px);
+    }
+    .topbar #refresh { margin-right: 54px; }
+    .muted, .game-meta, .game-clock span, .lineup-player span, .play-score { color: #a6aea5; }
+    .court-card, .panel, .team-panel {
+      border-color: rgba(225, 233, 229, .11);
+      background: linear-gradient(145deg, rgba(22, 25, 21, .96), rgba(14, 17, 15, .96));
+      box-shadow: 0 16px 36px rgba(0, 0, 0, .15);
+    }
+    .team-panel { background: rgba(26, 30, 25, .86); }
+    .updates li:not(.team-colored), .play-item:not(.team-colored) { background: rgba(26, 30, 25, .86); }
+    .updates li:not(.team-colored) { border-left-color: #c9ef5b; }
+    .leader-value, .play-clock, .live-badge { color: #d7ed9f; }
+    .live-dot { background: #d84c50; box-shadow: 0 0 0 4px rgba(216, 76, 80, .12); }
+    .status { background: rgba(255, 255, 255, .07); color: #d6dccf; }
+    .status.live { background: rgba(216, 76, 80, .18); color: #ffb6b9; }
+    .status.final { background: rgba(201, 239, 91, .12); color: #d7ed9f; }
+    button {
+      border: 1px solid rgba(201, 239, 91, .23);
+      background: rgba(201, 239, 91, .12);
+      color: #e2f5b1;
+    }
+    button:hover:not(:disabled) { background: rgba(201, 239, 91, .2); }
+    select, input { border-color: rgba(225, 233, 229, .12); background: #151915; }
+    .period-table th:first-child, .period-table td:first-child,
+    .player-table th:first-child, .player-table td:first-child { background: #121512; }
+    .period-table th, .period-table td,
+    .player-table th, .player-table td { border-bottom-color: rgba(225, 233, 229, .09); }
+    .period-table th:first-child, .period-table td:first-child,
+    .player-table th:first-child, .player-table td:first-child { background: #141f2c; }
+    .period-table th, .period-table td,
+    .player-table th, .player-table td { border-bottom-color: #29394a; }
+
+    @media (max-width: 600px) {
+      body { padding: 18px 12px 44px; }
+      .court { min-height: 230px; }
+      .court-score { padding: 14px 8px; }
+      .team-score img { width: 38px; height: 38px; }
+      .game-clock { min-width: 88px; }
+      .court-card, .panel { padding: 12px; }
+    }
+    html[data-theme="light"] { filter: invert(1) hue-rotate(180deg); background: #111; }
+    html[data-theme="light"] img, html[data-theme="light"] video, html[data-theme="light"] iframe { filter: invert(1) hue-rotate(180deg); }
+    .site-footer { margin: 28px auto 0; max-width: 1100px; padding: 16px 16px 24px; border-top: 1px solid rgba(145,161,179,.16); color: #8f9bb0; font-size: .74rem; line-height: 1.5; }
+    .site-footer p { margin: 0 0 6px; }
+    .site-footer a { color: #c9ef5b; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a href="/">← Back to games</a>
+    <button id="refresh" type="button">Refresh game</button>
+  </div>
+
+  <h1 id="title">Live Game Tracker</h1>
+  <div class="game-meta">
+    <span id="venue">Loading venue…</span>
+    <span id="status" class="status">Loading</span>
+  </div>
+  <div id="loading" class="muted" role="status" aria-live="polite">
+    Loading live game data…
+  </div>
+  <p id="error" role="alert"></p>
+
+  <section class="court-card" aria-label="Live game scoreboard">
+    <div class="court">
+      <svg class="basketball-court-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="4" y="4" width="892" height="372" rx="3"></rect>
+        <line x1="450" y1="4" x2="450" y2="376"></line>
+        <circle cx="450" cy="190" r="62"></circle>
+        <rect x="4" y="110" width="165" height="160"></rect>
+        <rect x="731" y="110" width="165" height="160"></rect>
+        <path d="M169 86 A120 120 0 0 1 169 294"></path>
+        <path d="M731 86 A120 120 0 0 0 731 294"></path>
+        <circle cx="74" cy="190" r="9"></circle>
+        <circle cx="826" cy="190" r="9"></circle>
+      </svg>
+      <svg class="baseball-field-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="4" y="4" width="892" height="372" rx="3"></rect>
+        <path d="M450 340 L610 215 L450 90 L290 215 Z"></path>
+        <path d="M450 340 L450 220 L610 215 M450 220 L290 215"></path>
+        <circle cx="450" cy="220" r="12"></circle>
+        <rect x="443" y="333" width="14" height="14" transform="rotate(45 450 340)"></rect>
+        <rect x="603" y="208" width="14" height="14" transform="rotate(45 610 215)"></rect>
+        <rect x="443" y="83" width="14" height="14" transform="rotate(45 450 90)"></rect>
+        <rect x="283" y="208" width="14" height="14" transform="rotate(45 290 215)"></rect>
+      </svg>
+      <svg class="football-field-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="4" y="4" width="892" height="372" rx="3"></rect>
+        <line x1="94" y1="5" x2="94" y2="375"></line>
+        <line x1="183" y1="5" x2="183" y2="375"></line>
+        <line x1="272" y1="5" x2="272" y2="375"></line>
+        <line x1="361" y1="5" x2="361" y2="375"></line>
+        <line x1="450" y1="5" x2="450" y2="375"></line>
+        <line x1="539" y1="5" x2="539" y2="375"></line>
+        <line x1="628" y1="5" x2="628" y2="375"></line>
+        <line x1="717" y1="5" x2="717" y2="375"></line>
+        <line x1="806" y1="5" x2="806" y2="375"></line>
+        <path d="M92 150h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12"></path>
+        <path d="M94 110v160m712-160v160"></path>
+      </svg>
+      <svg class="hockey-rink-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="4" y="4" width="892" height="372" rx="3"></rect>
+        <line x1="290" y1="5" x2="290" y2="375"></line>
+        <line x1="610" y1="5" x2="610" y2="375"></line>
+        <line x1="450" y1="5" x2="450" y2="375"></line>
+        <circle cx="450" cy="190" r="52"></circle>
+        <circle cx="170" cy="100" r="38"></circle>
+        <circle cx="170" cy="280" r="38"></circle>
+        <circle cx="730" cy="100" r="38"></circle>
+        <circle cx="730" cy="280" r="38"></circle>
+        <path d="M55 120 A75 75 0 0 1 55 260 M845 120 A75 75 0 0 0 845 260"></path>
+        <circle cx="170" cy="100" r="3" fill="currentColor"></circle>
+        <circle cx="170" cy="280" r="3" fill="currentColor"></circle>
+        <circle cx="730" cy="100" r="3" fill="currentColor"></circle>
+        <circle cx="730" cy="280" r="3" fill="currentColor"></circle>
+      </svg>
+      <div class="court-score">
+        <div class="team-score">
+          <img id="away-logo" alt="" hidden>
+          <span id="away-name" class="team-name">Away</span>
+          <span id="away-score" class="score">—</span>
+        </div>
+        <div class="game-clock">
+          <strong id="clock">—</strong>
+          <span id="period">Waiting for game</span>
+        </div>
+        <div class="team-score">
+          <img id="home-logo" alt="" hidden>
+          <span id="home-name" class="team-name">Home</span>
+          <span id="home-score" class="score">—</span>
+        </div>
+      </div>
+    </div>
+    <p class="court-note muted">
+      Live scoreboard—not a video stream.
+      Live scoreboard data is provided by ESPN and refreshes about every 15 seconds.
+    </p>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <h2>Latest game updates</h2>
+      <span id="updated-at" class="muted"></span>
+    </div>
+    <ul id="updates" class="updates" aria-live="polite"></ul>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading">
+      <h2>Play-by-play</h2>
+      <span class="muted">Most recent plays</span>
+    </div>
+    <ul id="play-by-play" class="play-list" aria-live="polite"></ul>
+  </section>
+
+  <section id="leaders-panel" class="panel">
+    <div class="section-heading">
+      <h2>Game leaders</h2>
+      <span class="muted">Points · rebounds · assists</span>
+    </div>
+    <div id="leaders" class="leader-grid"></div>
+  </section>
+
+  <section id="on-court-panel" class="panel">
+    <div class="section-heading">
+      <h2 id="game-situation-title">On the court</h2>
+      <span id="game-situation-note" class="muted">Players currently reported active</span>
+    </div>
+    <div id="on-court" class="lineup-grid"></div>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading"><h2>Score by period</h2></div>
+    <div class="table-scroll">
+      <table class="period-table">
+        <thead id="period-head"></thead>
+        <tbody id="period-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="player-stats-panel" class="panel">
+    <div class="section-heading">
+      <h2>Player stats</h2>
+      <span class="muted">Box score</span>
+    </div>
+    <p class="stats-note muted">Stats are refreshed from ESPN with the scoreboard. Players off court remain listed in their team’s box score.</p>
+    <div id="player-stats"></div>
+  </section>
+
+  <script>
+    const query = new URLSearchParams(location.search);
+    const game = {
+      sport: query.get("sport") || "",
+      date: query.get("date") || "",
+      home: query.get("home") || "",
+      away: query.get("away") || ""
+    };
+    const refreshButton = document.querySelector("#refresh");
+    const loading = document.querySelector("#loading");
+    const errorElement = document.querySelector("#error");
+    const updatesElement = document.querySelector("#updates");
+    let previousSnapshot = null;
+    let updateMessages = [];
+    let updateTeamsBySide = {};
+    let knownPlayIds = new Set();
+    let playUpdatesInitialized = false;
+    let isLoading = false;
+
+    function element(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function setTeamColor(node, teamSide) {
+      const team = updateTeamsBySide[teamSide];
+      if (!team) return false;
+      const color = String(team.color || "").replace(/^#/, "");
+      if (!/^[\da-f]{6}$/i.test(color)) return false;
+      node.classList.add("team-colored");
+      node.style.setProperty("--team-accent", `#${color}`);
+      node.dataset.teamSide = teamSide;
+      return true;
+    }
+
+    function addUpdate(message, teamSide = "") {
+      const team = updateTeamsBySide[teamSide];
+      updateMessages.unshift({
+        message,
+        teamSide: team ? teamSide : "",
+        at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })
+      });
+      updateMessages = updateMessages.slice(0, 8);
+      updatesElement.replaceChildren();
+      for (const update of updateMessages) {
+        const item = element("li", update.teamSide ? "team-colored" : "");
+        const team = updateTeamsBySide[update.teamSide];
+        if (team && setTeamColor(item, update.teamSide)) {
+          item.append(element("span", "update-team", team.abbreviation || team.name));
+        }
+        item.append(element("span", "", update.message));
+        item.append(element("span", "muted", ` — ${update.at}`));
+        updatesElement.append(item);
+      }
+    }
+
+    async function getGameData() {
+      const params = new URLSearchParams(game);
+      const response = await fetch(`/api/live-game?${params}`);
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(body?.error || `Game data request failed (${response.status}).`);
+      }
+      return body;
+    }
+
+    let activeSport = game.sport;
+
+    function renderScoreboard(data) {
+      const home = data.teams.find(team => team.homeAway === "home");
+      const away = data.teams.find(team => team.homeAway === "away");
+      if (!home || !away) throw new Error("The scoreboard did not include both teams.");
+
+      activeSport = data.sport || game.sport;
+      const sportTitle = data.sportTitle || "NBA";
+      const isBaseball = activeSport === "baseball_mlb";
+      const isHockey = activeSport === "icehockey_nhl";
+      const isFootball = activeSport === "americanfootball_nfl" ||
+        activeSport === "americanfootball_ncaaf";
+      updateTeamsBySide = {
+        home: home,
+        away
+      };
+      document.title = `${away.name} at ${home.name} — ${sportTitle} Live Tracker`;
+      document.querySelector("#title").textContent = `${away.name} at ${home.name}`;
+      document.querySelector(".court-card").classList.toggle("baseball-scoreboard", isBaseball);
+      document.querySelector(".court-card").classList.toggle("football-scoreboard", isFootball);
+      document.querySelector(".court-card").classList.toggle("hockey-scoreboard", isHockey);
+      document.querySelector(".court-card").setAttribute(
+        "aria-label",
+        isBaseball
+          ? "Baseball diamond scoreboard"
+          : isFootball
+            ? "Football field scoreboard"
+            : isHockey
+              ? "Hockey rink scoreboard"
+            : `${sportTitle} scoreboard`
+      );
+      document.querySelector("#period-head").closest("section").querySelector("h2").textContent =
+        isBaseball ? "Score by inning" : isHockey ? "Score by period" : "Score by quarter";
+      document.querySelector("#on-court-panel").hidden = false;
+      document.querySelector("#leaders-panel").hidden = false;
+      document.querySelector("#leaders-panel").querySelector("h2").textContent =
+        isBaseball ? "Team batting & pitching leaders" : "Game leaders";
+      document.querySelector("#leaders-panel").querySelector(".muted").textContent =
+        isFootball
+          ? "Passing · rushing · receiving"
+          : isHockey
+            ? "Goals · assists · points"
+            : isBaseball
+              ? "Hits · home runs · RBI · pitching"
+            : "Points · rebounds · assists";
+      document.querySelector("#game-situation-title").textContent = isFootball
+        ? "Current drive & key players"
+        : isHockey
+          ? "Key players & goalies"
+          : isBaseball
+            ? "At-bat situation"
+            : "On the court";
+      document.querySelector("#game-situation-note").textContent = isFootball
+        ? "Possession and drive details"
+        : isHockey
+          ? "Ice time, scoring, and goaltending"
+          : isBaseball
+            ? "Current count, batter, and pitcher"
+            : "Players currently reported active";
+      document.querySelector("#player-stats-panel").querySelector(".stats-note").textContent =
+        isBaseball
+          ? "Batting and pitching box scores are refreshed with the scoreboard."
+          : isFootball
+            ? "Passing, rushing, receiving, and defensive box-score categories are refreshed with the scoreboard."
+            : isHockey
+              ? "Skater and goalie box scores are refreshed with the scoreboard."
+              : "Stats are refreshed from ESPN with the scoreboard. Players off court remain listed in their team’s box score.";
+      document.querySelector("#venue").textContent = data.venue || "Venue unavailable";
+      document.querySelector("#status").textContent = data.status;
+      document.querySelector("#away-name").textContent = away.name;
+      document.querySelector("#home-name").textContent = home.name;
+      document.querySelector("#away-score").textContent = data.state === "pre" ? "—" : away.score;
+      document.querySelector("#home-score").textContent = data.state === "pre" ? "—" : home.score;
+      document.querySelector("#clock").textContent =
+        isBaseball
+          ? (data.state === "in" ? data.periodLabel || data.status : data.status)
+          : data.state === "in" && data.clock
+            ? data.clock
+            : data.status;
+      document.querySelector("#period").textContent = isBaseball
+        ? (data.state === "post"
+          ? "Final"
+          : data.period
+            ? `Inning ${data.period}`
+            : data.state === "pre"
+              ? "First pitch pending"
+              : "Baseball")
+        : isHockey
+          ? (data.state === "post"
+            ? "Final"
+            : data.state === "pre"
+              ? "Puck drop pending"
+              : data.periodLabel?.toLowerCase().includes("shootout")
+                ? "Shootout"
+                : data.period > 3
+                  ? `Overtime ${data.period - 3}`
+                  : data.period
+                    ? `Period ${data.period}`
+                    : "Hockey")
+        : data.state === "post"
+          ? "Final"
+        : data.period
+          ? `Quarter ${data.period}`
+          : data.state === "pre"
+            ? isFootball ? "Kickoff pending" : "Tipoff pending"
+            : "Game clock";
+      document.querySelector("#status").classList.toggle("scheduled", data.state === "pre");
+      document.querySelector("#status").classList.toggle("final", data.state === "post");
+      document.querySelector("#status").classList.toggle("live", data.state === "in");
+      document.querySelector(".game-clock").classList.toggle("live", data.state === "in");
+
+      for (const [side, team] of [["away", away], ["home", home]]) {
+        const logo = document.querySelector(`#${side}-logo`);
+        if (team.logo) {
+          logo.src = team.logo;
+          logo.alt = `${team.name} logo`;
+          logo.hidden = false;
+        } else {
+          logo.hidden = true;
+        }
+      }
+
+      renderPeriods([away, home]);
+      renderLeaders([away, home]);
+      if (isFootball) renderDrive(data.drive, [away, home]);
+      else if (isHockey) renderGoalies([away, home]);
+      else if (isBaseball) renderBaseballSituation(data.situation, [away, home], data.state);
+      else renderOnCourt([away, home], data.state);
+      renderPlayByPlay(data.plays || [], data.state);
+      renderPlayerStats([away, home]);
+      document.querySelector("#updated-at").textContent =
+        `Updated ${new Date(data.updatedAt).toLocaleTimeString()}`;
+      loading.textContent = "";
+
+      const score = `${away.name} ${away.score}, ${home.name} ${home.score}`;
+      if (!previousSnapshot) {
+        addUpdate(data.state === "pre"
+          ? `Scheduled at ${new Date(data.date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
+          : `${data.status}. Current score: ${score}.`);
+        const latestPlay = (data.plays || [])[0];
+        if (latestPlay?.teamSide) {
+          addUpdate(
+            `${latestPlay.period}${latestPlay.clock ? `, ${latestPlay.clock}` : ""}: ${latestPlay.text}`,
+            latestPlay.teamSide
+          );
+        }
+      } else {
+        const changedScores = [
+          ["away", away, previousSnapshot.awayScore],
+          ["home", home, previousSnapshot.homeScore]
+        ].filter(([, team, previousScore]) => Number(team.score) > Number(previousScore));
+        if (score !== previousSnapshot.score) {
+          for (const [side, team] of changedScores) {
+            addUpdate(`Score update: ${team.name} now has ${team.score}.`, side);
+          }
+          if (!changedScores.length) addUpdate(`Score update: ${score}.`);
+        }
+        if (data.state !== previousSnapshot.state) {
+          addUpdate(`Game status: ${data.status}.`);
+        } else if (data.period !== previousSnapshot.period) {
+          addUpdate(`${isBaseball ? "Inning" : isHockey ? "Period" : "Quarter"} ${data.period} started.`);
+        }
+        const driveKey = data.drive
+          ? `${data.drive.team || ""}:${data.drive.plays || 0}:${data.drive.yards || 0}`
+          : "";
+        if (isFootball && data.drive && driveKey !== previousSnapshot.driveKey) {
+          addUpdate(
+            data.drive.team
+              ? `${data.drive.team} possession: ${data.drive.description || "Drive in progress"}.`
+              : "Football possession updated."
+          );
+        }
+      }
+      previousSnapshot = {
+        score,
+        awayScore: Number(away.score),
+        homeScore: Number(home.score),
+        status: data.status,
+        state: data.state,
+        period: data.period,
+        driveKey: data.drive
+          ? `${data.drive.team || ""}:${data.drive.plays || 0}:${data.drive.yards || 0}`
+          : ""
+      };
+      const newPlays = (data.plays || []).filter(play => play.id && !knownPlayIds.has(play.id));
+      if (playUpdatesInitialized) {
+        for (const play of newPlays.reverse()) {
+          addUpdate(
+            `${play.period}${play.clock ? `, ${play.clock}` : ""}: ${play.text}`,
+            play.teamSide
+          );
+        }
+      }
+      knownPlayIds = new Set((data.plays || []).map(play => play.id).filter(Boolean));
+      playUpdatesInitialized = true;
+    }
+
+    function renderDrive(drive, teams) {
+      const container = document.querySelector("#on-court");
+      container.replaceChildren();
+      const panel = element("section", "team-panel");
+      if (!drive) {
+        panel.append(element("p", "muted", "Drive information is not available yet."));
+      } else {
+        panel.append(element("h3", "", drive.team || "Possession"));
+        panel.append(element(
+          "div",
+          "leader-row",
+          `${drive.description || "Drive in progress"}${drive.start ? ` · Started at ${drive.start}` : ""}`
+        ));
+        if (drive.plays || drive.yards) {
+          panel.append(element("div", "leader-value", `${drive.plays} plays · ${drive.yards} yards`));
+        }
+      }
+      container.append(panel);
+      for (const team of teams) {
+        const keyPlayers = [
+          ["passing YDS", "Passing"],
+          ["rushing YDS", "Rushing"],
+          ["receiving YDS", "Receiving"],
+          ["defensive TOT", "Tackles"]
+        ].flatMap(([label, category]) => {
+          const candidates = (team.players || []).flatMap(player => {
+            const stat = player.stats.find(item => item.label === label);
+            const value = Number.parseFloat(stat?.value);
+            return Number.isFinite(value) && value > 0
+              ? [{ player, stat, value, category }]
+              : [];
+          });
+          candidates.sort((a, b) => b.value - a.value || a.player.name.localeCompare(b.player.name));
+          return candidates.slice(0, 1);
+        });
+        const teamPanel = element("section", "team-panel");
+        teamPanel.append(element("h3", "", `${team.name} key players`));
+        if (!keyPlayers.length) {
+          teamPanel.append(element("p", "muted", "Player impact stats are not available yet."));
+        } else {
+          for (const item of keyPlayers) {
+            teamPanel.append(element(
+              "div",
+              "leader-row",
+              `${item.category}: ${item.player.name} · ${item.stat.value}`
+            ));
+          }
+        }
+        container.append(teamPanel);
+      }
+    }
+
+    function renderGoalies(teams) {
+      const container = document.querySelector("#on-court");
+      container.replaceChildren();
+      for (const team of teams) {
+        const panel = element("section", "team-panel");
+        panel.append(element("h3", "", `${team.name} skaters`));
+        const skaters = (team.players || [])
+          .filter(player => player.position !== "G")
+          .map(player => {
+            const stats = new Map((player.stats || []).map(stat => [stat.label, stat.value]));
+            const [minutes = 0, seconds = 0] = String(stats.get("TOI") || "0:00")
+              .split(":")
+              .map(Number);
+            return { player, stats, iceTime: minutes * 60 + seconds };
+          })
+          .sort((a, b) =>
+            b.iceTime - a.iceTime ||
+            Number(b.stats.get("G") || 0) - Number(a.stats.get("G") || 0)
+          )
+          .slice(0, 3);
+        if (!skaters.length) {
+          panel.append(element("p", "muted", "Skater stats are not available yet."));
+        } else {
+          for (const { player, stats } of skaters) {
+            panel.append(element("div", "leader-row",
+              `${player.name} · ${stats.get("TOI") || "—"} TOI · ${stats.get("G") || "0"} G · ${stats.get("A") || "0"} A · ${stats.get("SOG") || "0"} SOG`
+            ));
+          }
+        }
+        panel.append(element("h3", "", `${team.name} goalies`));
+        const goalies = (team.players || []).filter(player => player.position === "G");
+        if (!goalies.length) {
+          panel.append(element("p", "muted", "Goaltender stats are not available yet."));
+        } else {
+          for (const goalie of goalies) {
+            const stats = new Map((goalie.stats || []).map(stat => [stat.label, stat.value]));
+            panel.append(element("strong", "", goalie.name));
+            panel.append(element(
+              "div",
+              "leader-row",
+              `Saves ${stats.get("SV") || "—"} · ${stats.get("SV%") || "—"} SV% · ${stats.get("GA") || "—"} goals against`
+            ));
+            panel.append(element(
+              "div",
+              "muted",
+              `${stats.get("TOI") || "—"} time on ice · ${stats.get("SA") || "—"} shots against`
+            ));
+          }
+        }
+        container.append(panel);
+      }
+    }
+
+    function renderBaseballSituation(situation, teams, state) {
+      const container = document.querySelector("#on-court");
+      container.replaceChildren();
+      const players = teams.flatMap(team => team.players || []);
+      const findPlayer = id => players.find(player => player.id === String(id));
+      const batter = situation?.batterId ? findPlayer(situation.batterId) : null;
+      const pitcher = situation?.pitcherId ? findPlayer(situation.pitcherId) : null;
+      const panel = element("section", "team-panel");
+      if (state === "pre") {
+        panel.append(element("p", "muted", "At-bat details will appear when the game begins."));
+      } else if (!situation) {
+        panel.append(element("p", "muted", "Live count and batter details are not available yet."));
+      } else if (!batter && !pitcher) {
+        panel.append(element("p", "muted", "Batter and pitcher details are not posted at this moment."));
+      } else {
+        panel.append(element(
+          "div",
+          "leader-row",
+          `Count: ${situation.balls ?? "—"} balls · ${situation.strikes ?? "—"} strikes · ${situation.outs ?? "—"} outs`
+        ));
+        panel.append(element(
+          "div",
+          "leader-row",
+          `Batter: ${batter?.name || "Not posted"}${batter?.position ? ` (${batter.position})` : ""}`
+        ));
+        panel.append(element(
+          "div",
+          "leader-row",
+          `Pitcher: ${pitcher?.name || "Not posted"}${pitcher?.position ? ` (${pitcher.position})` : ""}`
+        ));
+      }
+      container.append(panel);
+    }
+
+    function renderLeaders(teams) {
+      const container = document.querySelector("#leaders");
+      container.replaceChildren();
+      for (const team of teams) {
+        const panel = element("section", "team-panel");
+        panel.append(element("h3", "", team.name));
+        const leaders = team.leaders || [];
+        if (!leaders.length) {
+          panel.append(element("p", "muted", "Leaders will appear when stats are available."));
+        } else {
+          for (const leader of leaders) {
+            const row = element("div", "leader-row");
+            row.append(element("span", "", `${leader.category}: ${leader.player}`));
+            row.append(element("span", "leader-value", leader.value));
+            panel.append(row);
+          }
+        }
+        container.append(panel);
+      }
+    }
+
+    function renderOnCourt(teams, state) {
+      const container = document.querySelector("#on-court");
+      container.replaceChildren();
+      for (const team of teams) {
+        const panel = element("section", "team-panel");
+        panel.append(element("h3", "", team.name));
+        const players = team.players || [];
+        const activePlayers = state === "in"
+          ? players.filter(player => player.onCourt)
+          : [];
+
+        if (!activePlayers.length) {
+          panel.append(element(
+            "p",
+            "muted",
+            state === "pre"
+              ? "Lineups appear when ESPN reports players active during the game."
+              : state === "post"
+                ? "The game is final; no active lineup is shown."
+                : "ESPN has not reported an active lineup for this game yet."
+          ));
+        } else {
+          for (const player of activePlayers) {
+            const row = element("div", "lineup-row");
+            const identity = element("span", "lineup-player");
+            identity.append(element("strong", "", player.name));
+            identity.append(element("span", "", player.position || "On court"));
+            const stat = label => player.stats.find(item => item.label === label)?.value || "0";
+            row.append(identity);
+            row.append(element("span", "leader-value", `${stat("PTS")} PTS · ${stat("REB")} REB · ${stat("AST")} AST`));
+            panel.append(row);
+          }
+        }
+        container.append(panel);
+      }
+    }
+
+    function renderPlayByPlay(plays, state) {
+      const list = document.querySelector("#play-by-play");
+      list.replaceChildren();
+      if (!plays.length) {
+        const message = state === "pre"
+          ? "Play-by-play will appear when the game begins."
+          : "ESPN has not posted play-by-play for this game yet.";
+        list.append(element("li", "muted", message));
+        return;
+      }
+
+      for (const play of plays) {
+        const teamSide = play.teamSide ||
+          (play.teamId && Object.values(updateTeamsBySide).find(team => team.id === play.teamId)
+            ? Object.entries(updateTeamsBySide).find(([, team]) => team.id === play.teamId)?.[0]
+            : "");
+        const row = element(
+          "li",
+          `play-item${play.scoring ? " scoring" : ""}${teamSide ? " team-colored" : ""}`
+        );
+        if (teamSide) setTeamColor(row, teamSide);
+        row.append(element("span", "play-clock", `${play.period}${play.clock ? ` · ${play.clock}` : ""}`));
+        const team = updateTeamsBySide[teamSide];
+        row.append(element("span", "play-team", team?.abbreviation || ""));
+        row.append(element("span", "play-text", play.text));
+        row.append(element("span", "play-score",
+          play.awayScore === null || play.homeScore === null
+            ? ""
+            : `${play.awayScore}–${play.homeScore}`
+        ));
+        list.append(row);
+      }
+    }
+
+    function renderPeriods(teams) {
+      const maxPeriods = Math.max(0, ...teams.map(team => team.linescores.length));
+      const head = document.querySelector("#period-head");
+      const body = document.querySelector("#period-body");
+      head.replaceChildren();
+      body.replaceChildren();
+      if (maxPeriods === 0) {
+        const row = element("tr");
+        row.append(element("td", "muted", "Period scores will appear when the game begins."));
+        body.append(row);
+        return;
+      }
+
+      const headerRow = element("tr");
+      headerRow.append(element("th", "", "Team"));
+      for (let period = 0; period < maxPeriods; period++) {
+        const label = activeSport === "baseball_mlb"
+          ? `${period + 1}`
+          : activeSport === "icehockey_nhl"
+            ? ["P1", "P2", "P3", "OT", "SO"][period] || `OT${period - 2}`
+            : `Q${period + 1}`;
+        headerRow.append(element("th", "", label));
+      }
+      headerRow.append(element("th", "", activeSport === "baseball_mlb" ? "R" : "Total"));
+      head.append(headerRow);
+
+      for (const team of teams) {
+        const row = element("tr");
+        row.append(element("th", "", team.name));
+        for (let period = 0; period < maxPeriods; period++) {
+          row.append(element("td", "", team.linescores[period] ?? "—"));
+        }
+        row.append(element("td", "", team.score));
+        body.append(row);
+      }
+    }
+
+    function renderPlayerStats(teams) {
+      const container = document.querySelector("#player-stats");
+      container.replaceChildren();
+      const availableTeams = teams.filter(team => (team.players || []).length);
+      if (!availableTeams.length) {
+        container.append(element(
+          "p",
+          "muted",
+          "Player box scores are not available yet. Stats usually appear once ESPN posts the game box score."
+        ));
+        return;
+      }
+
+      for (const team of availableTeams) {
+        const teamPlayers = team.players || [];
+        const section = element("section", "team-boxscore");
+        section.append(element("h3", "", team.name));
+        const scroll = element("div", "table-scroll");
+        const table = element("table", "player-table");
+        const labels = [...new Set(
+          teamPlayers.flatMap(player => (player.stats || []).map(stat => stat.label))
+        )];
+        const header = element("tr");
+        header.append(element("th", "", "Player"));
+        const hockeyLabels = {
+          BS: "Blocks",
+          HT: "Hits",
+          TK: "Takeaways",
+          "+/-": "+/-",
+          TOI: "Time on ice",
+          PPTOI: "Power-play TOI",
+          SHTOI: "Shorthanded TOI",
+          ESTOI: "Even-strength TOI",
+          SHFT: "Shifts",
+          G: "Goals",
+          YTDG: "Season goals",
+          A: "Assists",
+          S: "Shots",
+          SM: "Missed shots",
+          SOG: "Shots on goal",
+          FW: "Faceoffs won",
+          FL: "Faceoffs lost",
+          "FO%": "Faceoff %",
+          GV: "Giveaways",
+          PN: "Penalties",
+          PIM: "Penalty minutes",
+          GA: "Goals against",
+          SA: "Shots against",
+          SV: "Saves",
+          "SV%": "Save %",
+          ESSV: "Even-strength saves",
+          PPSV: "Power-play saves",
+          SHSV: "Shorthanded saves"
+        };
+        const baseballLabels = {
+          "Batting H-AB": "Batting H-AB",
+          "Batting AB": "At-bats",
+          "Batting R": "Runs",
+          "Batting H": "Hits",
+          "Batting RBI": "RBI",
+          "Batting HR": "Home runs",
+          "Batting BB": "Walks",
+          "Batting K": "Strikeouts",
+          "Batting #P": "Pitches seen",
+          "Batting AVG": "Average",
+          "Batting OBP": "On-base %",
+          "Batting SLG": "Slugging %",
+          "Pitching IP": "Innings pitched",
+          "Pitching H": "Hits allowed",
+          "Pitching R": "Runs allowed",
+          "Pitching ER": "Earned runs",
+          "Pitching BB": "Walks allowed",
+          "Pitching K": "Strikeouts",
+          "Pitching HR": "Home runs allowed",
+          "Pitching PC-ST": "Pitches (strikes)",
+          "Pitching ERA": "ERA",
+          "Pitching PC": "Pitch count"
+        };
+        for (const label of labels) {
+          const displayLabel = activeSport === "icehockey_nhl"
+            ? hockeyLabels[label] || label
+            : activeSport === "baseball_mlb"
+              ? baseballLabels[label] || label
+              : label;
+          header.append(element("th", "", displayLabel));
+        }
+        const thead = element("thead");
+        thead.append(header);
+        table.append(thead);
+
+        const tbody = element("tbody");
+        const sortLabel = activeSport === "icehockey_nhl"
+          ? labels.indexOf("G")
+          : activeSport === "baseball_mlb"
+            ? labels.indexOf("Batting H")
+          : activeSport === "americanfootball_nfl" ||
+          activeSport === "americanfootball_ncaaf"
+          ? labels.findIndex(label => /(?:passing|rushing|receiving) yds$/i.test(label))
+          : labels.indexOf("PTS");
+        const sortKey = sortLabel >= 0 ? labels[sortLabel] : "";
+        const players = [...teamPlayers].sort((a, b) => {
+          if (!sortKey) return a.name.localeCompare(b.name);
+          const valueA = Number(a.stats.find(stat => stat.label === sortKey)?.value || 0);
+          const valueB = Number(b.stats.find(stat => stat.label === sortKey)?.value || 0);
+          return valueB - valueA || a.name.localeCompare(b.name);
+        });
+        for (const player of players) {
+          const row = element("tr");
+          const label = player.starter ? `${player.name} (starter)` : player.name;
+          row.append(element("th", "", label));
+          const statsByLabel = new Map((player.stats || []).map(stat => [stat.label, stat.value]));
+          for (const statLabel of labels) {
+            row.append(element("td", "", statsByLabel.get(statLabel) || "—"));
+          }
+          tbody.append(row);
+        }
+        table.append(tbody);
+        scroll.append(table);
+        section.append(scroll);
+        container.append(section);
+      }
+    }
+
+    async function refreshGame() {
+      if (isLoading) return;
+      if (!game.sport || !game.date || !game.home || !game.away) {
+        errorElement.textContent = "This game link is missing matchup details. Go back and open the tracker from a supported NBA, WNBA, NHL, MLB, NFL, or college football game.";
+        loading.textContent = "";
+        return;
+      }
+
+      isLoading = true;
+      refreshButton.disabled = true;
+      errorElement.textContent = "";
+      try {
+        renderScoreboard(await getGameData());
+      } catch (error) {
+        errorElement.textContent = error.message;
+        loading.textContent = "";
+      } finally {
+        isLoading = false;
+        refreshButton.disabled = false;
+      }
+    }
+
+    refreshButton.addEventListener("click", refreshGame);
+    refreshGame();
+    setInterval(() => {
+      if (!document.hidden) refreshGame();
+    }, 15000);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) refreshGame();
+    });
+
+    // Shared live-tracker dock, bell and alerts (the dashboard's own, embedded and click-through
+    // everywhere except over its controls).
+    const trackerFrame = document.createElement("iframe");
+    trackerFrame.src = "/?embed=1";
+    trackerFrame.title = "Live tracker and notifications";
+    trackerFrame.setAttribute("allowtransparency", "true");
+    trackerFrame.style.cssText =
+      "position:fixed;inset:0;width:100%;height:100%;border:0;background:transparent;z-index:1000;clip-path:inset(100%);";
+    document.body.append(trackerFrame);
+    window.addEventListener("message", event => {
+      if (event.origin !== location.origin || event.source !== trackerFrame.contentWindow) return;
+      if (event.data?.type === "courtside-embed-clip" && typeof event.data.clip === "string") {
+        trackerFrame.style.clipPath = event.data.clip;
+      }
+    });
+  </script>
+  <footer class="site-footer">
+    <p><strong>Informational only.</strong> Not betting advice. Must be of legal betting age in your area (18+ or 21+). Gambling involves risk — only wager what you can afford to lose.</p>
+    <p>Need help? Call <a href="tel:18004262537">1-800-GAMBLER</a> or visit <a href="https://www.ncpgambling.org" target="_blank" rel="noopener noreferrer">ncpgambling.org</a>.</p>
+  </footer>
+</body>
+</html>

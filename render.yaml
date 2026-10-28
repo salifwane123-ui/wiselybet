@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: wiselybet
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.mjs
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: SUBSCRIPTIONS_DEMO
+        value: "1"
+      - key: THE_ODDS_API_KEY
+        sync: false
+      - key: FIREBASE_KEY_JSON
+        sync: false
+      - key: FIREBASE_WEB_JSON
+        sync: false
