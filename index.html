@@ -2906,7 +2906,9 @@
         }
 
         const results = document.createDocumentFragment();
+        const maxVisibleLinesPerPlayer = 3;
         for (const [rank, playerGroup] of sortedPlayers.entries()) {
+          const visibleLines = playerGroup.lines.slice(0, maxVisibleLinesPerPlayer);
           const card = element("article", rank === 0 ? "prop-player top-pick" : "prop-player");
           card.dataset.player = playerGroup.player.toLocaleLowerCase();
           const header = element("div", "prop-player-header");
@@ -2924,7 +2926,9 @@
           headerActions.append(element(
             "span",
             "prop-line-count",
-            `${playerGroup.lines.length} ${playerGroup.lines.length === 1 ? "line" : "lines"}`
+            playerGroup.lines.length > visibleLines.length
+              ? `Showing ${visibleLines.length} of ${playerGroup.lines.length} lines`
+              : `${visibleLines.length} ${visibleLines.length === 1 ? "line" : "lines"}`
           ));
           headerActions.append(window.wiselyPremium
             ? createFollowButton(playerGroup.player, sport, eventId)
@@ -2938,7 +2942,7 @@
           card.append(header);
           if (track) card.append(track.form, track.hint);
 
-          for (const line of playerGroup.lines) {
+          for (const line of visibleLines) {
             const row = element("div", "prop-line");
             row.append(element(
               "span",
