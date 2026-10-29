@@ -1046,25 +1046,42 @@
     .track-form select, .track-form input { width: auto; min-width: 0; padding: 5px 8px; font-size: .78rem; }
     .track-form input { width: 70px; }
     .track-form button { padding: 6px 12px; font-size: .76rem; }
-    #tracker-dock { position: fixed; right: 16px; bottom: 16px; z-index: 60; width: min(340px, calc(100vw - 32px)); }
+    #tracker-dock { position: fixed; right: 16px; bottom: 16px; z-index: 60; width: min(920px, calc(100vw - 32px)); }
     #tracker-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 7px 12px; border: 1px solid rgba(118,224,189,.35); border-radius: 10px; background: #12202b; color: #f0eff7; font-size: .76rem; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
     #tracker-toggle .tracker-dots { display: flex; gap: 5px; }
     .tracker-dot { width: 10px; height: 10px; border-radius: 50%; background: #6b7a8c; }
     .tracker-dot.level-hit { background: #3ddc84; box-shadow: 0 0 8px #3ddc84; }
     .tracker-dot.level-close { background: #f5c542; }
     .tracker-dot.level-far { background: #ff5a5a; animation: dot-alarm 1s ease-in-out infinite; }
-    #tracker-panel { max-height: 62vh; margin-bottom: 6px; padding: 6px; overflow-y: auto; border: 1px solid #2d3e50; border-radius: 10px; background: #0f1a24; box-shadow: 0 10px 28px rgba(0,0,0,.5); scrollbar-width: thin; }
+    #tracker-panel { max-height: 72vh; margin-bottom: 6px; padding: 8px; overflow-y: auto; border: 1px solid #2d3e50; border-radius: 10px; background: #0f1a24; box-shadow: 0 10px 28px rgba(0,0,0,.5); scrollbar-width: thin; }
+    .tracker-window-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); align-items: start; gap: 8px; }
+    .tracker-window { min-width: 0; max-height: 58vh; margin: 0; padding: 9px; overflow: auto; border: 1px solid rgba(201,239,91,.3); border-radius: 12px; background: rgba(201,239,91,.035); scrollbar-width: thin; }
+    .tracker-window-enter { animation: tracker-window-enter .32s cubic-bezier(.2,.9,.3,1) both; }
+    .tracker-window-summary { display: flex; align-items: center; gap: 8px; padding: 5px 2px 9px; cursor: pointer; list-style: none; }
+    .tracker-window-summary::-webkit-details-marker { display: none; }
+    .tracker-window-summary::before { content: "+"; color: var(--accent); font-weight: 800; }
+    .tracker-window[open] > .tracker-window-summary::before { content: "-"; }
+    .tracker-window-summary .tracker-parlay-title { min-width: 0; overflow-wrap: anywhere; }
+    .tracker-window-summary .tracker-parlay-badge { flex: 0 0 auto; margin: 0; }
+    .tracker-window-tools { display: flex; justify-content: flex-end; gap: 8px; padding: 0 0 8px; }
+    .tracker-window-tools .tracker-parlay-btn { min-height: 30px; padding: 4px 9px; }
+    .tracker-window-events:empty { display: none; }
+    .tracker-window-events .score-pop { margin-bottom: 10px; }
+    .score-pop-group { color: var(--muted); font-size: .7rem; font-weight: 700; }
+    @keyframes tracker-window-enter { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
     html.embed, html.embed body { background: transparent !important; overflow: hidden; min-height: 0; }
     html.embed body > :not(#tracker-dock):not(#bell-wrap):not(#simulate-alert):not(#toast-stack):not(script) { display: none !important; }
-    html.embed #tracker-dock { right: 24px; bottom: 24px; }
+    html.embed #tracker-dock { right: 24px; bottom: 24px; width: min(600px, calc(100vw - 48px)); }
     html.embed #bell-wrap { position: fixed; top: 17px; right: 25px; z-index: 90; }
     html.embed #tracker-panel { max-height: 440px; }
+    html.embed .tracker-window-grid { grid-template-columns: minmax(0, 1fr); }
+    html.embed .tracker-window { max-height: 320px; }
     #tracker-panel[hidden] { display: none; }
     #tracker-panel { transform-origin: bottom center; animation: tracker-open .26s cubic-bezier(.2,.9,.3,1) both; }
     #tracker-panel.closing { animation: tracker-close .2s ease-in both; pointer-events: none; }
     @keyframes tracker-open { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
     @keyframes tracker-close { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(14px) scale(.96); } }
-    @media (prefers-reduced-motion: reduce) { #tracker-panel, #tracker-panel.closing { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { #tracker-panel, #tracker-panel.closing, .tracker-window-enter { animation: none; } }
     .tracker-empty { margin: 6px; color: var(--muted); font-size: .72rem; text-align: center; }
     .tracker-card { position: relative; margin-bottom: 6px; padding: 8px 10px; overflow: hidden; border: 1px solid #2d3e50; border-radius: 8px; background: rgba(24,37,51,.95); transition: border-color .4s, background .4s, box-shadow .4s; }
     .tracker-card:last-child { margin-bottom: 0; }
@@ -1082,9 +1099,11 @@
     .tracker-gain { position: absolute; top: 0; left: 0; right: 0; z-index: 3; padding: 6px 10px; background: rgba(14,24,20,.94); color: #3ddc84; font-size: .95rem; font-weight: 850; text-align: center; text-shadow: 0 0 10px rgba(61,220,132,.7); pointer-events: none; animation: gain-show 3s ease-out forwards; }
     @keyframes gain-show { 0% { opacity: 0; transform: translateY(8px) scale(.8); } 8% { opacity: 1; transform: none; } 85% { opacity: 1; } 100% { opacity: 0; } }
     .tracker-game { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(201,239,91,.18); }
+    .tracker-game.tracker-window { margin: 0; border-bottom: 1px solid rgba(201,239,91,.18); }
     .tracker-game:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
     .tracker-game-title { margin: 0 0 6px; color: #c9ef5b; font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
     .tracker-parlay { margin: 0 0 10px; padding: 7px; border: 1.5px solid #c9ef5b; border-radius: 12px; background: rgba(201,239,91,.06); }
+    .tracker-parlay.tracker-window { margin: 0; }
     .tracker-parlay.tone-hype { border-color: #3ddc84; background: rgba(61,220,132,.1); }
     .tracker-parlay.tone-bad { border-color: #ff4d4d; background: rgba(255,77,77,.08); }
     .tracker-parlay-head { display: flex; align-items: center; gap: 4px; }
@@ -1175,6 +1194,46 @@
     #notification-feed li.is-new { animation: feed-in .6s ease-out both, feed-flash 1.6s ease-out; }
     .tab-count.bump { animation: badge-bump .5s ease-out; }
     #simulate-alert.ring { animation: bell-ring .6s ease-in-out; }
+    #development-notice {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 75;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      width: min(390px, calc(100vw - 40px));
+      padding: 14px 14px 14px 16px;
+      border: 1px solid rgba(201,239,91,.3);
+      border-radius: 14px;
+      background: rgba(22,26,21,.97);
+      color: #e8eee6;
+      box-shadow: 0 12px 36px rgba(0,0,0,.4);
+      font-size: .82rem;
+      line-height: 1.5;
+      pointer-events: auto;
+      animation: development-notice-in .25s ease-out both;
+    }
+    #development-notice[hidden] { display: none; }
+    #development-notice p { margin: 0; }
+    #development-notice button {
+      flex: 0 0 auto;
+      width: 30px;
+      min-height: 30px;
+      margin: -4px -4px 0 0;
+      padding: 0;
+      border: 1px solid rgba(225,233,229,.18);
+      border-radius: 50%;
+      background: transparent;
+      color: #cbd2c8;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    #development-notice button:hover { background: rgba(255,255,255,.08); color: #fff; }
+    html[data-theme="light"] #development-notice { border-color: rgba(77,122,11,.25); background: rgba(255,255,255,.98); color: #26321f; box-shadow: 0 12px 36px rgba(40,58,22,.18); }
+    html[data-theme="light"] #development-notice button { border-color: rgba(40,58,22,.18); color: #46523f; }
+    @keyframes development-notice-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { #development-notice { animation: none; } }
     @keyframes toast-in { from { opacity: 0; transform: translateX(120%) scale(.96); } to { opacity: 1; transform: none; } }
     @keyframes toast-out { to { opacity: 0; transform: translateX(120%); } }
     @keyframes toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
@@ -1236,6 +1295,7 @@
       #settings-wrap { position: static; }
       #settings-panel { position: fixed; top: 70px; right: 12px; left: 12px; width: auto; }
       #app-banner { left: 12px; right: 12px; max-width: none; transform: none; }
+      #development-notice { right: 12px; bottom: calc(122px + env(safe-area-inset-bottom)); left: 12px; width: auto; }
     }
     /* Light theme: a real palette instead of an inverted dark one */
     html[data-theme="light"] {
@@ -1305,6 +1365,7 @@
     html[data-theme="light"] #bell-list .kind-foul { color: #8a5a00; }
     /* Tracker window */
     html[data-theme="light"] #tracker-panel { border-color: rgba(77,122,11,.4); background: #f7faf1; box-shadow: 0 12px 30px rgba(40,58,22,.22); }
+    html[data-theme="light"] .tracker-window { border-color: rgba(77,122,11,.3); background: rgba(77,122,11,.035); }
     html[data-theme="light"] .tracker-card { border-color: rgba(40,58,22,.18); background: #fff; }
     html[data-theme="light"] .tracker-game { border-bottom-color: rgba(77,122,11,.25); }
     html[data-theme="light"] .tracker-game-title { color: #3d6208; }
@@ -1408,6 +1469,8 @@
       /* Floating pieces sit above the bottom bar instead of on top of it */
       #tracker-dock { right: 10px; left: 10px; bottom: calc(72px + env(safe-area-inset-bottom)); width: auto; }
       #tracker-panel { max-height: 55vh; }
+      .tracker-window-grid { grid-template-columns: minmax(0, 1fr); }
+      .tracker-window { max-height: 48vh; }
       #toast-stack { top: 64px; right: 10px; left: 10px; width: auto; }
       #to-top { position: fixed; right: 12px; bottom: calc(118px + env(safe-area-inset-bottom)); z-index: 55; display: none; width: 40px; height: 40px; padding: 0; border: 1px solid rgba(201,239,91,.4); border-radius: 50%; background: rgba(18,19,17,.9); color: #c9ef5b; font-size: 1.1rem; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
       #to-top.show { display: block; }
@@ -1444,6 +1507,106 @@
       .prop-results-heading { flex-wrap: wrap; gap: 4px 10px; }
       html[data-theme="light"] .prop-line-number { color: #3d6208; }
     }
+    @media (max-width: 560px) {
+      .app-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "topbar"
+          "sports"
+          "notice"
+          "dashboard";
+        gap: 0;
+        padding-bottom: calc(76px + env(safe-area-inset-bottom));
+      }
+      .app-content, .sidebar { display: contents; }
+      .topbar { grid-area: topbar; margin: 0; }
+      .sidebar-section {
+        grid-area: sports;
+        width: auto;
+        min-width: 0;
+        margin: 0;
+        padding: 8px 0 11px;
+        border-bottom: 1px solid rgba(225,233,229,.08);
+        background: rgba(18,19,17,.6);
+      }
+      .sidebar-label { display: block; margin: 0 13px 7px; font-size: .62rem; }
+      #sport-navigation {
+        display: flex;
+        justify-content: flex-start;
+        gap: 7px;
+        padding: 0 13px 2px;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      #sport-navigation::-webkit-scrollbar { display: none; }
+      .sport-nav-button {
+        width: auto;
+        min-width: 0;
+        min-height: 38px;
+        flex: 0 0 auto;
+        flex-direction: row;
+        gap: 7px;
+        padding: 6px 11px;
+        border: 1px solid rgba(225,233,229,.1);
+        border-radius: 999px;
+        background: rgba(255,255,255,.035);
+        font-size: .73rem;
+      }
+      .sport-nav-button .sport-name { display: block; max-width: none; }
+      .sport-nav-button[aria-current="true"] { box-shadow: none; }
+      .sport-nav-icon { width: 21px; height: 21px; font-size: .74rem; }
+      .sidebar-links {
+        position: fixed;
+        inset: auto 0 0;
+        z-index: 20;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 2px;
+        width: auto;
+        padding: 7px 8px calc(7px + env(safe-area-inset-bottom));
+        border-top: 1px solid rgba(225,233,229,.12);
+        border-right: 0;
+        background: rgba(16,18,16,.96);
+        backdrop-filter: blur(18px);
+      }
+      .sidebar-link {
+        min-width: 0;
+        min-height: 50px;
+        flex-direction: column;
+        justify-content: center;
+        gap: 3px;
+        padding: 4px 2px;
+        border-radius: 10px;
+        font-size: .63rem;
+      }
+      .sidebar-link span:first-child {
+        width: auto;
+        height: auto;
+        font-size: 1rem;
+        line-height: 1;
+      }
+      .sidebar-link .link-name { display: block; overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+      .sidebar-link[aria-current="page"] { background: rgba(201,239,91,.12); color: #e4f4c4; }
+      .sidebar-footer { display: none; }
+      .top-navigation { display: none; }
+      .notice { grid-area: notice; margin: 8px 13px; }
+      .dashboard-grid { grid-area: dashboard; grid-template-columns: minmax(0,1fr); gap: 12px; padding: 0 13px 20px; }
+      .live-game-card { min-height: 0; padding: 12px; }
+      .live-game-card a { min-height: 0; }
+      .right-rail { grid-template-columns: minmax(0,1fr); }
+      #upcoming-list { grid-template-columns: repeat(2, minmax(0,1fr)); }
+      #tracker-dock {
+        right: 12px;
+        left: 12px;
+        bottom: calc(68px + env(safe-area-inset-bottom));
+        width: auto;
+      }
+      #to-top { bottom: calc(112px + env(safe-area-inset-bottom)); }
+      html[data-theme="light"] .sidebar-section { border-bottom-color: rgba(40,58,22,.12); background: rgba(255,255,255,.7); }
+      html[data-theme="light"] .sidebar-links { border-top-color: rgba(40,58,22,.14); background: rgba(255,255,255,.96); }
+      html[data-theme="light"] .sidebar-link[aria-current="page"] { background: rgba(120,170,30,.16); color: #2f4d08; }
+    }
   </style>
 </head>
 <body>
@@ -1467,6 +1630,7 @@
       <nav class="sidebar-links" aria-label="Dashboard sections">
         <a class="sidebar-link" href="#game-list"><span aria-hidden="true">◷</span><span class="link-name">Game odds</span></a>
         <a class="sidebar-link" href="#player-picks"><span aria-hidden="true">✦</span><span class="link-name">Player props</span></a>
+        <a class="sidebar-link" href="#upcoming-games"><span aria-hidden="true">▦</span><span class="link-name">Upcoming</span></a>
         <a class="sidebar-link" href="#followed"><span aria-hidden="true">★</span><span class="link-name">Followed</span></a>
       </nav>
       <div class="sidebar-footer"><span class="live-dot" aria-hidden="true"></span><span>Market feed connected</span></div>
@@ -1697,6 +1861,10 @@
   </div>
 
   <button id="to-top" type="button" aria-label="Back to top">↑</button>
+  <aside id="development-notice" aria-label="Development update" aria-live="polite" hidden>
+    <p>WiselyBet is still in development. We apologize for any inconvenience and appreciate your patience as we continue to improve your experience.</p>
+    <button id="development-notice-close" type="button" aria-label="Dismiss development update">×</button>
+  </aside>
   <div id="toast-stack" aria-live="polite"></div>
   <div id="tracker-dock">
     <div id="score-stack" aria-live="polite"></div>
@@ -1723,6 +1891,78 @@
       </div>
     </div>
   </div>
+  <script>
+    (() => {
+      const notice = document.querySelector("#development-notice");
+      const closeButton = document.querySelector("#development-notice-close");
+      if (!notice || !closeButton || document.documentElement.classList.contains("embed")) return;
+
+      const storageKey = "wiselybet.developmentNotice.lastShown.v1";
+      const cooldownMs = 7 * 24 * 60 * 60 * 1000;
+      const availableStorage = [];
+      let lastShown = 0;
+      for (const name of ["localStorage", "sessionStorage"]) {
+        try {
+          const storage = window[name];
+          availableStorage.push(storage);
+          lastShown = Math.max(lastShown, Number(storage.getItem(storageKey)) || 0);
+        } catch (error) {
+          console.warn(`Development notice could not access ${name}.`, error);
+        }
+      }
+      if (Date.now() - lastShown < cooldownMs) return;
+
+      let showTimer;
+      let hideTimer;
+
+      function canShowNotice() {
+        return document.visibilityState === "visible" &&
+          !document.querySelector("#age-gate:not([hidden]), #tour-overlay:not([hidden]), #news-overlay:not([hidden]), #bell-panel:not([hidden]), #settings-panel:not([hidden])");
+      }
+
+      function hideNotice() {
+        window.clearTimeout(hideTimer);
+        notice.hidden = true;
+      }
+
+      function showNotice() {
+        if (document.documentElement.classList.contains("embed")) return;
+        if (document.visibilityState !== "visible") {
+          document.addEventListener("visibilitychange", function resumeWhenVisible() {
+            if (document.visibilityState !== "visible") return;
+            document.removeEventListener("visibilitychange", resumeWhenVisible);
+            showTimer = window.setTimeout(showNotice, 1000 + Math.random() * 4000);
+          });
+          return;
+        }
+        if (!canShowNotice()) {
+          showTimer = window.setTimeout(showNotice, 20000);
+          return;
+        }
+
+        for (const storage of availableStorage) {
+          try {
+            const previousShown = Number(storage.getItem(storageKey)) || 0;
+            if (Date.now() - previousShown < cooldownMs) return;
+          } catch (error) {
+            console.warn("Development notice cooldown could not be checked.", error);
+          }
+        }
+        for (const storage of availableStorage) {
+          try {
+            storage.setItem(storageKey, String(Date.now()));
+          } catch (error) {
+            console.warn("Development notice cooldown could not be saved.", error);
+          }
+        }
+        notice.hidden = false;
+        hideTimer = window.setTimeout(hideNotice, 15000);
+      }
+
+      closeButton.addEventListener("click", hideNotice);
+      showTimer = window.setTimeout(showNotice, 45000 + Math.random() * 75000);
+    })();
+  </script>
   <script>
     // Account sync: load this user's saved data into localStorage before the app reads it,
     // then mirror every later change to the server.
@@ -3554,12 +3794,13 @@
     function syncDashboardTab() {
       const followedView = location.hash === "#followed";
       document.body.classList.toggle("view-followed", followedView);
-      const tab = document.querySelector("#followed-tab");
+      const activeHash = location.hash || "#game-list";
+      for (const link of document.querySelectorAll(".top-navigation a, .sidebar-links a")) {
+        if (link.getAttribute("href") === activeHash) link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+      }
       if (followedView) {
-        tab.setAttribute("aria-current", "page");
         window.scrollTo(0, 0);
-      } else {
-        tab.removeAttribute("aria-current");
       }
     }
     window.addEventListener("hashchange", syncDashboardTab);
@@ -3676,6 +3917,9 @@
     let parlays = readParlays();
     let trackers = readTrackers();
     let trackerPanelOpen = false;
+    const renderedTrackerWindows = new Set();
+    const collapsedTrackerWindows = new Set();
+    const trackerScorePops = new Map();
     const gainDurationMs = 3000;
     let trackerPollRunning = false;
     let trackerRenderPending = false;
@@ -4034,7 +4278,7 @@
         `${demo.name} ${step.play}`,
         { force: true }
       );
-      showScorePop(demo.name, step.points, "PTS", pickMessage(demo, snapshot));
+      showScorePop(demo.name, step.points, "PTS", pickMessage(demo, snapshot), demo);
       if (reached) {
         pushNotification("score", `[Test] ${demo.name} reached ${demo.target} points! 🎉`, { force: true });
       }
@@ -4321,10 +4565,13 @@
       else play();
     }
 
-    function showScorePop(name, points, stat, message) {
+    function showScorePop(name, points, stat, message, tracker) {
       if (message?.text.startsWith("🔥")) queueSound(playCashSound, 1100);
       else queueSound(playScoreSound, 450);
       const pop = element("div", "score-pop");
+      const parlay = parlays.find(item => item.id === tracker?.parlay);
+      const windowKey = parlay ? `parlay:${parlay.id}` : tracker ? `singles:${tracker.eventId}` : "";
+      pop.append(element("div", "score-pop-group", parlay ? parlay.name : "Single pick"));
       const row = element("div", "score-pop-main");
       const unit = { PTS: points === 1 ? "point" : "points", REB: points === 1 ? "rebound" : "rebounds", AST: points === 1 ? "assist" : "assists" }[stat] || stat;
       row.append(element("strong", "", `+${points}`), element("em", "score-pop-stat", unit.toUpperCase()), element("span", "", name));
@@ -4335,10 +4582,24 @@
       }
       pop.title = "Click to dismiss";
       pop.style.cursor = "pointer";
-      pop.addEventListener("click", () => pop.remove());
-      scoreStackElement.append(pop);
-      while (scoreStackElement.children.length > 3) scoreStackElement.firstChild.remove();
-      window.setTimeout(() => pop.remove(), 10000);
+      function removePop() {
+        pop.remove();
+        const remaining = (trackerScorePops.get(windowKey) || []).filter(item => item !== pop);
+        if (remaining.length) trackerScorePops.set(windowKey, remaining);
+        else trackerScorePops.delete(windowKey);
+      }
+      pop.addEventListener("click", removePop);
+      const pops = trackerScorePops.get(windowKey) || [];
+      pops.push(pop);
+      while (pops.length > 3) pops.shift().remove();
+      trackerScorePops.set(windowKey, pops);
+      const target = [...trackerPanel.querySelectorAll(".tracker-window")]
+        .find(item => item.dataset.windowKey === windowKey);
+      const stack = trackerPanelOpen && target?.open
+        ? target.querySelector(".tracker-window-events")
+        : scoreStackElement;
+      stack.append(pop);
+      window.setTimeout(removePop, 10000);
     }
 
     function trackerKey(name, eventId, stat) {
@@ -5003,7 +5264,7 @@
       const goalAlreadyReached = Boolean(previous) && previous.current >= tracker.target;
       if (previous && !previous.error && !goalAlreadyReached && current > previous.current) {
         snapshot.pendingDelta += current - previous.current;
-        showScorePop(tracker.name, current - previous.current, tracker.stat, pickMessage(tracker, snapshot));
+        showScorePop(tracker.name, current - previous.current, tracker.stat, pickMessage(tracker, snapshot), tracker);
       }
       if (current >= tracker.target && !snapshot.hitNotified && previous) {
         if (tracker.stat !== "PTS") playCashSound();
@@ -5026,11 +5287,35 @@
     function renderTrackers() {
       // Keep animating while the user is editing a target: remember the field and restore it after the redraw.
       const focused = document.activeElement;
+      const focusedWindowKey = focused?.classList.contains("tracker-window-summary")
+        ? focused.parentElement.dataset.windowKey
+        : null;
       const editing = trackerPanel.contains(focused) && focused.tagName === "INPUT"
         ? { label: focused.getAttribute("aria-label"), value: focused.value, start: focused.selectionStart, end: focused.selectionEnd }
         : null;
       trackerRenderPending = false;
+      const windowScrollPositions = new Map([...trackerPanel.querySelectorAll(".tracker-window")]
+        .map(window => [window.dataset.windowKey, window.scrollTop]));
       syncParlayFilter();
+      function createTrackerWindow(key, classes, label) {
+        const group = element("details", trackerWindowClass(key, classes));
+        group.dataset.windowKey = key;
+        group.open = !collapsedTrackerWindows.has(key);
+        group.setAttribute("aria-label", label);
+        group.addEventListener("toggle", () => {
+          if (!group.isConnected) return;
+          if (group.open === !collapsedTrackerWindows.has(key)) return;
+          if (group.open) collapsedTrackerWindows.delete(key);
+          else collapsedTrackerWindows.add(key);
+          if (group.open) renderTrackers();
+        });
+        return group;
+      }
+      const trackerWindowClass = (key, classes) => {
+        const animate = trackerPanelOpen && !renderedTrackerWindows.has(key);
+        if (trackerPanelOpen) renderedTrackerWindows.add(key);
+        return `${classes} tracker-window${animate ? " tracker-window-enter" : ""}`;
+      };
       const parlayIdSet = new Set(parlays.map(item => item.id));
       const countedTrackers = parlayIdSet.has(parlayView)
         ? trackers.filter(tracker => tracker.parlay === parlayView)
@@ -5044,7 +5329,11 @@
         const assessment = assessTracker(tracker, snapshot);
         levels.set(tracker.key, assessment.level);
         // The gain badge waits until the panel is open, then shows for 3 seconds above the player name.
-        if (trackerPanelOpen && snapshot.pendingDelta > 0) {
+        const windowKey = parlayIdSet.has(tracker.parlay) ? `parlay:${tracker.parlay}` : `singles:${tracker.eventId}`;
+        const windowVisible = trackerPanelOpen && !collapsedTrackerWindows.has(windowKey) &&
+          (parlayView === "all" || parlayView === tracker.parlay ||
+            (parlayView === "singles" && !parlayIdSet.has(tracker.parlay)));
+        if (windowVisible && snapshot.pendingDelta > 0) {
           const stillShowing = (snapshot.gainUntil || 0) > Date.now();
           snapshot.gainValue = (stillShowing ? snapshot.gainValue : 0) + snapshot.pendingDelta;
           snapshot.gainUntil = Date.now() + gainDurationMs;
@@ -5135,22 +5424,24 @@
         if (!showParlay(parlay.id)) continue;
         const legs = trackers.filter(item => item.parlay === parlay.id);
         const status = parlayStatus(legs);
-        const group = element("section", `tracker-parlay tone-${status.tone}`);
-        const head = element("div", "tracker-parlay-head");
+        const group = createTrackerWindow(`parlay:${parlay.id}`, `tracker-parlay tone-${status.tone}`, `${parlay.name} tracking window`);
+        const head = element("summary", "tracker-window-summary");
         const title = element("h4", "tracker-parlay-title", `🎟 ${parlay.name}`);
         const badge = element("span", "tracker-parlay-badge", `${status.label} · ${status.hits}/${legs.length} hit`);
-        const rename = element("button", "tracker-parlay-btn", "✎");
+        const rename = element("button", "tracker-parlay-btn", "Rename");
         rename.type = "button";
         rename.title = "Rename parlay";
         rename.setAttribute("aria-label", `Rename ${parlay.name}`);
         rename.addEventListener("click", () => renameParlay(parlay));
-        const del = element("button", "tracker-parlay-btn", "✕");
+        const del = element("button", "tracker-parlay-btn", "Delete");
         del.type = "button";
         del.title = "Delete parlay (picks stay tracked as singles)";
         del.setAttribute("aria-label", `Delete ${parlay.name}`);
         del.addEventListener("click", () => deleteParlay(parlay));
-        head.append(title, rename, del);
-        group.append(head, badge);
+        head.append(title, badge);
+        const tools = element("div", "tracker-window-tools");
+        tools.append(rename, del);
+        group.append(head, tools, element("div", "tracker-window-events"));
         const legsKey = legs.map(item => item.key).sort().join("|");
         if (parlay.report && parlay.report.key === legsKey) group.append(createParlayReportBox(parlay));
         if (legs.length) {
@@ -5173,16 +5464,34 @@
       for (const tracker of singles) {
         if (seenGames.has(tracker.eventId)) continue;
         seenGames.add(tracker.eventId);
-        const group = element("section", "tracker-game");
-        group.append(element("h4", "tracker-game-title", `${sportEmoji(tracker)} ${tracker.away} @ ${tracker.home}`));
+        const group = createTrackerWindow(`singles:${tracker.eventId}`, "tracker-game", `${tracker.away} at ${tracker.home} single picks`);
+        const summary = element("summary", "tracker-window-summary");
+        summary.append(element("h4", "tracker-game-title", `Single picks · ${sportEmoji(tracker)} ${tracker.away} @ ${tracker.home}`));
+        group.append(summary, element("div", "tracker-window-events"));
         group.append(...singles.filter(item => item.eventId === tracker.eventId).map(item => cards[trackers.indexOf(item)]));
         groupedCards.push(group);
       }
 
       syncParlayFilter();
-      trackerPanel.replaceChildren(...(groupedCards.length
-        ? groupedCards
-        : [element("p", "tracker-empty", trackers.length ? "No picks in this view. Choose another option above." : "Nothing tracked yet. On a player card in Player props (NBA), click 🎯 Track, choose points, rebounds or assists, and set a target.")]));
+      if (groupedCards.length) {
+        const windows = element("div", "tracker-window-grid");
+        windows.setAttribute("aria-label", "Parlay and single-pick tracking windows");
+        windows.append(...groupedCards);
+        trackerPanel.replaceChildren(windows);
+      } else {
+        trackerPanel.replaceChildren(element("p", "tracker-empty", trackers.length
+          ? "No picks in this view. Choose another option above."
+          : "Nothing tracked yet. On a player card in Player props (NBA), click 🎯 Track, choose points, rebounds or assists, and set a target."));
+      }
+      for (const group of trackerPanel.querySelectorAll(".tracker-window")) {
+        group.scrollTop = windowScrollPositions.get(group.dataset.windowKey) || 0;
+        if (group.dataset.windowKey === focusedWindowKey) {
+          group.querySelector(".tracker-window-summary").focus({ preventScroll: true });
+        }
+        if (!group.open || !trackerPanelOpen) continue;
+        const pops = trackerScorePops.get(group.dataset.windowKey) || [];
+        group.querySelector(".tracker-window-events").append(...pops);
+      }
       if (editing) {
         const restored = [...trackerPanel.querySelectorAll("input")].find(item => item.getAttribute("aria-label") === editing.label);
         if (restored) {
@@ -5863,7 +6172,7 @@
         { target: "#game-list", title: "Compare game odds", body: "Every game shows the best available price from the bookmakers. Open \"Review odds\" on a card for spreads, totals and the full breakdown." },
         { target: ".sidebar-link[href=\"#player-picks\"]", title: "Browse player props", body: "Pick a game and a market such as Points or Assists to see each player's line, Over/Under prices and market-implied probability.", list: ["Follow ★ saves a player so you can find them fast", "Track 📊 adds the pick to your live tracker with a target"] },
         { title: "Track a player pick", demo: "track", body: "Found a player you like? Press Track 📊 on their row. The pick is saved with the line as its target, for example 24.5 points.", list: ["Create a free account to track (guests can preview)", "Group several picks into a parlay to follow them together"] },
-        { target: "#tracker-toggle", title: "Keep monitoring it", demo: "monitor", body: "Open the Live tracker at the bottom of the screen. Each tracked player shows a live stat and a progress bar toward the target, refreshed automatically while the game is on.", list: ["Green bar: on pace, gold: close, full: target hit", "Use the parlay filter to focus on one group"] },
+        { target: "#tracker-toggle", title: "Keep monitoring it", demo: "monitor", body: "Open the Live tracker at the bottom of the screen. Each parlay has its own tracking window, with its picks, progress and scoring animations kept together. Expand or collapse each window independently.", list: ["Green bar: on pace, gold: close, full: target hit", "Single picks stay separate, grouped by game", "Use the parlay filter to focus on one group"] },
         { target: "#bell-wrap", title: "Updates throughout the game", demo: "alerts", body: "You don't have to watch the screen. WiselyBet pops a notification and plays a sound as your pick moves, and keeps the last 10 updates in the bell.", list: ["Heads-up when a player is close to the target", "Alert the moment the target is hit", "Parlay summary when every pick has hit or the games end"] },
         { target: "#bell-wrap", title: "See the outcome", body: "The bell keeps your last 10 updates. When every pick in a parlay has hit, or the games finish, you get a final summary showing what hit and what missed." },
         { target: "#upcoming-games", title: "Upcoming games", body: "Jump straight to a matchup that's about to start. Live games are also pinned at the top of the page with scores refreshing every 15 seconds." },
