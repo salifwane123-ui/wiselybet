@@ -1067,6 +1067,7 @@
     .tracker-dot.level-hit { background: #3ddc84; box-shadow: 0 0 8px #3ddc84; }
     .tracker-dot.level-close { background: #f5c542; }
     .tracker-dot.level-far { background: #ff5a5a; animation: dot-alarm 1s ease-in-out infinite; }
+    .tracker-dot.is-final { animation: none; box-shadow: none; opacity: .75; outline: 1px solid rgba(255,255,255,.35); outline-offset: 1px; }
     #tracker-panel { max-height: 72vh; margin-bottom: 6px; padding: 8px; overflow-y: auto; border: 1px solid #2d3e50; border-radius: 10px; background: #0f1a24; box-shadow: 0 10px 28px rgba(0,0,0,.5); scrollbar-width: thin; }
     .tracker-window-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); align-items: start; gap: 8px; }
     .tracker-window { --window-pad: 9px; --window-tint: rgba(201,239,91,.035); --window-base: #0f1a24; min-width: 0; max-height: 58vh; margin: 0; padding: var(--window-pad); overflow: auto; border: 1px solid rgba(201,239,91,.3); border-radius: 12px; background: var(--window-tint); scrollbar-width: thin; }
@@ -6141,19 +6142,13 @@
         }
       }
       // The dots follow the view dropdown: a selected parlay shows only its own players' dots,
-      // "Single picks only" shows only unassigned picks, and "Show everything" hides players whose game is over.
-      // Once every game is over, the dots are cleared unless a parlay is selected.
-      const allOver = trackers.length > 0 && trackers.every(tracker => trackerSnapshots.get(tracker.key)?.state === "post");
+      // "Single picks only" shows only unassigned picks, and "Show everything" shows every pick.
+      // Finished picks keep their dot until the user removes the pick.
       const parlayIdsForDots = new Set(parlays.map(item => item.id));
-      const parlaySelected = parlayIdsForDots.has(parlayView);
       let dotTrackers;
-      if (parlaySelected) dotTrackers = trackers.filter(tracker => tracker.parlay === parlayView);
-      else if (allOver) dotTrackers = [];
+      if (parlayIdsForDots.has(parlayView)) dotTrackers = trackers.filter(tracker => tracker.parlay === parlayView);
       else if (parlayView === "singles") dotTrackers = trackers.filter(tracker => !parlayIdsForDots.has(tracker.parlay));
-      else dotTrackers = trackers.filter(tracker => {
-        const snapshot = trackerSnapshots.get(tracker.key);
-        return snapshot?.state !== "post";
-      });
+      else dotTrackers = trackers;
       // One labelled group per parlay (in parlay order), then the single picks, so legs never mix between parlays.
       const dotGroups = [];
       for (const parlay of parlays) {
@@ -6167,8 +6162,8 @@
         wrap.title = `${group.label}: ${group.legs.map(tracker => `${tracker.name} ${trackerStats[tracker.stat].short}`).join(", ")}`;
         const row = element("span", "tracker-dot-row");
         for (const tracker of group.legs) {
-          const dot = element("span", `tracker-dot level-${levels.get(tracker.key)}`);
-          dot.title = `${tracker.name} ${trackerStats[tracker.stat].short}`;
+          const dot = element("span", `tracker-dot level-${levels.get(tracker.key)}${trackerSnapshots.get(tracker.key)?.state === "post" ? " is-final" : ""}`);
+          dot.title = `${tracker.name} ${trackerStats[tracker.stat].short}${trackerSnapshots.get(tracker.key)?.state === "post" ? " · final" : ""}`;
           row.append(dot);
         }
         wrap.append(element("span", "tracker-dot-badge", group.badge), element("span", "tracker-dot-label", group.label), row);
