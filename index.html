@@ -1088,9 +1088,13 @@
     .tracker-book-status { margin: 0 0 8px; padding: 7px 8px; border: 1px solid rgba(201,239,91,.25); border-radius: 8px; background: rgba(0,0,0,.18); color: #d9e3cf; font-size: .64rem; line-height: 1.4; }
     .tracker-book-status p { margin: 0 0 5px; }
     .tracker-book-status ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-    .tracker-book-status li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .tracker-book-status li { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .tracker-book-status li.is-missing { color: #ffb0b0; }
     .tracker-book-status li.is-pending { color: #ffd27a; }
+    .tracker-book-status li:has(.tracker-book-timer) { padding-bottom: 5px; }
+    .tracker-book-timer { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; border-radius: 2px; background: currentColor; opacity: .45; transform-origin: left center; animation: tracker-suggestion-timer linear forwards; pointer-events: none; }
+    @keyframes tracker-suggestion-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+    @media (prefers-reduced-motion: reduce) { .tracker-book-timer { display: none; } }
     .tracker-book-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; }
     .tracker-book-actions .tracker-parlay-btn { min-height: 26px; padding: 2px 8px; }
     .tracker-book-pending { color: #ffd27a; font-weight: 700; }
@@ -4278,7 +4282,11 @@
       parlay.sportsbook = book || "";
       if (!parlay.sportsbook) delete parlay.sportsbook;
       parlayBookState.delete(parlay.id);
-      if (restoreRequestedTargets(trackers.filter(item => item.parlay === parlay.id))) saveTrackers();
+      const legs = trackers.filter(item => item.parlay === parlay.id);
+      // Choosing a sportsbook again gives a fresh look at suggestions that were dismissed or timed out.
+      for (const tracker of legs) delete tracker.dismissedLine;
+      restoreRequestedTargets(legs);
+      saveTrackers();
       saveParlays();
       renderTrackers();
     }
@@ -4347,8 +4355,56 @@
       renderTrackers();
     }
     const suggestionId = suggest => `${suggest.book}:${suggest.point}:${suggest.target}`;
+    const removalSuggestionId = book => `${book}:remove`;
     function bookSuggestionPending(tracker, info) {
       return Boolean(info?.suggest) && tracker.target !== info.suggest.target && tracker.dismissedLine !== suggestionId(info.suggest);
+    }
+    function removalSuggestionPending(tracker, info, book) {
+      return Boolean(info?.suggestRemove) && tracker.dismissedLine !== removalSuggestionId(book);
+    }
+    // Unanswered suggestions quietly expire after being on screen this long, keeping the user's line.
+    const suggestionTimeoutMs = 60 * 1000;
+    const suggestionSeenAt = new Map();
+    const shownSuggestionKeys = new Set();
+    let suggestionExpiryTimer = 0;
+    function suggestionShownAt(tracker, id) {
+      const key = `${tracker.key}|${id}`;
+      shownSuggestionKeys.add(key);
+      if (!suggestionSeenAt.has(key) && trackerPanelOpen) suggestionSeenAt.set(key, Date.now());
+      return suggestionSeenAt.get(key) ?? Date.now();
+    }
+    function scheduleSuggestionExpiry() {
+      window.clearTimeout(suggestionExpiryTimer);
+      // Drop timers for suggestions that were answered, removed, or are no longer on screen.
+      for (const key of [...suggestionSeenAt.keys()]) if (!shownSuggestionKeys.has(key)) suggestionSeenAt.delete(key);
+      if (!suggestionSeenAt.size) return;
+      const next = Math.min(...suggestionSeenAt.values()) + suggestionTimeoutMs;
+      suggestionExpiryTimer = window.setTimeout(expireSuggestions, Math.max(250, next - Date.now()));
+    }
+    function expireSuggestions() {
+      // Only count time the user could actually see the suggestion.
+      if (!trackerPanelOpen) {
+        suggestionSeenAt.clear();
+        return;
+      }
+      const now = Date.now();
+      let changed = false;
+      for (const [key, at] of suggestionSeenAt) {
+        if (now - at < suggestionTimeoutMs) continue;
+        suggestionSeenAt.delete(key);
+        const split = key.indexOf("|");
+        const tracker = trackers.find(item => item.key === key.slice(0, split));
+        if (!tracker) continue;
+        tracker.dismissedLine = key.slice(split + 1);
+        changed = true;
+      }
+      if (changed) {
+        saveTrackers();
+        renderTrackers();
+      } else scheduleSuggestionExpiry();
+    }
+    function forgetSuggestions(tracker) {
+      for (const key of [...suggestionSeenAt.keys()]) if (key.startsWith(`${tracker.key}|`)) suggestionSeenAt.delete(key);
     }
     function acceptBookSuggestions(entries) {
       for (const [tracker, suggest] of entries) {
@@ -4358,12 +4414,14 @@
         tracker.target = suggest.target;
         tracker.bookLine = { book: suggest.book, point: suggest.point, price: suggest.price, kind: suggest.kind };
         delete tracker.dismissedLine;
+        forgetSuggestions(tracker);
       }
       saveTrackers();
       renderTrackers();
     }
-    function keepTrackedLine(tracker, suggest) {
-      tracker.dismissedLine = suggestionId(suggest);
+    function keepTrackedLine(tracker, id) {
+      tracker.dismissedLine = id;
+      forgetSuggestions(tracker);
       saveTrackers();
       renderTrackers();
     }
@@ -4408,7 +4466,7 @@
         status.append(element("p", "", `Checking ${title} lines…`));
       } else {
         const missing = legs.filter(item => state.legs.get(item.key)?.missing);
-        const removable = missing.filter(item => state.legs.get(item.key)?.suggestRemove);
+        const removable = missing.filter(item => removalSuggestionPending(item, state.legs.get(item.key), parlay.sportsbook));
         const pending = legs.filter(item => bookSuggestionPending(item, state.legs.get(item.key)));
         const hasDirect = legLinks.some(info => info.direct);
         const guidance = legLinks.length === 0
@@ -4422,7 +4480,7 @@
             : `Sportsbooks don't accept a whole parlay from one link. Tap Add on each leg to place it in your ${title} betslip, then choose Parlay.`;
         status.append(element("p", "", state.error ? `${state.error} ` : guidance));
         if (pending.length) {
-          const note = element("p", "tracker-book-pending", `${pending.length} ${pending.length === 1 ? "line change is" : "line changes are"} suggested for ${title}. Nothing changes until you accept.`);
+          const note = element("p", "tracker-book-pending", `${pending.length} ${pending.length === 1 ? "line change is" : "line changes are"} suggested for ${title}. Nothing changes unless you accept; unanswered suggestions hide after a minute.`);
           if (pending.length > 1) {
             const all = element("button", "tracker-parlay-btn", "Accept all");
             all.type = "button";
@@ -4439,13 +4497,14 @@
           const suggest = info.suggest;
           const matched = suggest && tracker.target === suggest.target;
           const isPending = bookSuggestionPending(tracker, info);
-          const kept = suggest && !matched && !isPending;
-          const item = element("li", info.missing || kept ? "is-missing" : isPending ? "is-pending" : "");
+          const removePending = removalSuggestionPending(tracker, info, parlay.sportsbook);
+          // Once the user answers (or the suggestion times out) the leg goes back to a plain row.
+          const settledMissing = info.missing && !info.suggestRemove ? info.missing : "";
+          const item = element("li", settledMissing || removePending ? "is-missing" : isPending ? "is-pending" : "");
           const verb = suggest?.kind === "higher" ? "Raise" : "Lower";
           let text;
-          if (info.missing) text = `⚠ ${tracker.name} ${tracker.target}+ ${short}: ${info.missing}`;
+          if (removePending || settledMissing) text = `⚠ ${tracker.name} ${tracker.target}+ ${short}: ${info.missing}`;
           else if (isPending) text = `↻ ${tracker.name} ${short}: ${verb} ${tracker.target}+ → ${suggest.target}+ (Over ${suggest.point}, ${formatAmericanOdds(suggest.price)})`;
-          else if (kept) text = `⚠ ${tracker.name} ${tracker.target}+ ${short}: kept your line. ${title} offers ${suggest.target}+ instead.`;
           else if (matched) {
             const changedFrom = tracker.requestedTarget !== undefined && tracker.bookLine?.book === suggest.book
               ? ` (${tracker.bookLine.kind === "higher" ? "raised" : "lowered"} from ${tracker.requestedTarget}+, ${formatAmericanOdds(suggest.price)})`
@@ -4454,29 +4513,33 @@
           } else text = `${tracker.name} ${tracker.target}+ ${short}`;
           item.append(element("span", "", text));
           const actions = element("span", "tracker-book-actions");
+          const pendingId = isPending ? suggestionId(suggest) : removePending ? removalSuggestionId(parlay.sportsbook) : "";
           if (isPending) {
             const accept = element("button", "tracker-parlay-btn", "Accept");
             accept.type = "button";
             accept.setAttribute("aria-label", `Accept ${suggest.target}+ for ${tracker.name} ${short}`);
             accept.addEventListener("click", () => acceptBookSuggestions([[tracker, suggest]]));
-            const keep = element("button", "tracker-parlay-btn", "Keep");
-            keep.type = "button";
-            keep.setAttribute("aria-label", `Keep ${tracker.target}+ for ${tracker.name} ${short}`);
-            keep.addEventListener("click", () => keepTrackedLine(tracker, suggest));
-            actions.append(accept, keep);
-          } else if (kept) {
-            const accept = element("button", "tracker-parlay-btn", `Use ${suggest.target}+`);
-            accept.type = "button";
-            accept.setAttribute("aria-label", `Use ${suggest.target}+ for ${tracker.name} ${short}`);
-            accept.addEventListener("click", () => acceptBookSuggestions([[tracker, suggest]]));
             actions.append(accept);
           }
-          if (info.suggestRemove) {
+          if (removePending) {
             const drop = element("button", "tracker-parlay-btn", "Remove");
             drop.type = "button";
             drop.setAttribute("aria-label", `Remove ${tracker.name} ${short} from tracking`);
             drop.addEventListener("click", () => removeTracker(tracker.key));
             actions.append(drop);
+          }
+          if (pendingId) {
+            const keep = element("button", "tracker-parlay-btn", "Keep");
+            keep.type = "button";
+            keep.setAttribute("aria-label", `Keep ${tracker.target}+ for ${tracker.name} ${short}`);
+            keep.addEventListener("click", () => keepTrackedLine(tracker, pendingId));
+            actions.append(keep);
+            const left = Math.max(0, suggestionTimeoutMs - (Date.now() - suggestionShownAt(tracker, pendingId)));
+            const timer = element("span", "tracker-book-timer");
+            timer.title = "This suggestion hides automatically if you don't choose";
+            timer.style.animationDuration = `${suggestionTimeoutMs}ms`;
+            timer.style.animationDelay = `${left - suggestionTimeoutMs}ms`;
+            item.append(timer);
           }
           if (matched && info.link && legs.length > 1) {
             const add = element("a", "", info.direct ? "Add ↗" : "Find ↗");
@@ -5425,6 +5488,7 @@
     let trackerCloseTimer = 0;
     function setTrackerPanelOpen(open) {
       trackerPanelOpen = open;
+      if (!open) suggestionSeenAt.clear();
       if (open) renderTrackers();
       window.clearTimeout(trackerCloseTimer);
       trackerPanel.classList.remove("closing");
@@ -5806,6 +5870,7 @@
         ? { label: focused.getAttribute("aria-label"), value: focused.value, start: focused.selectionStart, end: focused.selectionEnd }
         : null;
       trackerRenderPending = false;
+      shownSuggestionKeys.clear();
       const windowScrollPositions = new Map([...trackerPanel.querySelectorAll(".tracker-window")]
         .map(window => [window.dataset.windowKey, window.scrollTop]));
       syncParlayFilter();
@@ -6057,6 +6122,7 @@
         wrap.append(element("span", "tracker-dot-badge", group.badge), element("span", "tracker-dot-label", group.label), row);
         return wrap;
       }));
+      scheduleSuggestionExpiry();
     }
 
     async function pollTrackers() {
