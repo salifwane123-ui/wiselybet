@@ -4180,9 +4180,18 @@
       renderTrackers();
     }
 
+    // Default names ("Parlay 2") follow the parlay's position, so they stay in step with the P# badges
+    // after a parlay is removed. Names the user typed are left alone.
+    function renumberDefaultParlayNames() {
+      parlays.forEach((item, index) => {
+        if (/^parlay \d+$/i.test(String(item.name).trim())) item.name = `Parlay ${index + 1}`;
+      });
+    }
+
     function deleteParlay(parlay, { removePicks = false } = {}) {
       const legs = trackers.filter(item => item.parlay === parlay.id);
       parlays = parlays.filter(item => item.id !== parlay.id);
+      renumberDefaultParlayNames();
       parlayBookState.delete(parlay.id);
       if (removePicks) {
         const keys = new Set(legs.map(item => item.key));
