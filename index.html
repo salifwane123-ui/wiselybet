@@ -1020,10 +1020,10 @@
     .bell-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(145,161,179,.15); font-size: .85rem; }
     .bell-head button { width: auto; min-height: 0; padding: 3px 10px; font-size: .72rem; }
     .bell-head-actions { display: flex; gap: 6px; }
-    #bell-test { border: 1px solid rgba(201,239,91,.45); background: transparent; color: #c9ef5b; }
-    #bell-test:hover:not(:disabled) { background: rgba(201,239,91,.16); }
-    html[data-theme="light"] #bell-test { border-color: rgba(77,122,11,.5); color: #3d6208; }
-    html[data-theme="light"] #bell-test:hover:not(:disabled) { background: rgba(120,170,30,.16); }
+    #bell-test, #score-test { border: 1px solid rgba(201,239,91,.45); background: transparent; color: #c9ef5b; }
+    #bell-test:hover:not(:disabled), #score-test:hover:not(:disabled) { background: rgba(201,239,91,.16); }
+    html[data-theme="light"] #bell-test, html[data-theme="light"] #score-test { border-color: rgba(77,122,11,.5); color: #3d6208; }
+    html[data-theme="light"] #bell-test:hover:not(:disabled), html[data-theme="light"] #score-test:hover:not(:disabled) { background: rgba(120,170,30,.16); }
     #bell-list { margin: 0; padding: 0; max-height: 360px; overflow-y: auto; list-style: none; }
     #bell-list li { display: grid; gap: 2px; padding: 9px 14px; border-top: 1px solid rgba(145,161,179,.1); font-size: .8rem; }
     #bell-list li:first-child { border-top: 0; }
@@ -1049,22 +1049,47 @@
     #toast-stack { position: fixed; top: calc(78px + env(safe-area-inset-top)); right: 16px; z-index: 70; display: grid; gap: 8px; width: min(340px, calc(100vw - 32px)); pointer-events: none; }
     #score-stack { display: grid; gap: 6px; margin-bottom: 6px; }
     #score-stack:empty { display: none; }
-    .score-pop { display: grid; gap: 4px; padding: 8px 14px; border: 1px solid #39ff88; border-radius: 12px; background: rgba(8,40,22,.94); color: #39ff88; box-shadow: 0 0 22px rgba(57,255,136,.55); animation: score-pop 10s cubic-bezier(.2,.9,.3,1.2) forwards; }
-    .score-pop-main { display: flex; align-items: baseline; justify-content: center; gap: 10px; }
-    .score-pop-stat { font-size: .8rem; font-style: normal; font-weight: 800; letter-spacing: .08em; }
-    .score-pop-msg { margin: 0; text-align: center; font-size: .76rem; line-height: 1.35; color: #d8ffe6; }
-    .score-pop.tone-idle { border-color: #8b97a8; background: rgba(30,36,46,.95); color: #c3ccd9; box-shadow: 0 0 18px rgba(139,151,168,.4); }
-    .score-pop.tone-idle strong { text-shadow: none; }
+    @property --pop-spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+    .score-pop { --c: #39ff88; --c2: #c9ef5b; --glow: rgba(57,255,136,.55); --bg: rgba(7,32,19,.97); --ink: #eafff2; position: relative; isolation: isolate; display: grid; gap: 6px; padding: 10px 14px 11px; border: 2px solid transparent; border-radius: 14px; background: linear-gradient(var(--bg), var(--bg)) padding-box, conic-gradient(from var(--pop-spin), var(--c), var(--c2) 18%, transparent 34%, transparent 50%, var(--c) 66%, var(--c2) 84%, var(--c)) border-box; color: var(--c); box-shadow: 0 0 26px var(--glow), 0 14px 30px rgba(0,0,0,.45); transform-origin: 50% 60%; animation: pop-slam .75s cubic-bezier(.2,1.35,.4,1) both, pop-spin 2.4s linear infinite; }
+    .score-pop.settled { animation: pop-spin 2.4s linear infinite; }
+    .score-pop.leaving { animation: pop-exit .45s ease-in forwards; }
+    .score-pop::before { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.26) 47%, rgba(255,255,255,.06) 55%, transparent 64%) no-repeat; background-size: 260% 100%; background-position: 180% 0; content: ""; pointer-events: none; }
+    .score-pop:not(.settled):not(.leaving)::before { animation: pop-shine 1.1s .3s ease-in-out both; }
+    .score-pop-group { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--c); font-size: .66rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
+    .score-pop-main { display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .score-pop:not(.settled) .score-pop-main { animation: pop-shake .4s .5s ease-in-out; }
+    .score-pop-num { position: relative; display: inline-block; font-size: 2.15rem; font-weight: 900; line-height: 1; letter-spacing: -.02em; background: linear-gradient(180deg, #fff 0%, var(--c) 55%, var(--c2) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 10px var(--glow)); }
+    .score-pop:not(.settled) .score-pop-num { animation: num-punch .7s .12s cubic-bezier(.2,1.6,.4,1) both; }
+    .score-pop-stat { padding: 2px 7px; border: 1px solid currentColor; border-radius: 6px; font-size: .68rem; font-style: normal; font-weight: 850; letter-spacing: .1em; }
+    .score-pop-name { min-width: 0; overflow: hidden; color: var(--ink); font-size: .92rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+    .score-pop-progress { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+    .score-pop-bar { position: relative; height: 7px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.1); }
+    .score-pop-bar i { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, var(--c2), var(--c)); box-shadow: 0 0 10px var(--glow); transition: width 1.1s .35s cubic-bezier(.2,1.1,.3,1); }
+    .score-pop-bar i::after { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.7), transparent); background-size: 50% 100%; background-repeat: no-repeat; content: ""; animation: pop-bar-shine 1.6s .9s ease-in-out infinite; }
+    .score-pop-count { color: var(--ink); font-size: .74rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .score-pop-count b { color: var(--c); }
+    .score-pop-msg { margin: 0; text-align: center; font-size: .76rem; line-height: 1.35; color: var(--ink); opacity: .9; }
+    .score-pop-ring { position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; margin: -22px; border: 2px solid var(--c); border-radius: 50%; opacity: 0; pointer-events: none; animation: pop-ring .9s ease-out forwards; }
+    .score-pop-emoji { position: absolute; right: 12px; bottom: 8px; font-size: 1.3rem; opacity: 0; pointer-events: none; animation: pop-emoji 1.5s .25s cubic-bezier(.2,.8,.3,1) forwards; }
+    .pop-spark { position: absolute; top: 50%; left: 50%; z-index: 4; width: var(--s, 6px); height: var(--s, 6px); margin: calc(var(--s, 6px) / -2); border-radius: var(--r, 50%); background: var(--spark); box-shadow: 0 0 8px var(--spark); pointer-events: none; animation: pop-spark var(--t, .9s) cubic-bezier(.15,.8,.3,1) forwards; }
+    .score-pop.is-cashed { --c: #ffd75e; --c2: #ff8a3d; --glow: rgba(255,200,80,.6); --bg: rgba(42,26,5,.97); --ink: #fff4d6; }
+    .score-pop.is-cashed .score-pop-num { font-size: 2.5rem; }
+    .score-pop.tone-bad { --c: #ff6b6b; --c2: #ff9a6a; --glow: rgba(255,77,77,.55); --bg: rgba(50,10,10,.97); --ink: #ffe0e0; }
+    .score-pop.tone-idle { --c: #b6c3d3; --c2: #7d8da1; --glow: rgba(139,151,168,.4); --bg: rgba(28,34,44,.97); --ink: #e3e9f1; }
     .tracker-gain.tone-idle { background: rgba(30,36,46,.95); color: #c3ccd9; text-shadow: none; }
-    .score-pop.tone-bad { border-color: #ff4d4d; background: rgba(52,10,10,.95); color: #ff6b6b; box-shadow: 0 0 22px rgba(255,77,77,.55); }
-    .score-pop.tone-bad .score-pop-msg { color: #ffd0d0; }
-    .score-pop.tone-bad strong { text-shadow: 0 0 12px rgba(255,77,77,.9); }
     .tracker-gain.tone-bad { background: rgba(52,10,10,.95); color: #ff6b6b; text-shadow: 0 0 10px rgba(255,77,77,.7); }
     .tracker-gain small { display: block; font-size: .62rem; font-weight: 700; letter-spacing: .03em; }
-    .score-pop strong { font-size: 1.7rem; line-height: 1; text-shadow: 0 0 12px rgba(57,255,136,.9); }
-    .score-pop span { font-size: .9rem; font-weight: 750; color: #eafff2; }
-    @keyframes score-pop { 0% { opacity: 0; transform: translateY(24px) scale(.6); } 5% { opacity: 1; transform: translateY(0) scale(1.15); } 9% { transform: scale(1); } 92% { opacity: 1; transform: translateY(-2px); } 100% { opacity: 0; transform: translateY(-18px); } }
-    @media (prefers-reduced-motion: reduce) { .score-pop { animation: none; } }
+    @keyframes pop-spin { to { --pop-spin: 360deg; } }
+    @keyframes pop-slam { 0% { opacity: 0; filter: blur(8px); transform: perspective(600px) translateY(-26px) rotateX(35deg) scale(1.6); } 55% { opacity: 1; filter: blur(0); transform: perspective(600px) translateY(3px) scale(.95); } 78% { transform: scale(1.03); } 100% { opacity: 1; transform: none; } }
+    @keyframes pop-exit { to { opacity: 0; filter: blur(3px); transform: translateY(-16px) scale(.92); } }
+    @keyframes pop-shine { from { background-position: 180% 0; } to { background-position: -80% 0; } }
+    @keyframes pop-shake { 20% { transform: translateX(-4px) rotate(-1deg); } 40% { transform: translateX(4px) rotate(1deg); } 60% { transform: translateX(-2px); } 80% { transform: translateX(2px); } }
+    @keyframes num-punch { 0% { transform: scale(0) rotate(-14deg); } 60% { transform: scale(1.45) rotate(5deg); } 100% { transform: scale(1) rotate(0); } }
+    @keyframes pop-ring { 0% { opacity: .9; transform: scale(.3); } 100% { opacity: 0; transform: scale(var(--ring, 3.4)); } }
+    @keyframes pop-emoji { 0% { opacity: 0; transform: translateY(14px) scale(.4) rotate(-30deg); } 30% { opacity: 1; transform: translateY(-6px) scale(1.25) rotate(10deg); } 70% { opacity: 1; transform: translateY(-16px) scale(1) rotate(-6deg); } 100% { opacity: 0; transform: translateY(-34px) scale(.8) rotate(0); } }
+    @keyframes pop-spark { 0% { opacity: 1; transform: translate(0, 0) rotate(0) scale(1.2); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--rot, 180deg)) scale(.3); } }
+    @keyframes pop-bar-shine { 0% { background-position: -60% 0; } 60%, 100% { background-position: 160% 0; } }
+    @media (prefers-reduced-motion: reduce) { .score-pop, .score-pop.settled, .score-pop::before, .score-pop-main, .score-pop-num, .score-pop-bar i::after { animation: none !important; } .score-pop-bar i { transition: none; } .score-pop-ring, .score-pop-emoji, .pop-spark { display: none; } }
     .track-toggle { flex: 0 0 auto; padding: 5px 10px; border: 1px solid rgba(240,190,90,.45); border-radius: 99px; background: transparent; color: #f0be5a; font-size: .74rem; font-weight: 750; }
     .track-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 15px; border-bottom: 1px solid rgba(145,161,179,.12); background: rgba(240,190,90,.06); font-size: .78rem; }
     .track-form[hidden] { display: none; }
@@ -1096,6 +1121,7 @@
     #tracker-panel { max-height: 72vh; margin-bottom: 6px; padding: 8px; overflow-y: auto; border: 1px solid #2d3e50; border-radius: 10px; background: #0f1a24; box-shadow: 0 10px 28px rgba(0,0,0,.5); scrollbar-width: thin; }
     .tracker-window-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); align-items: start; gap: 8px; }
     .tracker-window { --window-pad: 9px; --window-tint: rgba(201,239,91,.035); --window-base: #0f1a24; min-width: 0; max-height: 58vh; margin: 0; padding: var(--window-pad); overflow: auto; border: 1px solid rgba(201,239,91,.3); border-radius: 12px; background: var(--window-tint); scrollbar-width: thin; }
+    .tracker-window { overflow-x: hidden; }
     .tracker-window-enter { animation: tracker-window-enter .32s cubic-bezier(.2,.9,.3,1) both; }
     .tracker-window-summary { display: flex; align-items: center; gap: 8px; padding: 5px 2px 9px; cursor: pointer; list-style: none; }
     /* Pin each window's header while its picks scroll underneath. */
@@ -1218,7 +1244,12 @@
     .tracker-target input { width: 44px; min-height: 0; height: 22px; padding: 0 4px; border-radius: 6px; font-size: .72rem; }
     .tracker-plus { display: none; }
     .tracker-gain { position: absolute; top: 0; left: 0; right: 0; z-index: 3; padding: 6px 10px; background: rgba(14,24,20,.94); color: #3ddc84; font-size: .95rem; font-weight: 850; text-align: center; text-shadow: 0 0 10px rgba(61,220,132,.7); pointer-events: none; animation: gain-show 3s ease-out forwards; }
-    @keyframes gain-show { 0% { opacity: 0; transform: translateY(8px) scale(.8); } 8% { opacity: 1; transform: none; } 85% { opacity: 1; } 100% { opacity: 0; } }
+    @keyframes gain-show { 0% { opacity: 0; transform: translateY(-100%) scale(1.3); } 6% { opacity: 1; transform: translateY(0) scale(.96); } 10% { transform: scale(1.04); } 14% { transform: none; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+    .tracker-flash { position: absolute; inset: 0; z-index: 2; border-radius: inherit; pointer-events: none; background: radial-gradient(circle at 18% 58%, rgba(201,239,91,.45), rgba(57,255,136,.18) 35%, transparent 65%); box-shadow: inset 0 0 0 2px rgba(125,255,176,.85), inset 0 0 26px rgba(57,255,136,.45); animation: card-flash 1.3s ease-out forwards; }
+    .tracker-flash::after { position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.3) 48%, transparent 60%) no-repeat; background-size: 260% 100%; content: ""; animation: pop-shine .9s .1s ease-in-out both; }
+    .tracker-card.bumped .tracker-current { position: relative; display: inline-block; animation: number-pop .7s cubic-bezier(.2,1.6,.4,1); text-shadow: 0 0 14px currentColor; }
+    @keyframes card-flash { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .tracker-flash { display: none; } .tracker-gain { animation-name: none; } }
     .tracker-game { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(201,239,91,.18); }
     .tracker-game.tracker-window { margin: 0; border-bottom: 1px solid rgba(201,239,91,.18); }
     .tracker-game:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
@@ -1288,9 +1319,9 @@
     @keyframes bar-shine { 0% { left: -40%; } 60%, 100% { left: 110%; } }
     @keyframes bar-glow-hit { 50% { filter: brightness(1.3); } }
     @media (prefers-reduced-motion: reduce) { .tracker-bar span::before, .tracker-bar span::after, .tracker-card.level-hit .tracker-bar span { animation: none; } }
-    .tracker-card.bumped .tracker-current { animation: number-pop .6s ease-out; }
+    .tracker-card.bumped .tracker-current { animation: number-pop .7s cubic-bezier(.2,1.6,.4,1); }
     @keyframes plus-float { 0% { opacity: 0; transform: translateY(8px) scale(.7); } 20% { opacity: 1; transform: translateY(-4px) scale(1.25); } 100% { opacity: 0; transform: translateY(-34px) scale(1); } }
-    @keyframes number-pop { 40% { transform: scale(1.5); } }
+    @keyframes number-pop { 0% { transform: scale(1); } 35% { transform: scale(1.7) rotate(-6deg); } 60% { transform: scale(.92) rotate(2deg); } 100% { transform: scale(1); } }
     @keyframes tracker-celebrate { 0% { transform: scale(.97); box-shadow: 0 0 0 rgba(61,220,132,0); } 40% { transform: scale(1.03); box-shadow: 0 0 40px rgba(61,220,132,.8); } 100% { transform: none; } }
     @keyframes tracker-breathe { 50% { box-shadow: 0 0 16px rgba(245,197,66,.35); } }
     @keyframes tracker-alarm { 0%, 100% { box-shadow: 0 0 0 rgba(255,90,90,0); } 50% { box-shadow: 0 0 20px rgba(255,90,90,.55); } 60% { transform: translateX(-2px); } 70% { transform: translateX(2px); } 80% { transform: none; } }
@@ -1823,7 +1854,7 @@
           <div id="bell-wrap">
             <button id="bell-button" type="button" aria-label="Notifications" aria-expanded="false" aria-controls="bell-panel"><span class="bell-glyph" aria-hidden="true">🔔</span><span id="bell-badge" hidden></span></button>
             <div id="bell-panel" role="dialog" aria-label="Last 10 updates" hidden>
-              <div class="bell-head"><strong>Last 10 updates</strong><span class="bell-head-actions"><button id="bell-test" type="button" title="Send a sample notification">🔔 Test</button><button id="bell-clear" type="button">Clear</button></span></div>
+              <div class="bell-head"><strong>Last 10 updates</strong><span class="bell-head-actions"><button id="bell-test" type="button" title="Send a sample notification">🔔 Test</button><button id="score-test" type="button" title="Play a sample scoring play in the live tracker">🏀 Score</button><button id="bell-clear" type="button">Clear</button></span></div>
               <ul id="bell-list"></ul>
             </div>
           </div>
@@ -3839,6 +3870,23 @@
       const [kind, text] = testAlerts[testAlertIndex++ % testAlerts.length];
       window.setTimeout(() => pushNotification(kind, text, { force: true }), 150);
     });
+    // Plays the next step of the sample game in the live tracker so the scoring animation can be previewed.
+    document.querySelector("#score-test").addEventListener("click", event => {
+      event.stopPropagation();
+      setBellOpen(false);
+      if (parlayView !== "all" && parlayView !== "singles") {
+        parlayView = "all";
+        renderTrackers();
+      }
+      collapsedTrackerWindows.delete("singles:demo");
+      if (!trackers.some(item => item.demo)) {
+        runScoringDemo();
+        setTrackerPanelOpen(true);
+        return;
+      }
+      setTrackerPanelOpen(true);
+      window.setTimeout(runScoringDemo, 150);
+    });
 
     function renderNotificationFeed() {
       notificationFeedElement.replaceChildren(...notificationFeed.map((entry, index) => {
@@ -5417,7 +5465,7 @@
         `${demo.name} ${step.play}`,
         { force: true }
       );
-      showScorePop(demo.name, step.points, "PTS", pickMessage(demo, snapshot), demo);
+      showScorePop(demo.name, step.points, "PTS", pickMessage(demo, snapshot), demo, step.current);
       if (reached) {
         pushNotification("score", `[Test] ${demo.name} reached ${demo.target} points! 🎉`, { force: true });
       }
@@ -5704,21 +5752,83 @@
       else play();
     }
 
-    function showScorePop(name, points, stat, message, tracker) {
+    // Sparks and confetti flying out from the centre of `host`.
+    function burstSparks(host, { count = 14, distance = 70, colors = ["#39ff88", "#c9ef5b", "#ffffff"], time = 0.9 } = {}) {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      for (let index = 0; index < count; index += 1) {
+        const spark = element("span", "pop-spark");
+        const angle = (index / count) * Math.PI * 2 + Math.random() * 0.5;
+        const reach = distance * (0.55 + Math.random() * 0.6);
+        const size = 4 + Math.random() * 5;
+        spark.style.setProperty("--dx", `${Math.cos(angle) * reach}px`);
+        spark.style.setProperty("--dy", `${Math.sin(angle) * reach * 0.75}px`);
+        spark.style.setProperty("--s", `${size}px`);
+        spark.style.setProperty("--r", index % 3 === 0 ? "2px" : "50%");
+        spark.style.setProperty("--rot", `${Math.round(Math.random() * 540 - 270)}deg`);
+        spark.style.setProperty("--t", `${time * (0.8 + Math.random() * 0.5)}s`);
+        spark.style.setProperty("--spark", colors[index % colors.length]);
+        spark.addEventListener("animationend", () => spark.remove());
+        host.append(spark);
+      }
+    }
+
+    function showScorePop(name, points, stat, message, tracker, current) {
       if (message?.text.startsWith("🔥")) queueSound(playCashSound, 1100);
       else queueSound(playScoreSound, 450);
-      const pop = element("div", "score-pop");
+      const tone = message?.tone || "hype";
+      const big = Boolean(message?.text.startsWith("🔥")) || (tracker?.target > 0 && Number.isFinite(current) && current >= tracker.target);
+      const pop = element("div", `score-pop${big ? " is-cashed" : ""}`);
       const parlay = parlays.find(item => item.id === tracker?.parlay);
       const windowKey = parlay ? `parlay:${parlay.id}` : tracker ? `singles:${tracker.eventId}` : "";
-      pop.append(element("div", "score-pop-group", parlay ? parlay.name : "Single pick"));
+      pop.append(element("div", "score-pop-group", `${big ? "🏆 " : ""}${parlay ? parlay.name : "Single pick"}`));
       const row = element("div", "score-pop-main");
       const unit = { PTS: points === 1 ? "point" : "points", REB: points === 1 ? "rebound" : "rebounds", AST: points === 1 ? "assist" : "assists" }[stat] || stat;
-      row.append(element("strong", "", `+${points}`), element("em", "score-pop-stat", unit.toUpperCase()), element("span", "", name));
+      const number = element("strong", "score-pop-num", `+${points}`);
+      row.append(number, element("em", "score-pop-stat", unit.toUpperCase()), element("span", "score-pop-name", name));
       pop.append(row);
+
+      const now = Number.isFinite(current) ? current : trackerSnapshots.get(tracker?.key)?.current;
+      if (tracker?.target > 0 && Number.isFinite(now)) {
+        const before = Math.max(0, now - points);
+        const percent = value => `${Math.min(100, (value / tracker.target) * 100)}%`;
+        const progress = element("div", "score-pop-progress");
+        const bar = element("div", "score-pop-bar");
+        const fill = element("i");
+        fill.style.width = percent(before);
+        bar.append(fill);
+        const count = element("span", "score-pop-count");
+        const shown = element("b", "", String(before));
+        count.append(shown, ` / ${tracker.target}`);
+        progress.append(bar, count);
+        pop.append(progress);
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => { fill.style.width = percent(now); }));
+        // Count the total up to its new value as the bar fills.
+        const steps = Math.min(points, 12);
+        for (let step = 1; step <= steps; step += 1) {
+          window.setTimeout(() => { shown.textContent = String(Math.round(before + (points * step) / steps)); }, 350 + step * (700 / steps));
+        }
+      }
       if (message) {
         pop.classList.add(`tone-${message.tone}`);
         pop.append(element("p", "score-pop-msg", message.text));
       }
+      if (tracker) pop.append(element("span", "score-pop-emoji", big ? "🔥" : sportEmoji(tracker)));
+      for (const [delay, scale] of big ? [[0, 3.6], [140, 5], [300, 6.5]] : [[0, 3], [160, 4.2]]) {
+        const ring = element("span", "score-pop-ring");
+        ring.style.animationDelay = `${120 + delay}ms`;
+        ring.style.setProperty("--ring", scale);
+        ring.addEventListener("animationend", () => ring.remove());
+        number.append(ring);
+      }
+      window.setTimeout(() => burstSparks(number, big
+        ? { count: 30, distance: 120, colors: ["#ffd75e", "#ff8a3d", "#fff3b0", "#39ff88", "#ff5fa2", "#5fd4ff"], time: 1.2 }
+        : tone === "bad"
+          ? { count: 12, distance: 70, colors: ["#ff6b6b", "#ff9a6a", "#ffd0d0"] }
+          : tone === "idle"
+            ? { count: 10, distance: 60, colors: ["#b6c3d3", "#e3e9f1", "#7d8da1"] }
+            : { count: 16, distance: 85 }), 180);
+      window.setTimeout(() => pop.classList.add("settled"), 1100);
+
       pop.title = "Click to dismiss";
       pop.style.cursor = "pointer";
       function removePop() {
@@ -5738,6 +5848,10 @@
         ? target.querySelector(".tracker-window-events")
         : scoreStackElement;
       stack.append(pop);
+      window.setTimeout(() => {
+        pop.classList.remove("settled");
+        pop.classList.add("leaving");
+      }, 9550);
       window.setTimeout(removePop, 10000);
     }
 
@@ -6410,7 +6524,7 @@
       const goalAlreadyReached = Boolean(previous) && previous.current >= tracker.target;
       if (previous && !previous.error && !goalAlreadyReached && current > previous.current) {
         snapshot.pendingDelta += current - previous.current;
-        showScorePop(tracker.name, current - previous.current, tracker.stat, pickMessage(tracker, snapshot), tracker);
+        showScorePop(tracker.name, current - previous.current, tracker.stat, pickMessage(tracker, snapshot), tracker, current);
       }
       if (current >= tracker.target && !snapshot.hitNotified && previous) {
         if (tracker.stat !== "PTS") playCashSound();
@@ -6520,6 +6634,15 @@
         const fill = document.createElement("span");
         fill.style.width = `${Math.min(100, (snapshot.current / tracker.target) * 100)}%`;
         bar.append(fill);
+        if (bumped) {
+          card.append(element("span", "tracker-flash"));
+          const currentNumber = score.querySelector(".tracker-current");
+          window.setTimeout(() => burstSparks(currentNumber, { count: 12, distance: 46, time: 0.8 }), 60);
+          // The bar surges from the old total to the new one.
+          const finalWidth = fill.style.width;
+          fill.style.width = `${Math.min(100, (Math.max(0, snapshot.current - snapshot.gainValue) / tracker.target) * 100)}%`;
+          window.requestAnimationFrame(() => window.requestAnimationFrame(() => { fill.style.width = finalWidth; }));
+        }
 
         const mini = element("ul", "tracker-mini");
         const miniLabels = tracker.sport === "icehockey_nhl"
