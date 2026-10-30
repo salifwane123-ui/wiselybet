@@ -1133,6 +1133,34 @@
     html[data-theme="light"] #pick-placement { border-color: rgba(61,98,8,.45); background: #fff; color: #1b2418; }
     html[data-theme="light"] .pick-placement-list button, html[data-theme="light"] .pick-placement-actions button { border-color: rgba(61,98,8,.3); background: #f6faef; color: #1b2418; }
     html[data-theme="light"] .pick-placement-new button { background: #4d7a0b; color: #fff; }
+    .parlay-delete { width: min(400px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 0; overflow: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 16px; background: #0f1a24; color: #e7f0ea; box-shadow: 0 24px 60px rgba(0,0,0,.6); }
+    .parlay-delete::backdrop { background: rgba(4,9,14,.7); backdrop-filter: blur(2px); }
+    .parlay-delete[open] { animation: tracker-window-enter .22s cubic-bezier(.2,.9,.3,1) both; }
+    .parlay-delete-body { display: grid; gap: 10px; padding: 18px; }
+    .parlay-delete-head { display: flex; align-items: center; gap: 10px; }
+    .parlay-delete-icon { display: grid; flex: none; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: rgba(255,107,107,.14); font-size: 17px; }
+    .parlay-delete-head h2 { margin: 0; font-size: 1.02rem; line-height: 1.25; overflow-wrap: anywhere; }
+    .parlay-delete-intro { margin: 0; color: var(--muted); font-size: .8rem; }
+    .parlay-delete-legs { display: grid; gap: 4px; margin: 0 0 4px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: rgba(255,255,255,.03); font-size: .76rem; list-style: none; }
+    .parlay-delete-legs li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .parlay-delete-more { color: var(--muted); }
+    .parlay-delete-option { display: grid; gap: 2px; width: 100%; min-height: 52px; padding: 10px 14px; border: 1px solid rgba(201,239,91,.4); border-radius: 12px; background: rgba(201,239,91,.08); color: #e7f7b0; text-align: left; cursor: pointer; }
+    .parlay-delete-option strong { font-size: .86rem; }
+    .parlay-delete-option small { color: var(--muted); font-size: .72rem; font-weight: 600; }
+    .parlay-delete-option:hover:not(:disabled), .parlay-delete-option:focus-visible { background: rgba(201,239,91,.16); }
+    .parlay-delete-option.is-danger { border-color: rgba(255,107,107,.45); background: rgba(255,107,107,.08); color: #ffb3b3; }
+    .parlay-delete-option.is-danger:hover:not(:disabled), .parlay-delete-option.is-danger:focus-visible { background: rgba(255,107,107,.16); }
+    .parlay-delete-cancel { min-height: 40px; border: 1px solid #2d3e50; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 700; cursor: pointer; }
+    .parlay-delete-cancel:hover:not(:disabled) { background: transparent; color: #e7f0ea; }
+    @media (prefers-reduced-motion: reduce) { .parlay-delete[open] { animation: none; } }
+    html[data-theme="light"] .parlay-delete { border-color: rgba(40,58,22,.15); background: #fff; color: #1b2418; }
+    html[data-theme="light"] .parlay-delete-legs { border-color: rgba(40,58,22,.12); background: #f6faef; }
+    html[data-theme="light"] .parlay-delete-option { border-color: rgba(61,98,8,.35); background: #f6faef; color: #2f4d08; }
+    html[data-theme="light"] .parlay-delete-option.is-danger { border-color: rgba(190,40,40,.35); background: #fff4f4; color: #a32020; }
+    html[data-theme="light"] .parlay-delete-cancel { border-color: rgba(40,58,22,.18); }
+    html[data-theme="light"] .parlay-delete-cancel:hover:not(:disabled) { color: #1b2418; }
+    html[data-theme="light"] .parlay-delete-option:hover:not(:disabled) { background: #eaf3d8; }
+    html[data-theme="light"] .parlay-delete-option.is-danger:hover:not(:disabled) { background: #ffe6e6; }
     .tracker-window-events:empty { display: none; }
     .tracker-window-events .score-pop { margin-bottom: 10px; }
     .score-pop-group { color: var(--muted); font-size: .7rem; font-weight: 700; }
@@ -4152,14 +4180,76 @@
       renderTrackers();
     }
 
-    function deleteParlay(parlay) {
+    function deleteParlay(parlay, { removePicks = false } = {}) {
+      const legs = trackers.filter(item => item.parlay === parlay.id);
       parlays = parlays.filter(item => item.id !== parlay.id);
       parlayBookState.delete(parlay.id);
-      restoreRequestedTargets(trackers.filter(item => item.parlay === parlay.id));
-      for (const tracker of trackers) if (tracker.parlay === parlay.id) tracker.parlay = "";
+      if (removePicks) {
+        const keys = new Set(legs.map(item => item.key));
+        trackers = trackers.filter(item => !keys.has(item.key));
+        for (const key of keys) trackerSnapshots.delete(key);
+      } else {
+        restoreRequestedTargets(legs);
+        for (const tracker of legs) tracker.parlay = "";
+      }
       saveParlays();
       saveTrackers();
+      syncTrackButtons();
       renderTrackers();
+    }
+
+    // Asks what to do with the picks before a parlay is deleted. Empty parlays are deleted straight away.
+    function confirmDeleteParlay(parlay) {
+      const legs = trackers.filter(item => item.parlay === parlay.id && !item.demo);
+      if (!legs.length) {
+        deleteParlay(parlay);
+        return;
+      }
+      const dialog = document.createElement("dialog");
+      dialog.className = "parlay-delete";
+      dialog.setAttribute("aria-labelledby", "parlay-delete-title");
+      const body = element("div", "parlay-delete-body");
+      const head = element("div", "parlay-delete-head");
+      const icon = element("span", "parlay-delete-icon", "🗑");
+      icon.setAttribute("aria-hidden", "true");
+      const heading = element("h2", "", `Delete “${parlay.name}”?`);
+      heading.id = "parlay-delete-title";
+      head.append(icon, heading);
+      const count = legs.length === 1 ? "1 pick" : `${legs.length} picks`;
+      const intro = element("p", "parlay-delete-intro", `This parlay contains ${count}. Choose what happens to ${legs.length === 1 ? "it" : "them"}.`);
+      const list = element("ul", "parlay-delete-legs");
+      for (const tracker of legs.slice(0, 5)) {
+        list.append(element("li", "", `${sportEmoji(tracker)} ${tracker.name} · ${tracker.requestedTarget ?? tracker.target}+ ${trackerStats[tracker.stat]?.short || tracker.stat}`));
+      }
+      if (legs.length > 5) list.append(element("li", "parlay-delete-more", `+ ${legs.length - 5} more`));
+      const option = (className, titleText, detail, onChoose) => {
+        const button = element("button", `parlay-delete-option ${className}`);
+        button.type = "button";
+        button.append(element("strong", "", titleText), element("small", "", detail));
+        button.addEventListener("click", () => {
+          dialog.close();
+          onChoose();
+        });
+        return button;
+      };
+      const keep = option("is-keep", "Keep picks as singles", `${count} will keep tracking live as single picks.`, () => deleteParlay(parlay));
+      const removeAll = option("is-danger", "Delete parlay and picks", `Stops tracking ${legs.length === 1 ? "this pick" : `all ${count}`}. This can't be undone.`, () => deleteParlay(parlay, { removePicks: true }));
+      const cancel = element("button", "parlay-delete-cancel", "Cancel");
+      cancel.type = "button";
+      cancel.addEventListener("click", () => dialog.close());
+      body.append(head, intro, list, keep, removeAll, cancel);
+      dialog.append(body);
+      dialog.addEventListener("close", () => dialog.remove());
+      dialog.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          dialog.close();
+        }
+      });
+      dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); });
+      document.body.append(dialog);
+      dialog.showModal();
+      keep.focus();
     }
 
     function createParlayPicker(tracker) {
@@ -6346,9 +6436,9 @@
         rename.addEventListener("click", () => renameParlay(parlay));
         const del = element("button", "tracker-parlay-btn", "Delete");
         del.type = "button";
-        del.title = "Delete parlay (picks stay tracked as singles)";
+        del.title = "Delete parlay";
         del.setAttribute("aria-label", `Delete ${parlay.name}`);
-        del.addEventListener("click", () => deleteParlay(parlay));
+        del.addEventListener("click", () => confirmDeleteParlay(parlay));
         head.append(title, badge);
         const tools = element("div", "tracker-window-tools");
         const bookTools = createParlayBookTools(parlay, legs);
