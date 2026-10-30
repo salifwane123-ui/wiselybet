@@ -5909,7 +5909,8 @@
         const verdictInfo = performanceVerdict(tracker, snapshot, assessment);
         const verdictBox = element("div", `tracker-verdict tone-${verdictInfo.tone}`);
         verdictBox.append(element("strong", "", verdictInfo.title), element("p", "", verdictInfo.text));
-        card.append(top, createParlayPicker(tracker));
+        card.append(top);
+        if (snapshot.state !== "post") card.append(createParlayPicker(tracker));
         const legParlay = parlays.find(item => item.id === tracker.parlay);
         if (legParlay?.sportsbook && tracker.bookLine?.book === legParlay.sportsbook && tracker.requestedTarget !== undefined) {
           card.append(element("span", "tracker-book-note",
