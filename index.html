@@ -4950,12 +4950,11 @@
       playParlayWinSound();
       if (navigator.vibrate) try { navigator.vibrate([80, 60, 80, 60, 220]); } catch { /* unsupported */ }
 
+      // Stays up until the user closes it with the button (or Esc on a keyboard).
       let closed = false;
-      const autoClose = window.setTimeout(finish, 12000);
       function finish() {
         if (closed) return;
         closed = true;
-        window.clearTimeout(autoClose);
         window.clearInterval(counter);
         document.removeEventListener("keydown", onKey);
         overlay.classList.add("is-leaving");
@@ -4971,7 +4970,6 @@
         if (event.key === "Escape") finish();
       }
       close.addEventListener("click", finish);
-      overlay.addEventListener("click", event => { if (event.target === overlay || event.target === canvas) finish(); });
       document.addEventListener("keydown", onKey);
     }
     // Lightweight confetti + fireworks on a canvas; returns a handle so it can be stopped early.
