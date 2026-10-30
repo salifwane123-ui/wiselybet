@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { displayName, firebaseEnabled, firebaseSignIn, firebaseWebConfig, getSessionUser, getSubscription, getUserData, logIn, logOut, pushDataKey, queueEmail, reportActive, signUp, subscribe, updateUserData } from "./auth.mjs";
 import { randomBytes } from "node:crypto";
 import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
+import { bestParlayMarkets, buildBestParlay, injuredPlayers, parlayBooks, propsTtlMs, selectSlate } from "./best-parlay.mjs";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -106,6 +107,11 @@ async function requestOddsApi(endpoint, parameters) {
   }
 
   const result = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  const remaining = result.headers.get("x-requests-remaining");
+  if (remaining !== null && remaining.trim() !== "" && Number.isFinite(Number(remaining))) {
+    const used = Number(result.headers.get("x-requests-used"));
+    oddsQuota = { remaining: Number(remaining), used: Number.isFinite(used) ? used : 0, at: Date.now() };
+  }
   const body = await result.json().catch(() => null);
   if (!result.ok) {
     const error = new Error(
@@ -190,18 +196,127 @@ function teamsMatch(eventTeam, requestedTeam) {
 }
 
 const apiCache = new Map();
+const apiPending = new Map();
 const cacheTtlMs = { sports: 10 * 60_000, odds: 60_000, props: 60_000, espn: 10_000 };
+// Latest usage reported by the odds provider, so optional features can back off before live odds run out.
+let oddsQuota = null;
 
-// Serves repeated identical upstream requests from memory to save API quota.
+// Serves repeated identical upstream requests from memory to save API quota; simultaneous misses share one request.
 async function cached(key, ttl, load) {
   const hit = apiCache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value;
-  const value = await load();
-  apiCache.set(key, { value, expires: Date.now() + ttl });
-  if (apiCache.size > 300) {
-    for (const [name, entry] of apiCache) if (entry.expires < Date.now()) apiCache.delete(name);
+  if (apiPending.has(key)) return apiPending.get(key);
+  const pending = Promise.resolve()
+    .then(load)
+    .then(value => {
+      apiCache.set(key, { value, expires: Date.now() + ttl });
+      if (apiCache.size > 300) {
+        for (const [name, entry] of apiCache) if (entry.expires < Date.now()) apiCache.delete(name);
+      }
+      return value;
+    })
+    .finally(() => {
+      if (apiPending.get(key) === pending) apiPending.delete(key);
+    });
+  apiPending.set(key, pending);
+  return pending;
+}
+
+function cachedValue(key) {
+  const hit = apiCache.get(key);
+  return hit && hit.expires > Date.now() ? hit.value : undefined;
+}
+
+const parlayLastGood = new Map();
+const parlayStaleMs = 30 * 60_000;
+// Sportsbooks only listed in the provider's second US region.
+const us2Books = new Set(["espnbet", "hardrockbet", "ballybet"]);
+
+function oddsQuotaLow() {
+  if (!oddsQuota) return false;
+  return oddsQuota.remaining < Math.max(250, (oddsQuota.remaining + oddsQuota.used) * 0.1);
+}
+
+async function parlayEventOdds(sport, event, book, premium, now) {
+  const endpoint = `sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(event.id)}/odds/`;
+  const ttl = propsTtlMs(Date.parse(event.commence_time), now);
+  const keyFor = params => `parlay:${endpoint}:${JSON.stringify(params)}`;
+  const load = params => cached(keyFor(params), ttl, async () => ({ data: await requestOddsApi(endpoint, params), fetchedAt: Date.now() }));
+  const allMarkets = bestParlayMarkets[sport].join(",");
+  const full = { regions, markets: allMarkets, oddsFormat: "decimal", includeLinks: "true" };
+  // Guests only see the first market, so they reuse a full fetch when one is cached and otherwise pay for one market.
+  let entry = premium ? await load(full) : cachedValue(keyFor(full)) || await load({ ...full, markets: bestParlayMarkets[sport][0] });
+  if (us2Books.has(book) && !regions.split(",").map(region => region.trim()).includes("us2")) {
+    const extra = await load({ bookmakers: book, markets: premium ? allMarkets : bestParlayMarkets[sport][0], oddsFormat: "decimal", includeLinks: "true" }).catch(() => null);
+    const extraBooks = extra?.data?.bookmakers || [];
+    if (extraBooks.length) {
+      const known = new Set((entry.data?.bookmakers || []).map(item => item.key));
+      entry = {
+        data: { ...entry.data, bookmakers: [...(entry.data?.bookmakers || []), ...extraBooks.filter(item => !known.has(item.key))] },
+        fetchedAt: Math.min(entry.fetchedAt, extra.fetchedAt)
+      };
+    }
   }
-  return value;
+  return entry;
+}
+
+async function buildParlayResponse(sport, book, premium) {
+  const injuriesTask = cached(`parlay-injuries:${sport}`, 10 * 60_000, () => fetchPlayerInjuries(sport)).then(injuredPlayers, () => null);
+  const now = Date.now();
+  const slate = selectSlate(await fetchOddsApi(`sports/${encodeURIComponent(sport)}/events`, {}), now);
+  const settled = await Promise.allSettled(slate.events.map(event => parlayEventOdds(sport, event, book, premium, now)));
+  const oddsByEvent = new Map();
+  settled.forEach((outcome, index) => {
+    if (outcome.status === "fulfilled" && outcome.value) oddsByEvent.set(slate.events[index].id, outcome.value);
+  });
+  if (settled.length && !oddsByEvent.size) throw settled[0].reason;
+  const injured = await injuriesTask;
+  const markets = premium ? bestParlayMarkets[sport] : bestParlayMarkets[sport].slice(0, 1);
+  const result = buildBestParlay({ events: slate.events, oddsByEvent, book, markets, injured: injured || new Set() });
+  return {
+    sport,
+    book,
+    scope: slate.scope,
+    markets: bestParlayMarkets[sport],
+    games: slate.events.length,
+    bookGames: result.bookGames,
+    legs: result.legs,
+    injuryCheck: Boolean(injured),
+    injuredSkipped: result.injuredSkipped,
+    pricesAt: result.pricesAt,
+    generatedAt: new Date(now).toISOString(),
+    limited: !premium,
+    stale: false
+  };
+}
+
+async function bestParlayFor(sport, book, premium) {
+  const key = `best-parlay:${sport}|${book}|${premium ? "full" : "guest"}`;
+  const lastGood = () => {
+    const saved = parlayLastGood.get(key);
+    return saved && Date.now() - Date.parse(saved.generatedAt) < parlayStaleMs ? { ...saved, stale: true } : null;
+  };
+  const fresh = cachedValue(key);
+  if (fresh) return fresh;
+  if (oddsQuotaLow()) {
+    const saved = lastGood();
+    if (saved) return saved;
+    const error = new Error("Best parlays are paused for now to keep live odds running. Please check back later.");
+    error.status = 503;
+    throw error;
+  }
+  try {
+    const value = await cached(key, 60_000, () => buildParlayResponse(sport, book, premium));
+    parlayLastGood.set(key, value);
+    return value;
+  } catch (error) {
+    console.error("Best parlay failed:", error.message);
+    const saved = lastGood();
+    if (saved) return saved;
+    const failure = new Error("We couldn't build a parlay right now. Please try again in a minute.");
+    failure.status = 503;
+    throw failure;
+  }
 }
 
 const rateWindowMs = 60_000;
@@ -507,7 +622,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     // Guests may open the main page and the live scores; the odds and everything else need an account.
-    const guestAllowed = ["/", "/index.html", "/api/live-scores", "/api/matchup-insight", "/api/live-game", "/api/preview", "/api/preview-props", "/api/sports", "/api/odds", "/api/player-props", "/api/player-injuries", "/api/news", "/game"].includes(url.pathname) ||
+    const guestAllowed = ["/", "/index.html", "/api/live-scores", "/api/matchup-insight", "/api/live-game", "/api/preview", "/api/preview-props", "/api/sports", "/api/odds", "/api/player-props", "/api/player-injuries", "/api/best-parlay", "/api/news", "/game"].includes(url.pathname) ||
       /^\/sounds\/[\w-]+\.(mp3|wav|ogg|m4a)$/i.test(url.pathname);
     if (!userKey && !guestAllowed) {
       if (url.pathname.startsWith("/api/")) return await sendJson(response, 401, { error: "Sign in to see the odds." });
@@ -601,6 +716,21 @@ const server = createServer(async (request, response) => {
         { regions, markets: "h2h", oddsFormat: "decimal" }
       );
       await sendJson(response, 200, odds);
+      return;
+    }
+
+    if (url.pathname === "/api/best-parlay") {
+      const sport = url.searchParams.get("sport") || "";
+      const book = url.searchParams.get("book") || "";
+      if (!Object.hasOwn(bestParlayMarkets, sport)) {
+        await sendJson(response, 400, { error: "Best parlays are not available for this sport." });
+        return;
+      }
+      if (!parlayBooks.has(book)) {
+        await sendJson(response, 400, { error: "Choose a supported sportsbook." });
+        return;
+      }
+      await sendJson(response, 200, await bestParlayFor(sport, book, premium));
       return;
     }
 

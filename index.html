@@ -1170,6 +1170,8 @@
     .tracker-window-tools .tracker-parlay-btn { min-height: 30px; padding: 4px 9px; }
     .tracker-window-tools { flex-wrap: wrap; align-items: center; }
     .tracker-book-select { flex: 1 1 140px; min-width: 0; min-height: 30px; padding: 4px 8px; border: 1px solid rgba(201,239,91,.4); border-radius: 6px; background: #0f1a24; color: #e7f7b0; font-size: .7rem; font-weight: 750; color-scheme: dark; }
+    .tracker-state-select { flex: 0 1 130px; }
+    .tracker-state-select.is-needed { border-color: #ffd27a; box-shadow: 0 0 0 2px rgba(255,210,122,.18); color: #ffd27a; }
     .tracker-book-open { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 4px 10px; border-radius: 6px; background: #c9ef5b; color: #10160a; font-size: .7rem; font-weight: 850; text-decoration: none; }
     .tracker-book-open[aria-disabled="true"] { opacity: .55; pointer-events: none; }
     .tracker-book-status { margin: 0 0 8px; padding: 7px 8px; border: 1px solid rgba(201,239,91,.25); border-radius: 8px; background: rgba(0,0,0,.18); color: #d9e3cf; font-size: .64rem; line-height: 1.4; }
@@ -1213,6 +1215,7 @@
     .pick-placement-actions .pick-placement-cancel { width: auto; border-color: #2d3e50; background: transparent; color: var(--muted); }
     @media (prefers-reduced-motion: reduce) { #pick-placement[open] { animation: none; } }
     html[data-theme="light"] .tracker-book-select { border-color: rgba(61,98,8,.4); background: #fff; color: #1b2418; color-scheme: light; }
+    html[data-theme="light"] .tracker-state-select.is-needed { border-color: #b7791f; box-shadow: 0 0 0 2px rgba(183,121,31,.16); color: #8a5a10; }
     html[data-theme="light"] .tracker-book-open { background: #4d7a0b; color: #fff; }
     html[data-theme="light"] .tracker-book-status { border-color: rgba(61,98,8,.25); background: #f6faef; color: #1b2418; }
     html[data-theme="light"] .tracker-book-status a { color: #3d6208; }
@@ -1926,10 +1929,11 @@
       html.embed #bell-button { position: relative; top: auto; right: auto; }
       html.embed #bell-panel { top: calc(100% + 8px); right: 0; left: auto; width: calc(100vw - 24px); margin-top: 0; }
     }
-    /* Top discounts ticker: a slim strip above the top bar. Mobile-first; container queries widen it into one row. */
-    .price-deals {
+    /* Best parlay bar: the strongest player-prop legs from the games on now, priced at the user's sportsbook.
+       Mobile-first; container queries spread it out as the bar gets wider. */
+    .best-parlay {
       position: relative;
-      container: deals / inline-size;
+      container: bp / inline-size;
       margin: 12px 0 0;
       overflow: hidden;
       border: 1px solid rgba(225,233,229,.1);
@@ -1937,114 +1941,149 @@
       background: linear-gradient(135deg, rgba(22,25,21,.94), rgba(17,20,17,.9));
       box-shadow: 0 8px 20px rgba(0,0,0,.12), inset 0 1px rgba(255,255,255,.03);
     }
-    .price-deals[hidden] { display: none; }
-    .deals-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label controls" "slide slide"; align-items: center; gap: 7px 12px; padding: 8px 8px 10px 12px; }
-    .deals-label { display: flex; grid-area: label; align-items: center; gap: 8px; min-width: 0; }
-    .deals-label-icon { display: grid; flex: 0 0 auto; width: 24px; height: 24px; place-items: center; border-radius: 7px; background: rgba(201,239,91,.12); color: #c9ef5b; }
-    .deals-label-icon svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    .price-deals h2 { margin: 0; overflow: hidden; color: #e4f4c4; font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-    .deals-sub { display: none; margin: 2px 0 0; color: var(--muted); font-size: .68rem; white-space: nowrap; }
-    .deals-controls { display: flex; grid-area: controls; align-items: center; gap: 2px; }
-    .deals-counter { min-width: 30px; color: var(--muted); font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
-    .deals-nav { display: grid; width: 28px; height: 28px; min-height: 0; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #c0c5bf; }
-    .deals-nav:hover:not(:disabled) { border-color: rgba(225,233,229,.12); background: rgba(255,255,255,.06); color: #eef6dc; }
-    .deals-nav svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .deals-nav .icon-play { fill: currentColor; stroke-width: 1.2; }
-    .deals-nav .icon-play, .price-deals.is-paused .deals-nav .icon-pause { display: none; }
-    .price-deals.is-paused .deals-nav .icon-play { display: block; }
-    .deals-viewport { display: grid; grid-area: slide; min-width: 0; padding-top: 9px; overflow: hidden; border-top: 1px solid rgba(225,233,229,.08); touch-action: pan-y; }
-    /* Opacity as well as visibility: loaded team logos carry an inline visibility:visible that would show through hidden slides */
-    .deal-slide { grid-area: 1 / 1; min-width: 0; visibility: hidden; opacity: 0; }
-    .deal-slide.is-active, .deal-slide.is-leaving { visibility: visible; opacity: 1; }
-    .deal-slide.is-active { animation: deal-in-next .45s cubic-bezier(.22,.8,.2,1) both; }
-    .deal-slide.is-leaving { pointer-events: none; animation: deal-out-next .45s cubic-bezier(.22,.8,.2,1) both; }
-    .deals-viewport[data-dir="prev"] .deal-slide.is-active { animation-name: deal-in-prev; }
-    .deals-viewport[data-dir="prev"] .deal-slide.is-leaving { animation-name: deal-out-prev; }
-    .deals-viewport[data-dir="none"] .deal-slide.is-active { animation: none; }
-    @keyframes deal-in-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
-    @keyframes deal-out-next { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-28px); } }
-    @keyframes deal-in-prev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
-    @keyframes deal-out-prev { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(28px); } }
-    .deal-card { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "main main main cta" "best market edge edge"; align-items: center; gap: 8px 18px; }
-    .deal-main { grid-area: main; min-width: 0; }
-    .deal-title { display: flex; align-items: center; gap: 7px; min-width: 0; color: #f2f7e6; font-size: .86rem; font-weight: 750; line-height: 1.25; }
-    .deal-title .team-identity { gap: 7px; min-width: 0; }
-    .deal-title .team-logo, .deal-title .team-logo-fallback, .deal-draw-icon { width: 22px; height: 22px; }
-    .deal-title .team-logo-fallback { font-size: .5rem; }
-    .deal-draw-icon { display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; background: rgba(255,255,255,.08); color: #e2e8d8; font-size: .62rem; font-weight: 850; }
-    .deal-to-win { flex: 0 0 auto; color: var(--muted); font-size: .7rem; font-weight: 600; }
-    .deal-meta { margin: 2px 0 0 29px; overflow: hidden; color: var(--muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
-    .deal-stat { display: grid; gap: 1px; min-width: 0; }
-    .deal-stat-best { grid-area: best; }
-    .deal-stat-market { grid-area: market; }
-    .deal-stat-edge { grid-area: edge; justify-self: start; cursor: help; }
-    .deal-stat-label { max-width: 150px; overflow: hidden; color: var(--muted); font-size: .6rem; font-weight: 700; letter-spacing: .06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
-    .deal-stat-label b { color: #e2e8d8; font-weight: 750; letter-spacing: .02em; text-transform: none; }
-    .deal-stat-value { color: #eef6dc; font-size: .96rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; }
-    .deal-stat-best .deal-stat-value { color: #c9ef5b; }
-    .deal-stat-market .deal-stat-value { color: #b6bcb5; font-weight: 700; }
-    .deal-stat-edge .deal-stat-value { justify-self: start; padding: 0 6px; border-radius: 5px; background: rgba(201,239,91,.13); color: #d9f58a; }
-    .deal-cta { display: inline-flex; grid-area: cta; align-items: center; gap: 6px; height: 30px; min-height: 0; padding: 0 11px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: transparent; color: #dff3a6; font-size: .74rem; font-weight: 750; white-space: nowrap; transition: background-color .15s, border-color .15s, color .15s; }
-    .deal-cta:hover:not(:disabled) { border-color: #c9ef5b; background: #c9ef5b; color: #12150f; }
-    .deal-cta svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .deal-empty { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-height: 34px; align-content: center; color: var(--muted); font-size: .74rem; }
-    .deal-empty strong { color: #eef6dc; font-weight: 750; }
-    .deal-loading { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 56px); align-items: center; gap: 16px; }
-    .deal-loading .skeleton { min-height: 32px; border-radius: 8px; }
-    .deals-progress { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; overflow: hidden; }
-    .deals-progress i { display: block; width: 100%; height: 100%; transform: scaleX(0); transform-origin: left; background: rgba(201,239,91,.6); }
-    .deals-progress i.run { animation: deal-progress 6.5s linear forwards; }
-    .price-deals.is-paused .deals-progress i.run, .price-deals:has(:focus-visible) .deals-progress i.run { animation-play-state: paused; }
-    @media (hover: hover) { .price-deals:hover .deals-progress i.run { animation-play-state: paused; } }
-    @keyframes deal-progress { to { transform: scaleX(1); } }
-    .price-deals.is-single .deals-controls, .price-deals.is-single .deals-progress { display: none; }
-    .deal-spotlight { animation: deal-spotlight 2.4s ease-out; }
-    @keyframes deal-spotlight { 0%, 35% { box-shadow: 0 0 0 3px rgba(201,239,91,.75), 0 0 28px rgba(201,239,91,.3); } 100% { box-shadow: 0 0 0 0 rgba(201,239,91,0); } }
-    /* The pick and its numbers share one row once there is room */
-    @container deals (min-width: 560px) {
-      .deal-card { grid-template-columns: minmax(0, 1fr) auto auto auto auto; grid-template-areas: "main best market edge cta"; gap: 0 16px; }
-      .deal-stat-best { padding-left: 16px; border-left: 1px solid rgba(225,233,229,.08); }
+    .best-parlay[hidden] { display: none; }
+    .bp-inner { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "ticker" "stats" "actions" "details"; }
+    .bp-head { display: flex; grid-area: head; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; padding: 9px 10px 9px 12px; }
+    .bp-brand { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; min-width: 0; }
+    .bp-icon { display: grid; flex: 0 0 auto; width: 26px; height: 26px; place-items: center; border-radius: 7px; background: rgba(201,239,91,.12); color: #c9ef5b; }
+    .bp-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .bp-heading { min-width: 0; }
+    .best-parlay h2 { display: flex; align-items: center; gap: 7px; margin: 0; color: #e4f4c4; font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+    .bp-sport { padding: 1px 6px; border-radius: 5px; background: rgba(255,255,255,.07); color: var(--muted); font-size: .6rem; letter-spacing: .06em; }
+    .bp-sport:empty { display: none; }
+    .bp-sub { display: none; margin: 2px 0 0; overflow: hidden; color: var(--muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+    .bp-pickers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+    .bp-select { width: auto; max-width: 100%; height: 30px; min-height: 0; padding: 0 4px 0 8px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: #121611; color: #e7f7b0; font-size: .74rem; font-weight: 700; color-scheme: dark; cursor: pointer; }
+    .bp-select:hover { border-color: rgba(201,239,91,.6); }
+    .bp-select[hidden] { display: none; }
+    .bp-book-select { max-width: 175px; }
+    .best-parlay.is-unset .bp-book-select, .bp-state-select.is-needed { border-color: #c9ef5b; box-shadow: 0 0 0 3px rgba(201,239,91,.14); }
+    .bp-ticker { display: grid; grid-area: ticker; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; padding: 9px 8px 10px 12px; border-top: 1px solid rgba(225,233,229,.08); }
+    .bp-viewport { display: grid; min-width: 0; overflow: hidden; touch-action: pan-y; }
+    .bp-slide { grid-area: 1 / 1; min-width: 0; visibility: hidden; opacity: 0; }
+    .bp-slide.is-active, .bp-slide.is-leaving { visibility: visible; opacity: 1; }
+    .bp-slide.is-active { animation: bp-in-next .45s cubic-bezier(.22,.8,.2,1) both; }
+    .bp-slide.is-leaving { pointer-events: none; animation: bp-out-next .45s cubic-bezier(.22,.8,.2,1) both; }
+    .bp-viewport[data-dir="prev"] .bp-slide.is-active { animation-name: bp-in-prev; }
+    .bp-viewport[data-dir="prev"] .bp-slide.is-leaving { animation-name: bp-out-prev; }
+    .bp-viewport[data-dir="none"] .bp-slide.is-active { animation: none; }
+    @keyframes bp-in-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+    @keyframes bp-out-next { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-28px); } }
+    @keyframes bp-in-prev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+    @keyframes bp-out-prev { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(28px); } }
+    .bp-controls { display: flex; align-items: center; gap: 2px; }
+    .bp-counter { min-width: 30px; color: var(--muted); font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
+    .bp-nav { display: grid; width: 28px; height: 28px; min-height: 0; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #c0c5bf; }
+    .bp-nav:hover:not(:disabled) { border-color: rgba(225,233,229,.12); background: rgba(255,255,255,.06); color: #eef6dc; }
+    .bp-nav svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .bp-nav .icon-play { fill: currentColor; stroke-width: 1.2; }
+    .bp-nav .icon-play, .best-parlay.is-paused .bp-nav .icon-pause { display: none; }
+    .best-parlay.is-paused .bp-nav .icon-play { display: block; }
+    .bp-leg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "num main odds"; align-items: center; gap: 4px 10px; min-width: 0; }
+    .bp-num { display: grid; grid-area: num; width: 24px; height: 24px; place-items: center; border-radius: 50%; background: rgba(201,239,91,.14); color: #d9f58a; font-size: .7rem; font-weight: 850; font-variant-numeric: tabular-nums; }
+    .bp-leg-main { grid-area: main; min-width: 0; }
+    .bp-leg-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 7px; min-width: 0; line-height: 1.3; }
+    .bp-player, .bp-pick { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bp-player { color: #f2f7e6; font-size: .86rem; font-weight: 750; }
+    .bp-pick { color: #d9f58a; font-size: .78rem; font-weight: 700; }
+    .bp-meta { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 2px; color: var(--muted); font-size: .68rem; white-space: nowrap; }
+    .bp-meta span { overflow: hidden; text-overflow: ellipsis; }
+    .bp-live { flex: 0 0 auto; padding: 0 5px; border-radius: 4px; background: rgba(255,92,92,.16); color: #ff8a8a; font-size: .58rem; font-weight: 850; letter-spacing: .08em; }
+    .bp-odds { display: flex; grid-area: odds; flex-direction: column; align-items: flex-end; gap: 3px; }
+    .bp-price { color: #eef6dc; font-size: .92rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
+    .bp-chance { padding: 1px 7px; border-radius: 99px; background: rgba(201,239,91,.13); color: #d9f58a; font-size: .68rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: help; }
+    .bp-leg-link { grid-area: link; justify-self: end; padding: 3px 9px; border: 1px solid rgba(201,239,91,.3); border-radius: 7px; color: #dff3a6; font-size: .7rem; font-weight: 750; text-decoration: none; white-space: nowrap; }
+    .bp-leg-link:hover { border-color: #c9ef5b; background: rgba(201,239,91,.12); }
+    .bp-message { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 40px; color: var(--muted); font-size: .76rem; line-height: 1.4; }
+    .bp-message strong { color: #eef6dc; font-weight: 750; }
+    .bp-retry { height: 28px; min-height: 0; padding: 0 11px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: transparent; color: #dff3a6; font-size: .72rem; }
+    .bp-retry:hover:not(:disabled) { border-color: #c9ef5b; background: #c9ef5b; color: #12150f; }
+    .bp-loading { display: grid; grid-template-columns: 24px minmax(0, 1fr) 64px; align-items: center; gap: 10px; }
+    .bp-loading .skeleton { height: 22px; min-height: 0; border-radius: 7px; }
+    .bp-loading .skeleton:first-child { height: 24px; border-radius: 50%; }
+    .bp-loading .skeleton:nth-child(2) { height: 34px; }
+    .best-parlay:not(.has-legs) .bp-controls, .best-parlay:not(.has-legs) .bp-stats, .best-parlay:not(.has-legs) .bp-actions, .best-parlay:not(.has-legs) .bp-progress, .best-parlay.is-single .bp-controls, .best-parlay.is-single .bp-progress, .best-parlay.is-expanded .bp-progress { display: none; }
+    .bp-stats { display: flex; grid-area: stats; flex-wrap: wrap; align-items: center; gap: 6px 18px; min-width: 0; margin: 0; padding: 8px 12px; border-top: 1px solid rgba(225,233,229,.08); }
+    .bp-stat { display: grid; gap: 1px; min-width: 0; }
+    .bp-stat dt { color: var(--muted); font-size: .58rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
+    .bp-stat dd { margin: 0; color: #eef6dc; font-size: .9rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; }
+    .bp-stat dd small { color: var(--muted); font-size: .68rem; font-weight: 650; }
+    .bp-stat-odds dd { color: #c9ef5b; }
+    .bp-stat-chance dd { cursor: help; }
+    .bp-stale { padding: 2px 8px; border-radius: 99px; background: rgba(255,196,87,.14); color: #ffd27a; font-size: .64rem; font-weight: 800; white-space: nowrap; cursor: help; }
+    .bp-actions { display: flex; grid-area: actions; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; padding: 0 12px 11px; }
+    .bp-more { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; height: 32px; min-height: 0; padding: 0 11px; border: 1px solid rgba(225,233,229,.16); border-radius: 8px; background: transparent; color: #dfe6d6; font-size: .74rem; font-weight: 750; white-space: nowrap; }
+    .bp-more:hover:not(:disabled) { border-color: rgba(225,233,229,.32); background: rgba(255,255,255,.06); color: #f2f7e6; }
+    .bp-more svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+    .bp-more[aria-expanded="true"] svg { transform: rotate(180deg); }
+    .bp-open { display: inline-flex; flex: 1 1 auto; align-items: center; justify-content: center; min-width: 0; height: 32px; padding: 0 14px; overflow: hidden; border-radius: 8px; background: #c9ef5b; color: #12150f; font-size: .76rem; font-weight: 800; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; transition: background-color .15s, box-shadow .15s; }
+    .bp-open:hover { background: #d8f77c; box-shadow: 0 4px 14px rgba(201,239,91,.25); }
+    .bp-open[aria-disabled="true"] { pointer-events: none; opacity: .5; }
+    .bp-details { grid-area: details; padding: 2px 12px 12px; border-top: 1px solid rgba(225,233,229,.08); }
+    .bp-details[hidden] { display: none; }
+    .bp-leg-list { display: grid; margin: 0; padding: 0; list-style: none; }
+    .bp-leg-list li { padding: 8px 0; border-bottom: 1px solid rgba(225,233,229,.06); }
+    .bp-leg-list .bp-leg { grid-template-areas: "num main odds" "num main link"; }
+    .bp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 8px; }
+    .bp-tool { display: inline-flex; align-items: center; gap: 6px; height: 30px; min-height: 0; padding: 0 12px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: transparent; color: #dff3a6; font-size: .74rem; font-weight: 750; text-decoration: none; }
+    .bp-tool:hover:not(:disabled) { border-color: #c9ef5b; background: rgba(201,239,91,.12); color: #f2f7e6; }
+    .bp-tool:disabled { opacity: .6; cursor: default; }
+    .bp-notes { display: grid; gap: 3px; margin: 0; padding: 0 0 0 16px; color: var(--muted); font-size: .7rem; line-height: 1.45; }
+    .bp-notes .bp-note-warn { color: #ffd27a; }
+    .bp-progress { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; overflow: hidden; }
+    .bp-progress i { display: block; width: 100%; height: 100%; transform: scaleX(0); transform-origin: left; background: rgba(201,239,91,.6); }
+    .bp-progress i.run { animation: bp-progress 6.5s linear forwards; }
+    .best-parlay.is-paused .bp-progress i.run, .best-parlay:has(:focus-visible) .bp-progress i.run { animation-play-state: paused; }
+    @media (hover: hover) { .best-parlay:hover .bp-progress i.run { animation-play-state: paused; } }
+    @keyframes bp-progress { to { transform: scaleX(1); } }
+    @container bp (min-width: 520px) {
+      .bp-odds { flex-direction: row; align-items: center; gap: 8px; }
     }
-    /* Mid widths: one ticker row too, with only the tag icon as the label */
-    @container deals (min-width: 780px) {
-      .deals-bar { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "label slide controls"; gap: 0 14px; min-height: 58px; padding: 0 8px 0 12px; }
-      .deals-label { align-self: stretch; padding-right: 14px; border-right: 1px solid rgba(225,233,229,.08); }
-      .deals-label-icon { width: 30px; height: 30px; border-radius: 8px; }
-      .deals-label-icon svg { width: 15px; height: 15px; }
-      .deals-label > div { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-      .deals-controls { align-self: stretch; padding-left: 10px; border-left: 1px solid rgba(225,233,229,.08); }
-      .deals-viewport { padding: 9px 0; border-top: 0; }
+    /* Tablets: the totals and the betslip button share a row under the slides */
+    @container bp (min-width: 640px) {
+      .bp-inner { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head head" "ticker ticker" "stats actions" "details details"; }
+      .bp-sub { display: block; }
+      .bp-actions { padding: 8px 12px; border-top: 1px solid rgba(225,233,229,.08); }
+      .bp-open { flex: 0 1 auto; }
+      .bp-leg-list .bp-leg { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "num main odds link"; }
     }
-    /* Wide screens: the label shows its title and subtitle */
-    @container deals (min-width: 1040px) {
-      .deals-bar { gap: 0 16px; }
-      .deals-label { padding-right: 16px; }
-      .deals-label > div { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
-      .deals-sub { display: block; }
+    /* Wide screens: totals sit beside the title, the betslip button beside the slides */
+    @container bp (min-width: 1100px) {
+      .bp-inner { grid-template-areas: "head stats" "ticker actions" "details details"; }
+      .bp-stats { justify-content: flex-end; gap: 6px 22px; padding: 8px 14px; border-top: 0; }
+      .bp-actions { padding: 0 12px 0 14px; border-left: 1px solid rgba(225,233,229,.08); }
     }
-    html[data-theme="light"] .price-deals { border-color: rgba(40,58,22,.14); background: #fff; box-shadow: 0 6px 18px rgba(40,58,22,.07); }
-    html[data-theme="light"] .price-deals h2 { color: #2f4d08; }
-    html[data-theme="light"] .deals-label-icon { background: rgba(120,170,30,.14); color: #3d6208; }
-    html[data-theme="light"] .deals-label, html[data-theme="light"] .deals-controls, html[data-theme="light"] .deals-viewport, html[data-theme="light"] .deal-stat-best { border-color: rgba(40,58,22,.1); }
-    html[data-theme="light"] .deals-nav { color: #3b4637; }
-    html[data-theme="light"] .deals-nav:hover:not(:disabled) { border-color: rgba(40,58,22,.14); background: rgba(47,77,8,.06); color: #1b2418; }
-    html[data-theme="light"] .deal-title, html[data-theme="light"] .deal-empty strong, html[data-theme="light"] .deal-stat-value { color: #1b2418; }
-    html[data-theme="light"] .deal-draw-icon { background: rgba(47,77,8,.08); color: #26301f; }
-    html[data-theme="light"] .deal-stat-label b { color: #26301f; }
-    html[data-theme="light"] .deal-stat-best .deal-stat-value { color: #3d6208; }
-    html[data-theme="light"] .deal-stat-market .deal-stat-value { color: var(--muted); }
-    html[data-theme="light"] .deal-stat-edge .deal-stat-value { background: rgba(120,170,30,.15); color: #2f4d08; }
-    html[data-theme="light"] .deal-cta { border-color: rgba(77,122,11,.4); color: #2f4d08; }
-    html[data-theme="light"] .deal-cta:hover:not(:disabled) { border-color: #4d7a0b; background: #4d7a0b; color: #fff; }
-    html[data-theme="light"] .deals-progress i { background: rgba(77,122,11,.65); }
+    html[data-theme="light"] .best-parlay { border-color: rgba(40,58,22,.14); background: #fff; box-shadow: 0 6px 18px rgba(40,58,22,.07); }
+    html[data-theme="light"] .best-parlay h2 { color: #2f4d08; }
+    html[data-theme="light"] .bp-icon, html[data-theme="light"] .bp-num { background: rgba(120,170,30,.14); color: #3d6208; }
+    html[data-theme="light"] .bp-sport { background: rgba(47,77,8,.07); }
+    html[data-theme="light"] .bp-select { border-color: rgba(61,98,8,.4); background: #fff; color: #1b2418; color-scheme: light; }
+    html[data-theme="light"] .best-parlay.is-unset .bp-book-select, html[data-theme="light"] .bp-state-select.is-needed { border-color: #4d7a0b; box-shadow: 0 0 0 3px rgba(77,122,11,.14); }
+    html[data-theme="light"] .bp-ticker, html[data-theme="light"] .bp-stats, html[data-theme="light"] .bp-actions, html[data-theme="light"] .bp-details, html[data-theme="light"] .bp-leg-list li { border-color: rgba(40,58,22,.1); }
+    html[data-theme="light"] .bp-nav { color: #3b4637; }
+    html[data-theme="light"] .bp-nav:hover:not(:disabled) { border-color: rgba(40,58,22,.14); background: rgba(47,77,8,.06); color: #1b2418; }
+    html[data-theme="light"] .bp-player, html[data-theme="light"] .bp-price, html[data-theme="light"] .bp-stat dd, html[data-theme="light"] .bp-message strong { color: #1b2418; }
+    html[data-theme="light"] .bp-pick, html[data-theme="light"] .bp-stat-odds dd { color: #3d6208; }
+    html[data-theme="light"] .bp-chance { background: rgba(120,170,30,.15); color: #2f4d08; }
+    html[data-theme="light"] .bp-live { background: rgba(200,40,40,.1); color: #b42318; }
+    html[data-theme="light"] .bp-stale { background: rgba(214,140,0,.13); color: #8a5a00; }
+    html[data-theme="light"] .bp-notes .bp-note-warn { color: #8a5a00; }
+    html[data-theme="light"] .bp-more { border-color: rgba(40,58,22,.2); color: #26301f; }
+    html[data-theme="light"] .bp-more:hover:not(:disabled) { border-color: rgba(40,58,22,.34); background: rgba(47,77,8,.06); color: #1b2418; }
+    html[data-theme="light"] .bp-open { background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] .bp-open:hover { background: #3d6208; box-shadow: 0 4px 14px rgba(77,122,11,.25); }
+    html[data-theme="light"] .bp-retry, html[data-theme="light"] .bp-tool, html[data-theme="light"] .bp-leg-link { border-color: rgba(77,122,11,.4); color: #2f4d08; }
+    html[data-theme="light"] .bp-retry:hover:not(:disabled) { border-color: #4d7a0b; background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] .bp-tool:hover:not(:disabled), html[data-theme="light"] .bp-leg-link:hover { border-color: #4d7a0b; background: rgba(120,170,30,.12); color: #1b2418; }
+    html[data-theme="light"] .bp-progress i { background: rgba(77,122,11,.65); }
     @media (max-width: 560px) {
-      .price-deals { grid-area: deals; margin: 10px 13px 0; }
+      .best-parlay { grid-area: deals; margin: 10px 13px 0; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .deal-slide.is-active, .deal-slide.is-leaving, .deal-spotlight { animation: none; }
-      .deal-slide.is-leaving { visibility: hidden; opacity: 0; }
-      .deal-cta { transition: none; }
-      .deals-progress, #deals-pause { display: none; }
+      .bp-slide.is-active, .bp-slide.is-leaving { animation: none; }
+      .bp-slide.is-leaving { visibility: hidden; opacity: 0; }
+      .bp-open, .bp-more svg { transition: none; }
+      .bp-progress, #bp-pause { display: none; }
     }
   </style>
 </head>
@@ -2076,24 +2115,39 @@
     </aside>
 
     <div class="app-content">
-      <section id="price-deals" class="price-deals" aria-roledescription="carousel" aria-labelledby="price-deals-title" hidden>
-        <div class="deals-bar">
-          <div class="deals-label">
-            <span class="deals-label-icon" title="Top discounts" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.75 8.4V2.75a1 1 0 0 1 1-1H8.4l5.85 5.85a1 1 0 0 1 0 1.41l-5.24 5.24a1 1 0 0 1-1.41 0z"/><circle cx="5.25" cy="5.25" r="1.1"/></svg></span>
-            <div>
-              <h2 id="price-deals-title">Top discounts</h2>
-              <p class="deals-sub">Best odds vs. the market</p>
+      <section id="best-parlay" class="best-parlay is-unset" aria-roledescription="carousel" aria-labelledby="bp-title" hidden>
+        <div class="bp-inner">
+          <div class="bp-head">
+            <div class="bp-brand">
+              <span class="bp-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5V6a2 2 0 0 0 0 4v1.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5V10a2 2 0 0 0 0-4z"/><path d="M6.5 6h3M6.5 8h3M6.5 10h2"/></svg></span>
+              <div class="bp-heading">
+                <h2 id="bp-title">Best parlay <span id="bp-sport" class="bp-sport"></span></h2>
+                <p id="bp-sub" class="bp-sub">Top player props from the games on now, priced at your sportsbook</p>
+              </div>
+            </div>
+            <div class="bp-pickers">
+              <select id="bp-book" class="bp-select bp-book-select" aria-label="Your sportsbook"><option value="">Your sportsbook…</option></select>
+              <select id="bp-state" class="bp-select bp-state-select" aria-label="Your state" hidden></select>
+              <select id="bp-legs" class="bp-select" aria-label="Number of legs"></select>
             </div>
           </div>
-          <div id="deals-viewport" class="deals-viewport" aria-live="off"></div>
-          <div class="deals-controls">
-            <button type="button" id="deals-prev" class="deals-nav" aria-label="Previous discount"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button>
-            <span id="deals-counter" class="deals-counter" aria-hidden="true"></span>
-            <button type="button" id="deals-next" class="deals-nav" aria-label="Next discount"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
-            <button type="button" id="deals-pause" class="deals-nav" aria-label="Pause slides"><svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg></button>
+          <div class="bp-ticker">
+            <div id="bp-viewport" class="bp-viewport" aria-live="off"></div>
+            <div class="bp-controls">
+              <button type="button" id="bp-prev" class="bp-nav" aria-label="Previous leg"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button>
+              <span id="bp-counter" class="bp-counter" aria-hidden="true"></span>
+              <button type="button" id="bp-next" class="bp-nav" aria-label="Next leg"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
+              <button type="button" id="bp-pause" class="bp-nav" aria-label="Pause slides"><svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg></button>
+            </div>
           </div>
+          <dl id="bp-stats" class="bp-stats"></dl>
+          <div class="bp-actions">
+            <button type="button" id="bp-more" class="bp-more" aria-expanded="false" aria-controls="bp-details">All legs <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
+            <a id="bp-open" class="bp-open" target="_blank" rel="noopener noreferrer">Open betslip ↗</a>
+          </div>
+          <div id="bp-details" class="bp-details" hidden></div>
         </div>
-        <div class="deals-progress" aria-hidden="true"><i id="deals-progress-bar"></i></div>
+        <div class="bp-progress" aria-hidden="true"><i id="bp-progress-bar"></i></div>
       </section>
       <header class="topbar">
         <div class="topbar-heading">
@@ -2625,7 +2679,10 @@
       volume: 100,
       alerts: { court: true, foul: true, injury: true, score: true },
       oddsFormat: "american",
-      theme: "dark"
+      theme: "dark",
+      parlayBook: "",
+      parlayState: "",
+      parlayLegs: 8
     };
     function readSettings() {
       try {
@@ -2670,12 +2727,20 @@
     const sportNavigationElement = document.querySelector("#sport-navigation");
     const upcomingListElement = document.querySelector("#upcoming-list");
     const upcomingCountElement = document.querySelector("#upcoming-count");
-    const priceDealsElement = document.querySelector("#price-deals");
-    const dealsViewport = document.querySelector("#deals-viewport");
-    const dealsCounterElement = document.querySelector("#deals-counter");
-    const dealsProgressBar = document.querySelector("#deals-progress-bar");
-    const dealsPauseButton = document.querySelector("#deals-pause");
-    const priceDealsState = { deals: [], index: 0, sport: "", leaveTimer: 0, swipedAt: 0 };
+    const bestParlayElement = document.querySelector("#best-parlay");
+    const bpViewport = document.querySelector("#bp-viewport");
+    const bpCounter = document.querySelector("#bp-counter");
+    const bpProgressBar = document.querySelector("#bp-progress-bar");
+    const bpPauseButton = document.querySelector("#bp-pause");
+    const bpBookSelect = document.querySelector("#bp-book");
+    const bpStateSelect = document.querySelector("#bp-state");
+    const bpLegsSelect = document.querySelector("#bp-legs");
+    const bpSportLabel = document.querySelector("#bp-sport");
+    const bpStats = document.querySelector("#bp-stats");
+    const bpMoreButton = document.querySelector("#bp-more");
+    const bpOpenLink = document.querySelector("#bp-open");
+    const bpDetails = document.querySelector("#bp-details");
+    const bestParlayState = { sport: "", book: "", data: null, error: "", loading: false, request: 0, loadedAt: 0, index: 0, activeKey: "", renderedAt: 0, leaveTimer: 0, swipedAt: 0, tracked: null };
     // Show at most 6 live matches; scroll the list when there are more.
     function fitLiveGamesHeight() {
       liveGamesElement.style.maxHeight = "";
@@ -2955,11 +3020,6 @@
           createTeamIdentity(score?.home, event.home_team || "Home")
         );
       }
-      dealsViewport?.querySelectorAll(".deal-slide").forEach((slide, index) => {
-        const deal = priceDealsState.deals[index];
-        const identity = slide.querySelector(".deal-title .team-identity");
-        if (deal && identity) identity.replaceWith(createTeamIdentity(dealTeam(deal), deal.outcome));
-      });
     }
 
     function matchingLiveScore(event) {
@@ -3185,7 +3245,6 @@
       teamSearch.value = "";
       renderUpcomingGames([]);
       renderLiveScores([]);
-      hidePriceDeals();
     }
 
     async function getJson(path) {
@@ -3216,288 +3275,474 @@
       return body;
     }
 
-    // A discount is one sportsbook paying more for a moneyline outcome than the no-vig consensus of the other books.
-    function findPriceDiscounts(events, now = Date.now(), limit = 8) {
-      const deals = [];
-      for (const event of Array.isArray(events) ? events : []) {
-        const start = Date.parse(event?.commence_time);
-        if (!Number.isFinite(start) || start <= now) continue;
-        const quotes = new Map();
-        for (const bookmaker of event.bookmakers || []) {
-          const market = (bookmaker?.markets || []).find(item => item?.key === "h2h");
-          const outcomes = (market?.outcomes || []).filter(outcome => outcome?.name && Number(outcome.price) > 1);
-          if (outcomes.length < 2) continue;
-          const overround = outcomes.reduce((sum, outcome) => sum + 1 / Number(outcome.price), 0);
-          for (const outcome of outcomes) {
-            const price = Number(outcome.price);
-            if (!quotes.has(outcome.name)) quotes.set(outcome.name, []);
-            quotes.get(outcome.name).push({
-              book: bookmaker.title || bookmaker.key || "Sportsbook",
-              price,
-              fair: 1 / price / overround
-            });
-          }
-        }
-        for (const [outcome, list] of quotes) {
-          if (list.length < 3) continue;
-          const best = list.reduce((top, quote) => (quote.price > top.price ? quote : top));
-          // Compare the best price against the other books only, so one generous book can't inflate its own benchmark.
-          const others = list.filter(quote => quote !== best);
-          const probability = others.reduce((sum, quote) => sum + quote.fair, 0) / others.length;
-          const prices = others.map(quote => quote.price).sort((a, b) => a - b);
-          const middle = Math.floor(prices.length / 2);
-          const typical = prices.length % 2 ? prices[middle] : (prices[middle - 1] + prices[middle]) / 2;
-          const edge = best.price * probability - 1;
-          // Skip longshots, ties and gaps so large they are more likely a stale quote than a real price.
-          if (probability < 0.08 || best.price <= typical || edge < 0.005 || edge > 0.25) continue;
-          deals.push({
-            eventId: event.id,
-            home: event.home_team,
-            away: event.away_team,
-            start,
-            outcome,
-            price: best.price,
-            book: best.book,
-            typical,
-            probability,
-            edge,
-            books: list.length
-          });
-        }
-      }
-      return deals.sort((a, b) => b.edge - a.edge || a.start - b.start).slice(0, limit);
+    // Best parlay bar: up to 8 strong player-prop legs from the games on now, priced at the user's sportsbook.
+    // The server picks the legs (/api/best-parlay); this code shows them, builds the betslip link and tracks them.
+    const parlayLegCounts = [2, 3, 4, 5, 6, 7, 8];
+    const bestParlayRefreshMs = 3 * 60_000;
+    const twoWordNicknames = ["Red Sox", "White Sox", "Blue Jays", "Red Wings", "Golden Knights", "Maple Leafs", "Trail Blazers", "Blue Jackets"];
+    function bestParlaySport() {
+      return playerPropSports[sportSelect.value] ? sportSelect.value : "";
     }
-
-    function renderPriceDeals(events) {
-      if (!priceDealsElement || embedMode) return;
-      window.clearTimeout(priceDealsState.leaveTimer);
-      priceDealsElement.hidden = false;
-      priceDealsElement.removeAttribute("aria-busy");
-      dealsCounterElement.textContent = "";
-
-      if (events === null) {
-        priceDealsState.deals = [];
-        priceDealsState.index = 0;
-        priceDealsElement.classList.add("is-single");
-        priceDealsElement.setAttribute("aria-busy", "true");
-        const loading = element("div", "deal-loading");
-        loading.setAttribute("aria-hidden", "true");
-        for (let i = 0; i < 4; i += 1) loading.append(element("div", "skeleton"));
-        dealsViewport.replaceChildren(loading);
-        restartDealsProgress();
-        return;
-      }
-
-      const previous = priceDealsState.deals[priceDealsState.index];
-      const deals = findPriceDiscounts(events);
-      priceDealsState.deals = deals;
-      priceDealsState.sport = sportSelect.value;
-      priceDealsElement.classList.toggle("is-single", deals.length < 2);
-
-      if (!deals.length) {
-        priceDealsState.index = 0;
-        const empty = element("div", "deal-empty");
-        empty.append(
-          element("strong", "", "No standout discounts right now."),
-          element("span", "", events.length
-            ? "Every sportsbook is pricing these games close to the market — check back closer to game time."
-            : "There are no upcoming games with odds for this sport yet.")
-        );
-        dealsViewport.replaceChildren(empty);
-        restartDealsProgress();
-        return;
-      }
-
-      dealsViewport.replaceChildren(...deals.map((deal, index) => createDealSlide(deal, index, deals.length)));
-      const keep = previous ? deals.findIndex(deal => dealKey(deal) === dealKey(previous)) : -1;
-      showDeal(Math.max(0, keep), "none");
+    function bestParlayBook() {
+      return sportsbookTitles.has(settings.parlayBook) ? settings.parlayBook : "";
     }
-
-    function dealKey(deal) {
-      return `${deal.eventId}|${deal.outcome}|${deal.book}`;
+    function parlayLegTarget() {
+      const count = Math.round(Number(settings.parlayLegs));
+      return Number.isFinite(count) ? Math.min(8, Math.max(2, count)) : 8;
     }
-
-    function hidePriceDeals() {
-      if (!priceDealsElement) return;
-      window.clearTimeout(priceDealsState.leaveTimer);
-      priceDealsState.deals = [];
-      priceDealsState.index = 0;
-      priceDealsState.sport = "";
-      priceDealsElement.hidden = true;
-      dealsViewport.replaceChildren();
-      restartDealsProgress();
+    function teamNickname(name, sport) {
+      const full = String(name || "").trim();
+      if (sport === "americanfootball_ncaaf" || /hockey club$/i.test(full)) return full;
+      return twoWordNicknames.find(nickname => full.endsWith(` ${nickname}`)) || full.split(/\s+/).pop() || full;
     }
-
-    function dealTeam(deal) {
-      const score = matchingLiveScore({ home_team: deal.home, away_team: deal.away });
-      if (deal.outcome === deal.home) return score?.home;
-      if (deal.outcome === deal.away) return score?.away;
-      return null;
+    function propMarketPhrase(sport, market) {
+      const label = playerPropSports[sport]?.markets.find(([key]) => key === market)?.[1]
+        || String(market).replace(/^(player|batter|pitcher)_/, "").replace(/_/g, " ");
+      return label.charAt(0).toLowerCase() + label.slice(1);
     }
-
-    function formatDealTime(start) {
-      const date = new Date(start);
+    function formatSlateTime(value) {
+      const date = new Date(value);
       if (Number.isNaN(date.getTime())) return "";
-      const now = new Date();
       const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      const key = localDateKey(date);
-      if (key === localDateKey(now)) return `Today ${time}`;
-      if (key === localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))) return `Tomorrow ${time}`;
-      return `${date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · ${time}`;
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const day = localDateKey(date);
+      if (day === localDateKey(Date.now())) return `Today ${time}`;
+      if (day === localDateKey(tomorrow)) return `Tomorrow ${time}`;
+      return `${date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} ${time}`;
+    }
+    function formatParlayChance(probability) {
+      const percent = probability * 100;
+      if (percent >= 9.5) return `${Math.round(percent)}%`;
+      return percent >= 0.1 ? `${percent.toFixed(1)}%` : "<0.1%";
+    }
+    function formatPayout(amount) {
+      return amount >= 100 ? `$${Math.round(amount).toLocaleString("en-US")}` : `$${amount.toFixed(2)}`;
+    }
+    function legStarted(leg) {
+      return Boolean(leg.live) || Date.parse(leg.start) <= Date.now();
+    }
+    function bestParlayLegKey(leg) {
+      return `${leg.eventId}|${leg.player}|${leg.market}`;
+    }
+    function bestParlayLegText(leg, sport) {
+      return `${leg.player} Over ${leg.line} ${propMarketPhrase(sport, leg.market)}`;
     }
 
-    function createDealSlide(deal, index, total) {
-      const slide = element("article", "deal-slide");
-      slide.setAttribute("role", "group");
-      slide.setAttribute("aria-roledescription", "slide");
-      slide.setAttribute("aria-label", `${index + 1} of ${total}`);
-      const card = element("div", "deal-card");
+    // The book and state lists are declared further down, so the pickers fill on first render.
+    function fillBestParlayPickers() {
+      if (bpBookSelect.options.length < 2) bpBookSelect.append(...sportsbooks.map(book => new Option(book.title, book.key)));
+      fillStateOptions(bpStateSelect);
+      bpBookSelect.value = bestParlayBook();
+      bpLegsSelect.value = String(parlayLegTarget());
+    }
 
-      const main = element("div", "deal-main");
-      const title = element("div", "deal-title");
-      if (/^draw$/i.test(deal.outcome)) {
-        const icon = element("span", "deal-draw-icon", "X");
-        icon.setAttribute("aria-hidden", "true");
-        title.append(icon, element("span", "team-identity-name", "Draw"));
-      } else {
-        title.append(createTeamIdentity(dealTeam(deal), deal.outcome), element("span", "deal-to-win", "to win"));
+    async function loadBestParlay() {
+      if (!bestParlayElement || embedMode) return;
+      const state = bestParlayState;
+      const sport = bestParlaySport();
+      const book = bestParlayBook();
+      if (state.sport !== sport || state.book !== book) Object.assign(state, { sport, book, data: null, error: "", index: 0 });
+      const request = ++state.request;
+      if (!sport || !book) {
+        state.loading = false;
+        renderBestParlay();
+        return;
       }
-      const meta = [
-        sportSelect.selectedOptions[0]?.textContent?.trim(),
-        formatDealTime(deal.start),
-        `${deal.away || "Away"} @ ${deal.home || "Home"}`,
-        `${deal.books} books`
-      ].filter(Boolean).join(" · ");
-      main.append(title, element("p", "deal-meta", meta));
+      state.loading = true;
+      if (!state.data) renderBestParlay();
+      try {
+        const data = await getJson(`/api/best-parlay?sport=${encodeURIComponent(sport)}&book=${encodeURIComponent(book)}`);
+        if (request !== state.request) return;
+        if (!Array.isArray(data?.legs)) throw new Error("We couldn't build a parlay right now. Please try again in a minute.");
+        state.data = data;
+        state.error = "";
+      } catch (error) {
+        if (request !== state.request) return;
+        // A failed refresh keeps the parlay already on screen.
+        state.error = error.message || "We couldn't build a parlay right now.";
+      }
+      state.loading = false;
+      state.loadedAt = Date.now();
+      renderBestParlay();
+    }
 
-      const stat = (name, label, value) => {
-        const box = element("div", `deal-stat deal-stat-${name}`);
-        box.append(label, value);
-        return box;
-      };
-      const bestLabel = element("span", "deal-stat-label", "Best · ");
-      bestLabel.append(element("b", "", deal.book));
-      const best = stat("best", bestLabel, element("span", "deal-stat-value", formatAmericanOdds(deal.price)));
-      best.title = `Best price, at ${deal.book}`;
-      const market = stat("market", element("span", "deal-stat-label", "Market"), element("span", "deal-stat-value", formatAmericanOdds(deal.typical)));
-      market.title = `Typical price at the other ${deal.books - 1} sportsbooks`;
-      const extra = (deal.price - deal.typical) * 100;
-      const extraText = `+$${extra >= 1 ? extra.toFixed(0) : extra.toFixed(2)} extra per $100 bet`;
-      const edgeValue = element("span", "deal-stat-value", `+${(deal.edge * 100).toFixed(1)}%`);
-      edgeValue.append(element("span", "visually-hidden", ` vs market, ${extraText}`));
-      const edge = stat("edge", element("span", "deal-stat-label", "Discount"), edgeValue);
-      edge.title = `${extraText} than the typical book. The other ${deal.books - 1} sportsbooks, with their margin removed, give ${deal.outcome === "Draw" ? "a draw" : deal.outcome} about a ${(deal.probability * 100).toFixed(1)}% chance. ${deal.book} pays more than that fair price — a better price, not a guaranteed win.`;
+    function refreshBestParlayIfOld() {
+      const state = bestParlayState;
+      if (state.loading || document.hidden || !bestParlaySport() || !bestParlayBook()) return;
+      if (Date.now() - state.loadedAt > bestParlayRefreshMs) void loadBestParlay();
+    }
 
-      const cta = element("button", "deal-cta", "Compare");
-      cta.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>');
-      cta.type = "button";
-      cta.setAttribute("aria-label", `Compare all sportsbook odds for ${deal.away || "Away"} at ${deal.home || "Home"}`);
-      cta.addEventListener("click", () => openDealMatch(deal.eventId));
+    function createBestParlayLeg(leg, number, sport, book) {
+      const row = element("div", "bp-leg");
+      const badge = element("span", "bp-num", String(number));
+      badge.setAttribute("aria-hidden", "true");
+      const main = element("div", "bp-leg-main");
+      const title = element("div", "bp-leg-title");
+      title.append(element("strong", "bp-player", leg.player), element("span", "bp-pick", `Over ${leg.line} ${propMarketPhrase(sport, leg.market)}`));
+      const meta = element("div", "bp-meta");
+      const matchup = `${teamNickname(leg.away, sport)} @ ${teamNickname(leg.home, sport)}`;
+      if (legStarted(leg)) meta.append(element("b", "bp-live", "LIVE"), element("span", "", matchup));
+      else meta.append(element("span", "", `${formatSlateTime(leg.start)} · ${matchup}`));
+      meta.title = `${leg.away} @ ${leg.home}`;
+      main.append(title, meta);
+      const odds = element("div", "bp-odds");
+      const price = element("span", "bp-price", formatAmericanOdds(leg.price));
+      price.title = `${sportsbookTitle(book)} price`;
+      const percent = Math.round(leg.probability * 100);
+      const chance = element("span", "bp-chance", `${percent}%`);
+      chance.title = `About ${percent}% to hit, from the no-vig odds at ${leg.books} sportsbooks`;
+      odds.append(price, chance);
+      row.append(badge, main, odds);
+      return row;
+    }
 
-      card.append(main, best, market, edge, cta);
-      slide.append(card);
+    function bestParlayMessage(strong, text, retry = false) {
+      const slide = element("div", "bp-slide is-active");
+      const message = element("p", "bp-message");
+      message.append(element("strong", "", strong), element("span", "", text));
+      if (retry) {
+        const button = element("button", "bp-retry", "Retry");
+        button.type = "button";
+        button.addEventListener("click", () => void loadBestParlay());
+        message.append(button);
+      }
+      slide.append(message);
       return slide;
     }
 
-    function showDeal(index, direction = "next") {
-      const slides = [...dealsViewport.querySelectorAll(".deal-slide")];
-      if (!slides.length) return;
-      const nextIndex = ((index % slides.length) + slides.length) % slides.length;
-      const current = slides.find(slide => slide.classList.contains("is-active"));
-      window.clearTimeout(priceDealsState.leaveTimer);
-      for (const slide of slides) slide.classList.remove("is-leaving");
-      dealsViewport.dataset.dir = direction;
-      if (current && current !== slides[nextIndex]) {
-        current.classList.add("is-leaving");
-        priceDealsState.leaveTimer = window.setTimeout(() => current.classList.remove("is-leaving"), 650);
-      }
-      slides.forEach((slide, slideIndex) => {
-        const active = slideIndex === nextIndex;
-        slide.classList.toggle("is-active", active);
-        slide.inert = !active;
-        slide.setAttribute("aria-hidden", String(!active));
-      });
-      priceDealsState.index = nextIndex;
-      dealsCounterElement.textContent = `${nextIndex + 1} / ${slides.length}`;
-      restartDealsProgress();
-    }
-
-    function restartDealsProgress() {
-      dealsProgressBar.classList.remove("run");
-      if (priceDealsState.deals.length < 2) return;
-      void dealsProgressBar.offsetWidth;
-      dealsProgressBar.classList.add("run");
-    }
-
-    function stepDeal(step) {
-      if (priceDealsState.deals.length < 2) return;
-      showDeal(priceDealsState.index + step, step < 0 ? "prev" : "next");
-    }
-
-    function openDealMatch(eventId) {
-      let matchCard = document.getElementById(`match-${eventId}`);
-      if (!matchCard) {
-        dateSelect.value = "all";
-        teamSearch.value = "";
-        renderFilteredMatches();
-        matchCard = document.getElementById(`match-${eventId}`);
-      }
-      if (!matchCard) return;
-      const oddsReview = matchCard.querySelector(".odds-review");
-      if (oddsReview) oddsReview.open = true;
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      matchCard.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
-      oddsReview?.querySelector("summary")?.focus({ preventScroll: true });
-      matchCard.classList.remove("deal-spotlight");
-      void matchCard.offsetWidth;
-      matchCard.classList.add("deal-spotlight");
-      window.setTimeout(() => matchCard.classList.remove("deal-spotlight"), 2500);
-    }
-
-    if (priceDealsElement) {
-      document.querySelector("#deals-prev").addEventListener("click", () => stepDeal(-1));
-      document.querySelector("#deals-next").addEventListener("click", () => stepDeal(1));
-      dealsPauseButton.addEventListener("click", () => {
-        const paused = priceDealsElement.classList.toggle("is-paused");
-        dealsPauseButton.setAttribute("aria-label", paused ? "Play slides" : "Pause slides");
-        dealsViewport.setAttribute("aria-live", paused ? "polite" : "off");
-      });
-      dealsProgressBar.addEventListener("animationend", () => {
-        if (priceDealsState.deals.some(deal => deal.start <= Date.now())) {
-          renderPriceDeals(currentEvents);
-          return;
+    function bestParlayEmptySlide(data, book) {
+      const title = sportsbookTitle(book);
+      if (!data) {
+        if (bestParlayState.loading) {
+          const slide = element("div", "bp-slide is-active bp-loading");
+          slide.setAttribute("role", "status");
+          slide.setAttribute("aria-label", "Building your parlay…");
+          slide.append(element("div", "skeleton"), element("div", "skeleton"), element("div", "skeleton"));
+          return slide;
         }
-        stepDeal(1);
+        return bestParlayMessage("Couldn't load the parlay.", bestParlayState.error || "Please try again in a minute.", true);
+      }
+      if (!data.games) return bestParlayMessage("No games on the board.", "Check back when the next games are posted.");
+      if (!data.bookGames) return bestParlayMessage(`${title} hasn't posted player props for these games yet.`, "Try another sportsbook or check back closer to game time.");
+      return bestParlayMessage("No legs pass our checks right now.", `Each leg needs a ${title} price, the same line at 2+ sportsbooks and a 50%+ hit chance. Check back soon.`);
+    }
+
+    function renderBestParlay() {
+      if (!bestParlayElement) return;
+      const sport = bestParlaySport();
+      bestParlayElement.hidden = embedMode || !sport;
+      if (bestParlayElement.hidden) {
+        bpProgressBar.classList.remove("run");
+        return;
+      }
+      fillBestParlayPickers();
+      const state = bestParlayState;
+      const book = bestParlayBook();
+      const data = state.data?.sport === sport && state.data.book === book ? state.data : null;
+      const legs = data ? data.legs.slice(0, parlayLegTarget()) : [];
+      bpSportLabel.textContent = sport.split("_").pop().toUpperCase();
+      bpStateSelect.hidden = !stateSportsbooks.has(book);
+      bestParlayElement.classList.toggle("is-unset", !book);
+      bestParlayElement.classList.toggle("has-legs", legs.length > 0);
+      bestParlayElement.classList.toggle("is-single", legs.length === 1);
+      window.clearTimeout(state.leaveTimer);
+      if (!legs.length) {
+        bpViewport.dataset.dir = "none";
+        bpViewport.replaceChildren(book
+          ? bestParlayEmptySlide(data, book)
+          : bestParlayMessage("Choose your sportsbook", "and we'll build the best player-prop parlay from the games on now at its odds, ready to open in your betslip."));
+        bpStats.replaceChildren();
+        bpDetails.replaceChildren();
+        setBestParlayExpanded(false);
+        bpCounter.textContent = "";
+        bpProgressBar.classList.remove("run");
+        return;
+      }
+      const slides = legs.map((leg, index) => {
+        const slide = element("div", "bp-slide");
+        slide.setAttribute("role", "group");
+        slide.setAttribute("aria-roledescription", "slide");
+        slide.setAttribute("aria-label", `Leg ${index + 1} of ${legs.length}`);
+        slide.dataset.key = bestParlayLegKey(leg);
+        slide.append(createBestParlayLeg(leg, index + 1, sport, book));
+        return slide;
       });
+      bpViewport.replaceChildren(...slides);
+      const kept = slides.findIndex(slide => slide.dataset.key === state.activeKey);
+      showBestParlaySlide(kept >= 0 ? kept : Math.min(state.index, slides.length - 1), "none");
+      renderBestParlayStats(legs, data);
+      const links = bestParlayLinks(legs, book);
+      const title = sportsbookTitle(book);
+      if (links.href) {
+        bpOpenLink.href = links.href;
+        bpOpenLink.removeAttribute("aria-disabled");
+      } else {
+        bpOpenLink.removeAttribute("href");
+        bpOpenLink.setAttribute("aria-disabled", "true");
+      }
+      bpOpenLink.textContent = links.label;
+      bpOpenLink.title = links.carried === legs.length
+        ? `Opens ${title} in a new tab with ${legs.length === 1 ? "this pick" : `all ${legs.length} picks`} in the betslip. Check the odds there before you bet.`
+        : links.carried
+          ? `Opens ${title} with ${links.carried} of ${legs.length} picks in the betslip. Add the rest from "All legs".`
+          : `Opens ${title} in a new tab. Add each leg from "All legs" or search for the players.`;
+      renderBestParlayDetails(legs, data, links.direct);
+      state.renderedAt = Date.now();
+    }
+
+    function renderBestParlayStats(legs, data) {
+      const target = parlayLegTarget();
+      const odds = legs.reduce((product, leg) => product * leg.price, 1);
+      const chance = legs.reduce((product, leg) => product * leg.probability, 1);
+      const stat = (className, label, value, title = "") => {
+        const item = element("div", `bp-stat ${className}`);
+        const detail = element("dd");
+        detail.append(value);
+        if (title) detail.title = title;
+        item.append(element("dt", "", label), detail);
+        return item;
+      };
+      const count = document.createDocumentFragment();
+      count.append(String(legs.length));
+      if (legs.length < target) count.append(element("small", "", ` of ${target}`));
+      const items = [
+        stat("bp-stat-legs", "Legs", count, legs.length < target ? `Only ${legs.length} legs pass our checks right now` : ""),
+        stat("bp-stat-odds", "Odds", formatAmericanOdds(odds), `Parlay odds at ${sportsbookTitle(data.book)}, before any boosts`),
+        stat("bp-stat-pays", "$10 pays", formatPayout(10 * odds), "Total return on a $10 stake, including the stake"),
+        stat("bp-stat-chance", "Hit chance", formatParlayChance(chance), `About 1 in ${Math.max(1, Math.round(1 / chance)).toLocaleString("en-US")}. Every leg must hit.`)
+      ];
+      if (data.stale) {
+        const badge = element("span", "bp-stale", "Delayed");
+        badge.title = "Live odds are paused for a moment, so these prices may be out of date. Check the betslip before you bet.";
+        items.push(stat("bp-stat-fresh", "Prices", badge));
+      }
+      bpStats.replaceChildren(...items);
+    }
+
+    // The main button loads every leg the book can take in one link, else opens the book's site.
+    function bestParlayLinks(legs, book) {
+      const title = sportsbookTitle(book);
+      const direct = legs.map(leg => resolveBookLink(leg.link));
+      const carried = direct.filter(Boolean);
+      const slip = carried.length ? combineBetslipLinks(book, carried) : "";
+      const home = resolveBookLink(sportsbooks.find(item => item.key === book)?.home);
+      const fallback = legs.map(leg => resolveBookLink(leg.marketLink) || resolveBookLink(leg.eventLink)).find(Boolean) || "";
+      let label = `Open ${title} ↗`;
+      if (slip && carried.length === legs.length) label = `Open betslip at ${title} ↗`;
+      else if (slip) label = `Open betslip · ${carried.length} of ${legs.length} ↗`;
+      return { direct, href: slip || home || fallback, label, carried: slip ? carried.length : 0 };
+    }
+
+    function bestParlaySignature(legs, book) {
+      return `${book}:${legs.map(bestParlayLegKey).join(",")}`;
+    }
+
+    function renderBestParlayDetails(legs, data, direct) {
+      const { sport, book } = data;
+      const title = sportsbookTitle(book);
+      const list = element("ol", "bp-leg-list");
+      legs.forEach((leg, index) => {
+        const item = element("li");
+        const row = createBestParlayLeg(leg, index + 1, sport, book);
+        const href = direct[index] || resolveBookLink(leg.marketLink) || resolveBookLink(leg.eventLink);
+        if (href) {
+          const link = element("a", "bp-leg-link", direct[index] ? "Add ↗" : "Find ↗");
+          link.href = href;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.title = direct[index] ? `Add ${leg.player} to your ${title} betslip` : `Find this game at ${title}`;
+          row.append(link);
+        }
+        item.append(row);
+        list.append(item);
+      });
+      const tools = element("div", "bp-tools");
+      if (window.wiselyPremium) {
+        const tracked = bestParlayState.tracked;
+        const done = tracked?.signature === bestParlaySignature(legs, book) && parlays.some(parlay => parlay.id === tracked.parlayId);
+        const track = element("button", "bp-tool", done ? "Tracking ✓" : "Track this parlay");
+        track.type = "button";
+        track.disabled = done;
+        track.title = done ? "This parlay is in your tracker" : "Follow every leg live in your tracker";
+        track.addEventListener("click", () => trackBestParlay(legs, data));
+        tools.append(track);
+      } else {
+        tools.append(createLockedButton("🔒 Track this parlay"));
+      }
+      const copy = element("button", "bp-tool", "Copy picks");
+      copy.type = "button";
+      copy.addEventListener("click", () => void copyBestParlay(legs, data, copy));
+      tools.append(copy);
+      const notes = element("ul", "bp-notes");
+      const note = (text, warn = false) => notes.append(element("li", warn ? "bp-note-warn" : "", text));
+      if (stateSportsbooks.has(book) && !bettingStateName(settings.parlayState)) {
+        note(`Choose your state so ${title} links open your state's ${title} site.`, true);
+      }
+      const pricedAt = new Date(data.pricesAt || data.generatedAt);
+      const time = Number.isNaN(pricedAt.getTime()) ? "" : ` as of ${pricedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+      note(`Prices from ${title}${time}. Lines move, so check each leg in the betslip before you bet.`);
+      note("Hit chance is an estimate from the no-vig odds of several sportsbooks and treats the legs as independent.");
+      if (new Set(legs.map(leg => leg.eventId)).size < legs.length) {
+        note(`Legs from the same game may need a same-game parlay at ${title}, which can change the price.`);
+      }
+      if (!data.injuryCheck) note("The injury report is unavailable right now, so double-check each player's status.", true);
+      else if (data.injuredSkipped) note(`${data.injuredSkipped} player${data.injuredSkipped === 1 ? " on the injury report was" : "s on the injury report were"} left out.`);
+      if (data.limited) {
+        const markets = (Array.isArray(data.markets) ? data.markets : []).map(market => propMarketPhrase(sport, market));
+        if (markets.length > 1) note(`Preview: ${markets[0]} props only. Members also get ${markets.slice(1).join(" and ")} legs.`);
+      }
+      note("21+ only. Gambling problem? Call 1-800-GAMBLER.");
+      bpDetails.replaceChildren(list, tools, notes);
+    }
+
+    function trackBestParlay(legs, data) {
+      const stats = marketToTrackerStatBySport[data.sport] || {};
+      const usable = legs.filter(leg => stats[leg.market]);
+      if (!usable.length) return;
+      const parlay = createParlay(`Best parlay · ${sportsbookTitle(data.book)}`);
+      usable.forEach(leg => addTracker(leg.player, data.sport, leg.eventId, stats[leg.market], Math.floor(Number(leg.line)) + 1, parlay.id, "over",
+        { id: leg.eventId, home_team: leg.home, away_team: leg.away, commence_time: leg.start }));
+      setParlaySportsbook(parlay, data.book);
+      bestParlayState.tracked = { signature: bestParlaySignature(legs, data.book), parlayId: parlay.id };
+      renderBestParlay();
+    }
+
+    async function copyBestParlay(legs, data, button) {
+      const odds = legs.reduce((product, leg) => product * leg.price, 1);
+      const text = [
+        `WiselyBet best parlay · ${data.sport.split("_").pop().toUpperCase()} · ${sportsbookTitle(data.book)}`,
+        ...legs.map((leg, index) => `${index + 1}. ${bestParlayLegText(leg, data.sport)} (${formatAmericanOdds(leg.price)}) · ${leg.away} @ ${leg.home}`),
+        `Parlay odds ${formatAmericanOdds(odds)} · $10 pays ${formatPayout(10 * odds)}`
+      ].join("\n");
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } catch {
+        const area = element("textarea");
+        area.value = text;
+        area.setAttribute("readonly", "");
+        area.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+        document.body.append(area);
+        area.select();
+        try {
+          copied = document.execCommand("copy");
+        } catch {
+          copied = false;
+        }
+        area.remove();
+      }
+      button.textContent = copied ? "Copied ✓" : "Copy failed";
+      window.setTimeout(() => {
+        if (button.isConnected) button.textContent = "Copy picks";
+      }, 1800);
+    }
+
+    function showBestParlaySlide(index, direction = "next") {
+      const slides = [...bpViewport.querySelectorAll(".bp-slide[data-key]")];
+      if (!slides.length) return;
+      const next = ((index % slides.length) + slides.length) % slides.length;
+      const previous = bpViewport.querySelector(".bp-slide.is-active");
+      window.clearTimeout(bestParlayState.leaveTimer);
+      slides.forEach(slide => slide.classList.remove("is-leaving"));
+      bpViewport.dataset.dir = direction;
+      slides.forEach((slide, slideIndex) => {
+        slide.classList.toggle("is-active", slideIndex === next);
+        slide.setAttribute("aria-hidden", String(slideIndex !== next));
+      });
+      if (previous && previous !== slides[next] && direction !== "none") {
+        previous.classList.add("is-leaving");
+        bestParlayState.leaveTimer = window.setTimeout(() => previous.classList.remove("is-leaving"), 480);
+      }
+      bestParlayState.index = next;
+      bestParlayState.activeKey = slides[next].dataset.key;
+      bpCounter.textContent = `${next + 1}/${slides.length}`;
+      restartBestParlayProgress();
+    }
+
+    function stepBestParlay(delta) {
+      if (bpViewport.querySelectorAll(".bp-slide[data-key]").length < 2) return;
+      showBestParlaySlide(bestParlayState.index + delta, delta < 0 ? "prev" : "next");
+    }
+
+    function restartBestParlayProgress() {
+      bpProgressBar.classList.remove("run");
+      if (bpViewport.querySelectorAll(".bp-slide[data-key]").length < 2) return;
+      void bpProgressBar.offsetWidth;
+      bpProgressBar.classList.add("run");
+    }
+
+    function setBestParlayExpanded(open) {
+      bpDetails.hidden = !open;
+      bpMoreButton.setAttribute("aria-expanded", String(open));
+      bpMoreButton.firstChild.textContent = open ? "Hide legs " : "All legs ";
+      bestParlayElement.classList.toggle("is-expanded", open);
+    }
+
+    if (bestParlayElement) {
+      bpLegsSelect.append(...parlayLegCounts.map(count => new Option(`${count} legs`, String(count))));
+      bpLegsSelect.value = String(parlayLegTarget());
+      bpBookSelect.addEventListener("change", () => {
+        settings.parlayBook = bpBookSelect.value;
+        saveSettings();
+        void loadBestParlay();
+      });
+      bpStateSelect.addEventListener("change", () => {
+        settings.parlayState = bpStateSelect.value;
+        saveSettings();
+        renderBestParlay();
+        renderTrackers();
+      });
+      bpLegsSelect.addEventListener("change", () => {
+        settings.parlayLegs = Number(bpLegsSelect.value);
+        saveSettings();
+        renderBestParlay();
+      });
+      document.querySelector("#bp-prev").addEventListener("click", () => stepBestParlay(-1));
+      document.querySelector("#bp-next").addEventListener("click", () => stepBestParlay(1));
+      bpPauseButton.addEventListener("click", () => {
+        const paused = bestParlayElement.classList.toggle("is-paused");
+        bpPauseButton.setAttribute("aria-label", paused ? "Play slides" : "Pause slides");
+        bpViewport.setAttribute("aria-live", paused ? "polite" : "off");
+      });
+      bpMoreButton.addEventListener("click", () => setBestParlayExpanded(bpDetails.hidden));
+      bpProgressBar.addEventListener("animationend", () => {
+        // A game that tipped off since the last render gets its LIVE badge before the next slide.
+        const since = bestParlayState.renderedAt;
+        if (bestParlayState.data?.legs.some(leg => { const start = Date.parse(leg.start); return start > since && start <= Date.now(); })) renderBestParlay();
+        stepBestParlay(1);
+      });
+      const ticker = bestParlayElement.querySelector(".bp-ticker");
       // Announce slide changes only while autoplay is stopped by focus or the pause button.
-      priceDealsElement.addEventListener("focusin", () => dealsViewport.setAttribute("aria-live", "polite"));
-      priceDealsElement.addEventListener("focusout", event => {
-        if (priceDealsElement.contains(event.relatedTarget) || priceDealsElement.classList.contains("is-paused")) return;
-        dealsViewport.setAttribute("aria-live", "off");
+      ticker.addEventListener("focusin", () => bpViewport.setAttribute("aria-live", "polite"));
+      ticker.addEventListener("focusout", event => {
+        if (ticker.contains(event.relatedTarget) || bestParlayElement.classList.contains("is-paused")) return;
+        bpViewport.setAttribute("aria-live", "off");
       });
-      priceDealsElement.addEventListener("keydown", event => {
-        if (event.key === "ArrowLeft") stepDeal(-1);
-        else if (event.key === "ArrowRight") stepDeal(1);
+      ticker.addEventListener("keydown", event => {
+        if (event.key === "ArrowLeft") stepBestParlay(-1);
+        else if (event.key === "ArrowRight") stepBestParlay(1);
         else return;
         event.preventDefault();
       });
       let swipe = null;
-      dealsViewport.addEventListener("pointerdown", event => {
+      bpViewport.addEventListener("pointerdown", event => {
         swipe = event.pointerType === "mouse" ? null : { x: event.clientX, y: event.clientY, id: event.pointerId };
       });
-      dealsViewport.addEventListener("pointerup", event => {
+      bpViewport.addEventListener("pointerup", event => {
         if (!swipe || event.pointerId !== swipe.id) return;
         const dx = event.clientX - swipe.x;
         const dy = event.clientY - swipe.y;
         swipe = null;
         if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
-        priceDealsState.swipedAt = Date.now();
-        stepDeal(dx < 0 ? 1 : -1);
+        bestParlayState.swipedAt = Date.now();
+        stepBestParlay(dx < 0 ? 1 : -1);
       });
-      dealsViewport.addEventListener("pointercancel", () => { swipe = null; });
-      // A swipe that ends on the button must not also open the game.
-      dealsViewport.addEventListener("click", event => {
-        if (Date.now() - priceDealsState.swipedAt > 400) return;
+      bpViewport.addEventListener("pointercancel", () => { swipe = null; });
+      // A swipe that ends on the Retry button must not also press it.
+      bpViewport.addEventListener("click", event => {
+        if (Date.now() - bestParlayState.swipedAt > 400) return;
         event.preventDefault();
         event.stopPropagation();
       }, true);
@@ -3512,7 +3757,6 @@
         return timeA - timeB;
       });
       matchesElement.replaceChildren();
-      renderPriceDeals(currentEvents);
 
       if (!currentEvents.length) {
         dateFilterElement.hidden = true;
@@ -5193,6 +5437,7 @@
     const trackerScorePops = new Map();
     const gainDurationMs = 3000;
     let trackerPollRunning = false;
+    let trackerPollQueued = false;
     let trackerRenderPending = false;
 
     function readTrackers() {
@@ -5510,7 +5755,18 @@
         }
         case "betmgm": {
           const options = values("options");
-          return options ? `${first.origin}${first.pathname}?options=${options.map(encodeURIComponent).join(",")}` : "";
+          if (!options) return "";
+          // Options are fixture-market-option triplets; a combo needs every leg from a different fixture.
+          const fixtures = options.map(option => option.split("-")[0]);
+          const combo = new Set(fixtures).size === fixtures.length ? "&type=combo" : "";
+          return `${first.origin}${first.pathname}?options=${options.map(encodeURIComponent).join(",")}${combo}`;
+        }
+        case "betrivers": {
+          // Kambi coupons sit in the hash ("#event/{id}?coupon=single|{outcome}|"); a combination lists every outcome.
+          const outcomes = urls.map(url => /^#event\/[^?]+\?coupon=[^|]*\|([^|]+)\|/.exec(url.hash)?.[1]);
+          const event = /^#event\/([^?]+)/.exec(first.hash)?.[1];
+          if (!event || !outcomes.every(Boolean)) return "";
+          return `${first.origin}${first.pathname}${first.search}#event/${event}?coupon=combination|${outcomes.join(",")}|`;
         }
         case "espnbet": {
           const ids = values("market_selection_id");
@@ -5530,6 +5786,48 @@
       } catch {
         return "";
       }
+    }
+    // States with legal online sports betting. Links from some books carry a {state} placeholder for the state site.
+    const bettingStates = [
+      ["AZ", "Arizona"], ["AR", "Arkansas"], ["CO", "Colorado"], ["CT", "Connecticut"], ["DC", "Washington, DC"],
+      ["DE", "Delaware"], ["IL", "Illinois"], ["IN", "Indiana"], ["IA", "Iowa"], ["KS", "Kansas"], ["KY", "Kentucky"],
+      ["LA", "Louisiana"], ["ME", "Maine"], ["MD", "Maryland"], ["MA", "Massachusetts"], ["MI", "Michigan"],
+      ["MO", "Missouri"], ["NV", "Nevada"], ["NH", "New Hampshire"], ["NJ", "New Jersey"], ["NY", "New York"],
+      ["NC", "North Carolina"], ["OH", "Ohio"], ["OR", "Oregon"], ["PA", "Pennsylvania"], ["RI", "Rhode Island"],
+      ["TN", "Tennessee"], ["VT", "Vermont"], ["VA", "Virginia"], ["WV", "West Virginia"], ["WY", "Wyoming"]
+    ];
+    const stateSportsbooks = new Set(["betmgm", "williamhill_us", "betrivers"]);
+    function bettingStateName(code) {
+      return bettingStates.find(([key]) => key === code)?.[1] || "";
+    }
+    function linkNeedsState(link) {
+      return /\{state\}|%7Bstate%7D/i.test(String(link || ""));
+    }
+    // Fills in the user's state; links that still need one, or carry another placeholder, are dropped.
+    function resolveBookLink(link, state = settings.parlayState) {
+      let value = String(link || "");
+      if (linkNeedsState(value)) {
+        if (!bettingStateName(state)) return "";
+        value = value.replace(/\{state\}|%7Bstate%7D/gi, state.toLowerCase());
+      }
+      return /\{[a-z]+\}|%7B[a-z]+%7D/i.test(value) ? "" : safeLink(value);
+    }
+    function fillStateOptions(select) {
+      if (!select.options.length) select.append(new Option("Your state…", ""), ...bettingStates.map(([code, name]) => new Option(name, code)));
+      select.value = bettingStateName(settings.parlayState) ? settings.parlayState : "";
+      select.classList.toggle("is-needed", !select.value);
+    }
+    function createStateSelect() {
+      const select = element("select", "tracker-book-select tracker-state-select");
+      select.setAttribute("aria-label", "Your state");
+      fillStateOptions(select);
+      select.addEventListener("change", () => {
+        settings.parlayState = select.value;
+        saveSettings();
+        renderTrackers();
+        renderBestParlay();
+      });
+      return select;
     }
     function trackerMarket(tracker) {
       const map = marketToTrackerStatBySport[tracker.sport] || {};
@@ -5775,15 +6073,19 @@
         state = parlayBookState.get(parlay.id);
       }
       const title = state?.title || sportsbookTitle(parlay.sportsbook);
-      const home = sportsbooks.find(book => book.key === parlay.sportsbook)?.home || "";
+      const home = resolveBookLink(sportsbooks.find(book => book.key === parlay.sportsbook)?.home);
+      // BetMGM, Caesars and BetRivers links point at a state site, so they only open once the user's state is known.
+      const wantsState = stateSportsbooks.has(parlay.sportsbook) || [state?.eventLink, ...legs.map(item => state?.legs.get(item.key)?.link)].some(linkNeedsState);
+      const stateMissing = wantsState && !bettingStateName(settings.parlayState);
       const legLinks = legs.map(item => {
         const info = state?.legs.get(item.key);
-        return info?.link && info.suggest && item.target === info.suggest.target ? info : null;
+        const link = info?.suggest && item.target === info.suggest.target ? resolveBookLink(info.link) : "";
+        return link ? { ...info, link } : null;
       }).filter(Boolean);
       const directLinks = legLinks.filter(info => info.direct).map(info => info.link);
       const slipLink = combineBetslipLinks(parlay.sportsbook, directLinks);
       const carried = slipLink ? directLinks.length : 0;
-      const href = slipLink || state?.eventLink || home || legLinks[0]?.link || "";
+      const href = slipLink || resolveBookLink(state?.eventLink) || home || legLinks[0]?.link || "";
       const openLabel = !carried
         ? `Open in ${title} ↗`
         : carried === legs.length
@@ -5798,6 +6100,7 @@
         open.setAttribute("aria-disabled", "true");
         open.title = `No ${title} link is available yet`;
       }
+      const controls = wantsState ? [select, createStateSelect(), open] : [select, open];
 
       const status = element("div", "tracker-book-status");
       status.setAttribute("role", "status");
@@ -5805,14 +6108,16 @@
         status.append(element("p", "", `Add picks to see them at ${title}.`));
       } else if (!state || state.status === "loading") {
         // The box was already dismissed and no pick can get a new suggestion, so don't flash it back while loading.
-        if (parlay.bookInfoDismissed && legs.every(suggestionsSettled)) return { controls: [select, open], status: null };
+        if (parlay.bookInfoDismissed && legs.every(suggestionsSettled)) return { controls, status: null };
         status.append(element("p", "", `Checking ${title} lines…`));
       } else {
         const missing = legs.filter(item => state.legs.get(item.key)?.missing);
         const removable = missing.filter(item => removalSuggestionPending(item, state.legs.get(item.key), parlay.sportsbook));
         const pending = legs.filter(item => bookSuggestionPending(item, state.legs.get(item.key)));
         const hasDirect = legLinks.some(info => info.direct);
-        const guidance = legLinks.length === 0
+        const guidance = stateMissing
+          ? `Choose your state so ${title} links open your state's ${title} site.`
+          : legLinks.length === 0
           ? pending.length
             ? `${title} doesn't offer these exact lines. Review the suggestions below.`
             : `None of these picks are available at ${title} right now.`
@@ -5889,9 +6194,10 @@
             timer.style.animationDelay = `${left - suggestionTimeoutMs}ms`;
             item.append(timer);
           }
-          if (matched && info.link && legs.length > 1) {
+          const legLink = matched ? resolveBookLink(info.link) : "";
+          if (legLink && legs.length > 1) {
             const add = element("a", "", info.direct ? "Add ↗" : "Find ↗");
-            add.href = info.link;
+            add.href = legLink;
             add.target = "_blank";
             add.rel = "noopener noreferrer";
             add.setAttribute("aria-label", info.direct
@@ -5915,8 +6221,8 @@
         // Nothing left to decide: close the box as soon as the last suggestion is answered,
         // otherwise let it time out (or be closed) like the suggestions do.
         if (!state.error && !pending.length && !removable.length) {
-          if (state.hadSuggestions) return { controls: [select, open], status: dismissBookInfo(parlay) };
-          if (parlay.bookInfoDismissed) return { controls: [select, open], status: null };
+          if (state.hadSuggestions) return { controls, status: dismissBookInfo(parlay) };
+          if (parlay.bookInfoDismissed) return { controls, status: null };
           const close = element("button", "tracker-book-close", "✕");
           close.type = "button";
           close.title = "Hide";
@@ -5931,7 +6237,7 @@
           status.append(timer);
         } else if (pending.length || removable.length) state.hadSuggestions = true;
       }
-      return { controls: [select, open], status };
+      return { controls, status };
     }
     function dismissBookInfo(parlay, rerender = false) {
       parlay.bookInfoDismissed = true;
@@ -7252,8 +7558,10 @@
 
     // Adds a pick to a parlay, or as a single pick when parlayId is "". If that parlay already has the pick, that copy
     // takes the new line; copies in other parlays keep theirs. Returns the tracker (null if the game is unknown).
-    function addTracker(name, sport, eventId, stat, target, parlayId, side = "over") {
-      const event = currentEvents.find(candidate => candidate.id === eventId);
+    // fallbackEvent ({ id, home_team, away_team, commence_time }) covers games outside the loaded odds list.
+    function addTracker(name, sport, eventId, stat, target, parlayId, side = "over", fallbackEvent = null) {
+      const event = currentEvents.find(candidate => candidate.id === eventId) ||
+        (fallbackEvent?.id === eventId ? fallbackEvent : null);
       if (!event) return null;
       const identity = trackerKey(name, eventId, stat, side);
       let tracker = pickCopyIn(identity, pickSlot(parlayId));
@@ -7568,7 +7876,8 @@
         return { level: read.level, text: `${read.short}. ${room} to spare · ${formatMinutes(snapshot.remaining)} left${fouls}.${injuryText}` };
       }
       if (need <= 0) return { level: "hit", text: `Target reached — ${snapshot.current} ${short}! 🎉` };
-      if (snapshot.error && !snapshot.state) return { level: "pending", text: snapshot.error };
+      // No live data yet (just added, or the feed failed): there is no clock to read, so wait like Unders do.
+      if (!snapshot.state) return { level: "pending", text: snapshot.error || "Loading live stats…" };
       if (snapshot.state === "pre") return { level: "pending", text: "Game hasn't started yet." };
       if (snapshot.state === "post") return { level: "far", text: `Final — finished ${need} short of ${tracker.target}.` };
       if (tracker.sport === "baseball_mlb") {
@@ -8056,10 +8365,11 @@
         }
         const legBook = legParlay?.sportsbook ? parlayBookState.get(legParlay.id) : null;
         const legInfo = legBook?.status === "ready" ? legBook.legs.get(tracker.key) : null;
-        if (snapshot.state !== "post" && legInfo?.link && legInfo.suggest && tracker.target === legInfo.suggest.target) {
+        const legLink = legInfo?.link ? resolveBookLink(legInfo.link) : "";
+        if (snapshot.state !== "post" && legLink && legInfo.suggest && tracker.target === legInfo.suggest.target) {
             const bookTitle = legBook.title || sportsbookTitle(legParlay.sportsbook);
             const add = element("a", "tracker-book-add", legInfo.direct ? `Add to ${bookTitle} betslip ↗` : `Find at ${bookTitle} ↗`);
-            add.href = legInfo.link;
+            add.href = legLink;
             add.target = "_blank";
             add.rel = "noopener noreferrer";
             card.append(add);
@@ -8210,7 +8520,12 @@
     }
 
     async function pollTrackers() {
-      if (trackerPollRunning || !trackers.some(item => !item.demo)) return;
+      if (!trackers.some(item => !item.demo)) return;
+      // Picks added mid-poll (a whole parlay arrives one pick at a time) get their own poll right after this one.
+      if (trackerPollRunning) {
+        trackerPollQueued = true;
+        return;
+      }
       trackerPollRunning = true;
       try {
         await Promise.all(trackers.filter(item => !item.demo).map(async tracker => {
@@ -8226,6 +8541,10 @@
       } finally {
         trackerPollRunning = false;
         renderTrackers();
+        if (trackerPollQueued) {
+          trackerPollQueued = false;
+          void pollTrackers();
+        }
       }
     }
 
@@ -8312,6 +8631,7 @@
       if (rerender && sportSelect.value) {
         void loadOdds();
         if (typeof playerPropsHasLoaded !== "undefined" && playerPropsHasLoaded) void loadPlayerProps();
+        renderBestParlay();
       }
     }
     if (!embedMode) {
@@ -8419,9 +8739,13 @@
     // Keep other tabs and the embedded tracker in sync with changed settings.
     window.addEventListener("storage", event => {
       if (event.key === settingsKey) {
+        const previous = settings;
         settings = readSettings();
         applyTheme();
         applyVolume();
+        if (settings.parlayBook !== previous.parlayBook) void loadBestParlay();
+        else if (["parlayState", "parlayLegs", "oddsFormat"].some(key => settings[key] !== previous[key])) renderBestParlay();
+        if (settings.parlayState !== previous.parlayState) renderTrackers();
       } else if (event.key === historyKey) {
         renderHistory();
       }
@@ -8503,10 +8827,8 @@
       statusElement.className = "muted";
       statusElement.textContent = "Loading odds…";
       showSkeletons(matchesElement);
-      if (priceDealsState.sport !== sport || priceDealsElement?.hidden) {
-        priceDealsState.sport = sport;
-        renderPriceDeals(null);
-      }
+      if (bestParlayState.sport !== sport) void loadBestParlay();
+      else refreshBestParlayIfOld();
       try {
         const events = await getJson(`/api/odds?sport=${encodeURIComponent(sport)}`);
         if (requestId !== oddsRequestId || sport !== sportSelect.value) return;
@@ -8777,12 +9099,14 @@
       document.addEventListener("visibilitychange", () => {
         if (!document.hidden) {
           void loadLiveScores();
+          refreshBestParlayIfOld();
           if (!playerPicksElement.hidden) void loadPlayerProps({ automatic: true });
         }
       });
       window.setInterval(() => {
         if (!document.hidden) void loadLiveScores();
       }, liveScoreRefreshIntervalMs);
+      window.setInterval(refreshBestParlayIfOld, 60_000);
       window.setInterval(() => {
         if (!document.hidden &&
             !playerPicksElement.hidden &&
