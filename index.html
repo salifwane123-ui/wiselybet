@@ -4206,23 +4206,32 @@
       return Object.keys(map).find(market => map[market] === tracker.stat) || "";
     }
     // "Over X.5" settles as a win at X+1, so the requested line is target − 0.5. Prefer that line, then the nearest
-    // easier (lower) line. Only move to a harder line when it is still priced as a favourite (negative American odds).
+    // easier (lower) line from the book's main or alternate lines. Only move to a harder line when no lower line
+    // exists and it is still priced as a favourite (negative American odds).
     function chooseBookLine(offers, target) {
       const wanted = target - 0.5;
-      const exact = offers.find(offer => Math.abs(offer.point - wanted) < 1e-9);
+      // Same line in the main and alternate markets: keep the one with a direct betslip link, then the better price.
+      const better = (a, b) => (a.direct !== b.direct ? (a.direct ? a : b) : (Number(a.price) >= Number(b.price) ? a : b));
+      const byPoint = new Map();
+      for (const offer of offers) {
+        const seen = byPoint.get(offer.point);
+        byPoint.set(offer.point, seen ? better(seen, offer) : offer);
+      }
+      const lines = [...byPoint.values()];
+      const exact = lines.find(offer => Math.abs(offer.point - wanted) < 1e-9);
       if (exact) return { offer: exact, kind: "exact" };
-      const lower = offers.filter(offer => offer.point < wanted).sort((a, b) => b.point - a.point)[0];
+      const lower = lines.filter(offer => offer.point < wanted).sort((a, b) => b.point - a.point)[0];
       if (lower) return { offer: lower, kind: "lower" };
-      const higher = offers.filter(offer => offer.point > wanted).sort((a, b) => a.point - b.point)[0];
+      const higher = lines.filter(offer => offer.point > wanted).sort((a, b) => a.point - b.point)[0];
       if (higher && Number(higher.price) > 1 && Number(higher.price) < 2) return { offer: higher, kind: "higher" };
       return { offer: higher || null, kind: "remove" };
     }
     const bookPropsCache = new Map();
-    function fetchBookProps(sport, eventId, market) {
-      const key = `${sport}|${eventId}|${market}`;
+    function fetchBookProps(sport, eventId, market, book) {
+      const key = `${sport}|${eventId}|${market}|${book}`;
       const hit = bookPropsCache.get(key);
       if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.promise;
-      const promise = getJson(`/api/player-props?sport=${encodeURIComponent(sport)}&eventId=${encodeURIComponent(eventId)}&market=${encodeURIComponent(market)}`);
+      const promise = getJson(`/api/player-props?sport=${encodeURIComponent(sport)}&eventId=${encodeURIComponent(eventId)}&market=${encodeURIComponent(market)}&book=${encodeURIComponent(book)}`);
       bookPropsCache.set(key, { at: Date.now(), promise });
       promise.catch(() => { if (bookPropsCache.get(key)?.promise === promise) bookPropsCache.delete(key); });
       return promise;
@@ -4269,7 +4278,7 @@
         }
         let data;
         try {
-          data = await fetchBookProps(tracker.sport, tracker.eventId, market);
+          data = await fetchBookProps(tracker.sport, tracker.eventId, market, book);
         } catch (error) {
           state.error = error.message || "Couldn't load sportsbook lines.";
           state.legs.set(tracker.key, { missing: "Lines couldn't be loaded." });

@@ -76,6 +76,8 @@ const playerPropMarkets = {
 };
 playerPropMarkets.basketball_wnba = playerPropMarkets.basketball_nba;
 playerPropMarkets.americanfootball_ncaaf = playerPropMarkets.americanfootball_nfl;
+// Every supported prop market has an "_alternate" ladder at the odds provider except these.
+const marketsWithoutAlternates = new Set(["batter_stolen_bases"]);
 
 async function sendJson(response, status, body) {
   response.writeHead(status, {
@@ -583,10 +585,28 @@ const server = createServer(async (request, response) => {
         return;
       }
 
-      const props = await fetchOddsApi(
-        `sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(eventId)}/odds/`,
-        { regions, markets: market, oddsFormat: "decimal", includeLinks: "true" }
-      );
+      const book = url.searchParams.get("book") || "";
+      if (book && !/^[a-z0-9_]{2,40}$/.test(book)) {
+        await sendJson(response, 400, { error: "Unsupported sportsbook." });
+        return;
+      }
+
+      const endpoint = `sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(eventId)}/odds/`;
+      let props;
+      if (book) {
+        // One sportsbook's main and alternate lines, so lower lines can be suggested before higher ones.
+        const base = { bookmakers: book, oddsFormat: "decimal", includeLinks: "true" };
+        try {
+          props = await fetchOddsApi(endpoint, {
+            ...base,
+            markets: marketsWithoutAlternates.has(market) ? market : `${market},${market}_alternate`
+          });
+        } catch {
+          props = await fetchOddsApi(endpoint, { ...base, markets: market });
+        }
+      } else {
+        props = await fetchOddsApi(endpoint, { regions, markets: market, oddsFormat: "decimal", includeLinks: "true" });
+      }
       if (!premium) {
         // Guests and expired trials get one market and the best-rated players (same ranking the page uses).
         const best = new Map();
