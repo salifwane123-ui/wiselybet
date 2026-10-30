@@ -1004,8 +1004,17 @@
     #bell-wrap { position: relative; }
     #bell-button { position: relative; width: 42px; min-height: 0; height: 42px; padding: 0; border: 1px solid rgba(201,239,91,.23); border-radius: 50%; background: rgba(201,239,91,.12); color: #e2f5b1; font-size: 1.1rem; line-height: 1; }
     #bell-button:hover, #bell-button[aria-expanded="true"] { background: rgba(201,239,91,.24); border-color: rgba(201,239,91,.5); }
-    #bell-button.ring { animation: bell-ring .7s ease-in-out; }
-    #bell-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; padding: 1px 5px; border-radius: 99px; background: #ff4d6a; color: #fff; font-size: .66rem; font-weight: 800; line-height: 1.3; }
+    #bell-button.ring { animation: bell-glow 1.6s ease-out; }
+    .bell-glyph { display: inline-block; transform-origin: 50% 8%; pointer-events: none; }
+    #bell-button.ring .bell-glyph { animation: bell-swing 1.1s cubic-bezier(.36,.07,.19,.97); }
+    #bell-button::before, #bell-button::after { position: absolute; inset: -1px; border: 2px solid #c9ef5b; border-radius: 50%; opacity: 0; content: ""; pointer-events: none; }
+    #bell-button.ring::before { animation: bell-wave 1.1s ease-out; }
+    #bell-button.ring::after { animation: bell-wave 1.1s .3s ease-out; }
+    #bell-button.has-unread:not(.ring) { animation: bell-halo 2.4s ease-in-out infinite; }
+    #bell-button:hover .bell-glyph { animation: bell-nudge .5s ease-in-out; }
+    .bell-spark { position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--spark, #c9ef5b); box-shadow: 0 0 6px var(--spark, #c9ef5b); pointer-events: none; animation: bell-spark .75s cubic-bezier(.2,.8,.3,1) forwards; }
+    #bell-badge { position: absolute; top: -4px; right: -4px; z-index: 1; min-width: 18px; padding: 1px 5px; border-radius: 99px; background: #ff4d6a; color: #fff; font-size: .66rem; font-weight: 800; line-height: 1.3; box-shadow: 0 0 0 2px #0b141c; }
+    #bell-badge.pop { animation: bell-badge-pop .6s cubic-bezier(.2,1.6,.4,1); }
     #bell-panel { position: absolute; top: calc(100% + 10px); right: 0; z-index: 80; width: min(340px, calc(100vw - 24px)); border: 1px solid var(--border); border-radius: 12px; background: #12202b; box-shadow: 0 16px 40px rgba(0,0,0,.5); animation: bell-panel-in .18s ease-out; }
     #bell-panel[hidden] { display: none; }
     .bell-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(145,161,179,.15); font-size: .85rem; }
@@ -1019,9 +1028,20 @@
     #bell-list .kind-score { color: #39ff88; }
     #bell-list .bell-empty { color: var(--muted); }
     @keyframes bell-ring { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(16deg); } 40% { transform: rotate(-14deg); } 60% { transform: rotate(9deg); } 80% { transform: rotate(-6deg); } }
-    @keyframes bell-panel-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-    @media (prefers-reduced-motion: reduce) { #bell-button.ring, #bell-panel { animation: none; } }
-    #toast-stack { position: fixed; top: 16px; right: 16px; z-index: 70; display: grid; gap: 8px; width: min(340px, calc(100vw - 32px)); pointer-events: none; }
+    @keyframes bell-swing { 0%, 100% { transform: rotate(0) scale(1); } 10% { transform: rotate(26deg) scale(1.22); } 22% { transform: rotate(-24deg) scale(1.22); } 34% { transform: rotate(18deg) scale(1.15); } 46% { transform: rotate(-13deg) scale(1.1); } 58% { transform: rotate(8deg) scale(1.05); } 70% { transform: rotate(-4deg); } 82% { transform: rotate(2deg); } }
+    @keyframes bell-nudge { 30% { transform: rotate(14deg); } 65% { transform: rotate(-10deg); } }
+    @keyframes bell-wave { 0% { opacity: .85; transform: scale(1); } 100% { opacity: 0; transform: scale(2.1); } }
+    @keyframes bell-glow { 0% { box-shadow: 0 0 0 0 rgba(201,239,91,0); } 15% { background: rgba(201,239,91,.36); box-shadow: 0 0 22px 4px rgba(201,239,91,.6); } 100% { box-shadow: 0 0 0 0 rgba(201,239,91,0); } }
+    @keyframes bell-halo { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,77,106,0); } 50% { box-shadow: 0 0 14px 2px rgba(255,77,106,.4); } }
+    @keyframes bell-spark { 0% { opacity: 1; transform: translate(0, 0) scale(1.2); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.2); } }
+    @keyframes bell-badge-pop { 0% { transform: scale(0) rotate(-30deg); } 60% { transform: scale(1.45) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
+    @keyframes bell-panel-in { from { opacity: 0; transform: translateY(-10px) scale(.92); } to { opacity: 1; transform: none; } }
+    @keyframes bell-item-in { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+    #bell-panel { transform-origin: calc(100% - 20px) -10px; animation: bell-panel-in .32s cubic-bezier(.2,1.25,.4,1); }
+    #bell-panel:not([hidden]) #bell-list li { animation: bell-item-in .35s ease-out both; }
+    #bell-list li:nth-child(2) { animation-delay: .04s !important; } #bell-list li:nth-child(3) { animation-delay: .08s !important; } #bell-list li:nth-child(4) { animation-delay: .12s !important; } #bell-list li:nth-child(5) { animation-delay: .16s !important; } #bell-list li:nth-child(n+6) { animation-delay: .2s !important; }
+    @media (prefers-reduced-motion: reduce) { #bell-button.ring, #bell-button.has-unread, #bell-button::before, #bell-button::after, .bell-glyph, #bell-badge.pop, #bell-panel, #bell-list li { animation: none !important; } .bell-spark { display: none; } }
+    #toast-stack { position: fixed; top: calc(78px + env(safe-area-inset-top)); right: 16px; z-index: 70; display: grid; gap: 8px; width: min(340px, calc(100vw - 32px)); pointer-events: none; }
     #score-stack { display: grid; gap: 6px; margin-bottom: 6px; }
     #score-stack:empty { display: none; }
     .score-pop { display: grid; gap: 4px; padding: 8px 14px; border: 1px solid #39ff88; border-radius: 12px; background: rgba(8,40,22,.94); color: #39ff88; box-shadow: 0 0 22px rgba(57,255,136,.55); animation: score-pop 10s cubic-bezier(.2,.9,.3,1.2) forwards; }
@@ -1281,8 +1301,8 @@
     #simulate-alert:hover, #tracker-toggle:hover { background: rgba(201,239,91,.24) !important; }
     @media (max-width: 560px) { #simulate-alert { bottom: 60px; } }
     .toast { padding: 10px 13px; border: 1px solid rgba(118,224,189,.4); border-radius: 10px; background: #12202b; color: #f0eff7; font-size: .82rem; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
-    .toast { position: relative; overflow: hidden; padding-left: 16px; animation: toast-in .45s cubic-bezier(.2,.9,.3,1.2) both; }
-    .toast::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--accent); content: ""; }
+    .toast { position: relative; overflow: hidden; padding-left: 16px; transform-origin: right center; background-image: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.14) 48%, transparent 60%); background-repeat: no-repeat; background-size: 260% 100%; background-position: 160% 0; animation: toast-in .6s cubic-bezier(.2,1.2,.35,1) both, toast-shine 1.1s .45s ease-in-out both, toast-glow 1.6s .2s ease-out; }
+    .toast::before { position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--accent); content: ""; animation: toast-bar 1.4s ease-in-out 2; }
     .toast::after { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; background: var(--accent); content: ""; transform-origin: left; animation: toast-timer 8s linear forwards; }
     .toast.kind-injury::before, .toast.kind-injury::after { background: #ff9a9a; }
     .toast.kind-foul::before, .toast.kind-foul::after { background: #f0be5a; }
@@ -1330,8 +1350,11 @@
     html[data-theme="light"] #development-notice button { border-color: rgba(40,58,22,.18); color: #46523f; }
     @keyframes development-notice-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) { #development-notice { animation: none; } }
-    @keyframes toast-in { from { opacity: 0; transform: translateX(120%) scale(.96); } to { opacity: 1; transform: none; } }
-    @keyframes toast-out { to { opacity: 0; transform: translateX(120%); } }
+    @keyframes toast-in { 0% { opacity: 0; filter: blur(6px); transform: translateX(110%) rotateY(-28deg) scale(.9); } 60% { opacity: 1; filter: blur(0); transform: translateX(-6%) rotateY(4deg) scale(1.02); } 100% { opacity: 1; transform: none; } }
+    @keyframes toast-out { to { opacity: 0; filter: blur(4px); transform: translateX(60%) scale(.9); } }
+    @keyframes toast-shine { from { background-position: 160% 0; } to { background-position: -60% 0; } }
+    @keyframes toast-glow { 0% { box-shadow: 0 0 0 0 rgba(118,224,189,0), 0 10px 30px rgba(0,0,0,.4); } 25% { box-shadow: 0 0 24px 2px rgba(118,224,189,.45), 0 10px 30px rgba(0,0,0,.4); } 100% { box-shadow: 0 0 0 0 rgba(118,224,189,0), 0 10px 30px rgba(0,0,0,.4); } }
+    @keyframes toast-bar { 50% { box-shadow: 0 0 12px 2px currentColor; filter: brightness(1.5); } }
     @keyframes toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
     @keyframes feed-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
     @keyframes feed-flash { from { background: rgba(118,224,189,.22); } to { background: transparent; } }
@@ -1453,7 +1476,9 @@
     html[data-theme="light"] #simulate-alert:hover, html[data-theme="light"] #tracker-toggle:hover { background: #eaf2d8 !important; }
     html[data-theme="light"] .site-footer { border-top-color: rgba(40,58,22,.15); }
     html[data-theme="light"] .site-footer a { color: #3d6208; }
-    html[data-theme="light"] #bell-panel, html[data-theme="light"] .toast { border-color: rgba(77,122,11,.4); background: #fff; color: #1b2418; box-shadow: 0 14px 34px rgba(40,58,22,.2); }
+    html[data-theme="light"] #bell-panel, html[data-theme="light"] .toast { border-color: rgba(77,122,11,.4); background-color: #fff; color: #1b2418; box-shadow: 0 14px 34px rgba(40,58,22,.2); }
+    html[data-theme="light"] .toast { background-image: linear-gradient(105deg, transparent 35%, rgba(120,170,30,.22) 48%, transparent 60%); }
+    html[data-theme="light"] #bell-badge { box-shadow: 0 0 0 2px #fff; }
     html[data-theme="light"] .bell-head { border-bottom-color: rgba(40,58,22,.14); }
     html[data-theme="light"] #bell-list li { border-top-color: rgba(40,58,22,.1); }
     html[data-theme="light"] #bell-list .kind-score, html[data-theme="light"] #notification-feed .kind-score { color: #2e7d46; }
@@ -1791,7 +1816,7 @@
           <button id="tour-button" type="button" aria-label="Take the tour">❔ Tour</button>
           <button id="news-button" type="button" aria-haspopup="dialog">📰 News</button>
           <div id="bell-wrap">
-            <button id="bell-button" type="button" aria-label="Notifications" aria-expanded="false" aria-controls="bell-panel">🔔<span id="bell-badge" hidden></span></button>
+            <button id="bell-button" type="button" aria-label="Notifications" aria-expanded="false" aria-controls="bell-panel"><span class="bell-glyph" aria-hidden="true">🔔</span><span id="bell-badge" hidden></span></button>
             <div id="bell-panel" role="dialog" aria-label="Last 10 updates" hidden>
               <div class="bell-head"><strong>Last 10 updates</strong><button id="bell-clear" type="button">Clear</button></div>
               <ul id="bell-list"></ul>
@@ -3691,6 +3716,21 @@
       }
     }
 
+    function burstBellSparks(button) {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const colors = ["#c9ef5b", "#39ff88", "#ffd75e", "#76e0bd", "#ff8fa3"];
+      for (let index = 0; index < 10; index += 1) {
+        const spark = element("span", "bell-spark");
+        const angle = (index / 10) * Math.PI * 2 + Math.random() * 0.4;
+        const distance = 26 + Math.random() * 14;
+        spark.style.setProperty("--dx", `${Math.cos(angle) * distance}px`);
+        spark.style.setProperty("--dy", `${Math.sin(angle) * distance}px`);
+        spark.style.setProperty("--spark", colors[index % colors.length]);
+        spark.addEventListener("animationend", () => spark.remove());
+        button.append(spark);
+      }
+    }
+
     function pushNotification(kind, text, { force = false } = {}) {
       if (!force && settings.alerts[kind] === false) return;
       if (!force && kind !== "score") {
@@ -3709,6 +3749,11 @@
       bellButton.classList.remove("ring");
       void bellButton.offsetWidth;
       bellButton.classList.add("ring");
+      burstBellSparks(bellButton);
+      const badge = document.querySelector("#bell-badge");
+      badge.classList.remove("pop");
+      void badge.offsetWidth;
+      badge.classList.add("pop");
 
       const toast = element("div", `toast kind-${kind}`, text);
       const stack = toastStackElement;
@@ -3733,6 +3778,7 @@
     function renderBell() {
       const badge = document.querySelector("#bell-badge");
       badge.hidden = bellUnread === 0 || !bellPanel.hidden;
+      bellButtonElement.classList.toggle("has-unread", !badge.hidden);
       badge.textContent = bellUnread > 9 ? "9+" : String(bellUnread);
       const list = document.querySelector("#bell-list");
       if (!notificationFeed.length) {
