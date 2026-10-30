@@ -875,6 +875,35 @@
     .follow-toggle:hover, .track-toggle:hover { background: rgba(201,239,91,.22) !important; }
     .follow-toggle[aria-pressed="true"], .track-toggle[aria-pressed="true"] { background: #c9ef5b !important; color: #16200a !important; }
     .prop-player-actions { display: flex; align-items: center; gap: 10px; }
+    .prop-player-heading { display: flex; flex: 1 1 0; align-items: center; gap: 6px; min-width: 0; }
+    .prop-player-heading h3 { flex: 0 1 auto; }
+    .prop-signal-button { display: inline-grid; flex: 0 0 36px; place-items: center; width: 36px; height: 36px; min-height: 36px; padding: 0; border: 1px solid currentColor; border-radius: 50%; background: transparent; color: #b4becb; box-shadow: none; font-size: 1rem; }
+    .prop-signal-button[data-tone="good"] { color: #7fe2ae; }
+    .prop-signal-button[data-tone="warning"] { color: #ffd278; }
+    .prop-signal-button:hover:not(:disabled), .prop-signal-button[aria-expanded="true"] { background: rgba(145,161,179,.18); }
+    .prop-signal-button:focus-visible, #player-signal-popover button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    .prop-signal-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 18px 0; font-size: .74rem; color: var(--muted); }
+    .prop-signal-legend .signal-good { color: #7fe2ae; }
+    .prop-signal-legend .signal-warning { color: #ffd278; }
+    #prop-signal-status { margin: 6px 18px; font-size: .72rem; color: var(--muted); }
+    #player-signal-popover { position: fixed; z-index: 12000; width: min(370px, calc(100vw - 24px)); max-height: min(560px, calc(100dvh - 32px)); overflow-y: auto; padding: 16px; border: 1px solid #53604e; border-radius: 14px; background: #1a211a; color: #eef2e8; box-shadow: 0 15px 45px rgba(0,0,0,.5); font-size: .79rem; }
+    #player-signal-popover[hidden] { display: none; }
+    .player-signal-head { display: flex; align-items: start; gap: 12px; }
+    .player-signal-head h4 { flex: 1; margin: 0; font-size: .95rem; }
+    #player-signal-popover button { flex: 0 0 auto; width: 32px; height: 32px; min-height: 32px; padding: 0; border: 1px solid #67725e; border-radius: 50%; background: transparent; color: inherit; }
+    .player-signal-summary { margin: 8px 0; line-height: 1.45; }
+    .player-signal-facts { margin: 0; padding: 0; list-style: none; }
+    .player-signal-facts li { padding: 8px 0; border-top: 1px solid rgba(145,161,179,.2); line-height: 1.45; overflow-wrap: anywhere; }
+    .player-signal-facts strong { display: block; margin-bottom: 2px; }
+    .player-signal-facts [data-tone="good"] strong { color: #7fe2ae; }
+    .player-signal-facts [data-tone="warning"] strong { color: #ffd278; }
+    .player-signal-footnote { margin: 10px 0 0; color: #b4becb; font-size: .7rem; line-height: 1.5; }
+    html[data-theme="light"] .prop-signal-button { color: #53614e; }
+    html[data-theme="light"] .prop-signal-button[data-tone="good"], html[data-theme="light"] .prop-signal-legend .signal-good, html[data-theme="light"] .player-signal-facts [data-tone="good"] strong { color: #19613d; }
+    html[data-theme="light"] .prop-signal-button[data-tone="warning"], html[data-theme="light"] .prop-signal-legend .signal-warning, html[data-theme="light"] .player-signal-facts [data-tone="warning"] strong { color: #805100; }
+    html[data-theme="light"] #player-signal-popover { background: #f7faf1; color: #1b2418; border-color: #b4c49e; }
+    html[data-theme="light"] .player-signal-footnote { color: #53614e; }
+    @media (pointer: coarse) { .prop-signal-button { flex-basis: 44px; width: 44px; height: 44px; } }
     #followed-players { margin: 15px 0 21px; padding: 16px; }
     .followed-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
     .followed-heading h2 { margin: 0; font-size: 1rem; }
@@ -2044,6 +2073,13 @@
               <span>Player · line · best price by side</span>
               <span id="prop-count"></span>
             </div>
+            <div class="prop-signal-legend" aria-label="Player signal guide">
+              <span class="signal-good">✓ Favorable live signals</span>
+              <span class="signal-warning">⚠ Reported risk</span>
+              <span>ⓘ Limited evidence</span>
+              <span>Hover, focus or tap the icon beside a name for details. Partial coverage, not a form rating.</span>
+            </div>
+            <p id="prop-signal-status" role="status" aria-live="polite"></p>
             <div id="prop-status" class="muted" role="status" aria-live="polite"></div>
             <div id="prop-results"></div>
           </section>
@@ -3185,6 +3221,328 @@
     }
     function normalizeName(value) { return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 
+    function normalizeSignalName(value) {
+      return normalizeName(String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+    }
+
+    function signalDataFresh(value, now, maxAge) {
+      const time = Date.parse(value);
+      return Number.isFinite(time) && time <= now + 60_000 && now - time <= maxAge;
+    }
+
+    function playerMarketSignal(event, player, market, now) {
+      const lines = new Map();
+      for (const book of event.bookmakers || []) {
+        const bookId = book.key || book.title;
+        if (!bookId) continue;
+        for (const entry of book.markets || []) {
+          if (entry.key !== market) continue;
+          const outcomes = (entry.outcomes || []).filter(item =>
+            normalizeSignalName(item.description) === normalizeSignalName(player) &&
+            typeof item.point === "number" && Number.isFinite(item.point) &&
+            typeof item.price === "number" && Number.isFinite(item.price) && item.price > 1
+          );
+          for (const over of outcomes.filter(item => /^over$/i.test(item.name))) {
+            const under = outcomes.find(item => /^under$/i.test(item.name) && item.point === over.point);
+            if (!under) continue;
+            if (!lines.has(over.point)) lines.set(over.point, new Map());
+            lines.get(over.point).set(bookId, {
+              probability: (1 / over.price) / (1 / over.price + 1 / under.price),
+              updatedAt: entry.last_update || book.last_update || ""
+            });
+          }
+        }
+      }
+      // Compare both sides within each book at the most widely quoted line, never mix best prices.
+      const main = [...lines.entries()].sort((a, b) => b[1].size - a[1].size || a[0] - b[0])[0];
+      if (!main) return null;
+      const [point, byBook] = main;
+      const quotes = [...byBook.values()];
+      const probability = quotes.reduce((total, quote) => total + quote.probability, 0) / quotes.length;
+      const fresh = quotes.every(quote => signalDataFresh(quote.updatedAt, now, 5 * 60_000));
+      return {
+        point, books: quotes.length, probability, fresh,
+        favorable: fresh && quotes.length >= 2 && probability >= .55 &&
+          quotes.every(quote => quote.probability > .5) && market !== "player_turnovers"
+      };
+    }
+
+    function assessPlayerSignals({ player, sport, event, market, context = {}, now = Date.now() }) {
+      const rows = [];
+      const add = (label, text, tone = "neutral") => rows.push({ label, text, tone });
+      const basketball = sport === "basketball_nba" || sport === "basketball_wnba";
+      const game = context.game;
+      const athletes = (game?.teams || []).flatMap(team => team.players || [])
+        .filter(athlete => normalizeSignalName(athlete.name) === normalizeSignalName(player));
+      const athlete = athletes.length === 1 ? athletes[0] : null;
+      const gameFresh = signalDataFresh(game?.updatedAt, now, 2 * 60_000);
+      const live = game?.state === "in" && gameFresh &&
+        signalDataFresh(game.date, now, 18 * 60 * 60_000);
+      const report = context.injuries;
+      const injuryFresh = Array.isArray(report?.injuries) &&
+        signalDataFresh(report.sourceUpdatedAt, now, 30 * 60_000);
+      const teams = [event.home_team, event.away_team].filter(Boolean).map(normalizeSignalName);
+      const matches = (Array.isArray(report?.injuries) ? report.injuries : []).filter(item =>
+        normalizeSignalName(item.name) === normalizeSignalName(player) &&
+        teams.includes(normalizeSignalName(item.team))
+      );
+      const injury = matches.length === 1 ? matches[0] : null;
+      const injuryRisk = injuryFresh && injury &&
+        /^(out|doubtful|questionable|day.to.day|probable|suspended)$/i.test(injury.status);
+      if (injury) {
+        const date = Date.parse(injury.reportedAt);
+        add("Injury report", `${injury.status}${Number.isFinite(date) ? ` · report dated ${new Date(date).toLocaleDateString()}` : ""}. ${injury.detail || "No further details provided."}${injuryFresh ? " Current report, not a forecast for the selected game." : " Feed freshness is unverified; availability is unknown."}`, injuryRisk ? "warning" : "neutral");
+      } else {
+        add("Injury report", context.loading ? "Checking the current ESPN report..." :
+          context.injuryError ? `Unavailable: ${context.injuryError}` :
+          matches.length > 1 ? "Multiple matching reports; player identity is ambiguous." :
+          injuryFresh ? "No matching report in the current ESPN feed. This is not medical clearance." :
+          "The injury feed is missing or outdated. Availability is unknown.");
+      }
+      add("Recent form", "Unavailable. Recent player game logs are not connected; today's odds do not establish good or poor form.");
+
+      const odds = playerMarketSignal(event, player, market, now);
+      if (odds) {
+        const side = odds.probability > .5 ? "Over" : odds.probability < .5 ? "Under" : "Even";
+        const probability = side === "Under" ? 1 - odds.probability : odds.probability;
+        add("Market lean", `${side} ${odds.point} · ${(probability * 100).toFixed(1)}% average normalized implied probability across ${odds.books} ${odds.books === 1 ? "book" : "books"} for this market.${odds.fresh ? "" : " Quotes are older than 5 minutes or lack a timestamp."} This is not a bet count.`, odds.favorable ? "good" : "neutral");
+      } else {
+        add("Market lean", "Unavailable. Matching Over and Under quotes from the same book and line are required.");
+      }
+      add("Public betting", "Unavailable. Neither the number of bettors nor player-prop ticket percentages are provided.");
+      if (context.refreshError) add("Data refresh", `${context.refreshError} Showing the last available snapshot; a favorable rating is withheld.`);
+
+      const confirmedRole = athlete?.starterConfirmed === true && gameFresh && game?.state !== "pre";
+      const benchRisk = basketball && live && confirmedRole && athlete.starter === false;
+      add("Starting role", context.loading ? "Checking the game lineup..." :
+        context.gameError ? `Unavailable: ${context.gameError}` :
+        confirmedRole ? `${athlete.starter ? "Starter" : "Non-starter"} in ${game.state === "post" ? "the finished" : "this"} game. This does not confirm a future lineup.` :
+        "Not confirmed in the available game feed.", benchRisk ? "warning" : confirmedRole && athlete.starter ? "good" : "neutral");
+      const minutes = athlete?.stats?.find(stat => stat.label === "MIN")?.value;
+      add("Minutes / replacements", `${minutes !== undefined && minutes !== null && minutes !== "" ? `${minutes} minutes recorded in this game. ` : ""}Projected minutes and bench/rotation depth are unavailable.`);
+
+      const rawFouls = athlete?.stats?.find(stat => stat.label === "PF")?.value;
+      const parsedFouls = (typeof rawFouls === "string" || typeof rawFouls === "number") && String(rawFouls).trim() !== "" ? Number(rawFouls) : NaN;
+      const fouls = Number.isInteger(parsedFouls) && parsedFouls >= 0 ? parsedFouls : null;
+      // Basketball pressure: 2 fouls in Q1, 3 in the first half, or 4 at any point.
+      const foulRisk = basketball && live && fouls !== null &&
+        (fouls >= 4 || (game.period === 1 && fouls >= 2) || (game.period === 2 && fouls >= 3));
+      add("Personal fouls", !basketball ? "The basketball personal-foul indicator does not apply to this sport." :
+        `${fouls !== null ? `${fouls} recorded in ${game?.state === "post" ? "the finished" : "this"} game.${foulRisk ? " Current foul pressure." : ""} ` : "Current foul count unavailable. "}Historical and early-foul tendencies are unavailable.`, foulRisk ? "warning" : "neutral");
+
+      const good = !context.refreshError && basketball && live && confirmedRole && athlete.starter === true &&
+        injuryFresh && matches.length === 0 && fouls !== null && fouls <= 1 && odds?.favorable;
+      const tone = injuryRisk || foulRisk || benchRisk ? "warning" : good ? "good" : "neutral";
+      return {
+        tone, rows,
+        label: tone === "warning" ? "Reported risk" : tone === "good" ? "Favorable live signals" : context.loading ? "Checking signals" : "Limited evidence",
+        summary: tone === "warning" ? "An available injury, starting-role or live-foul signal warrants caution. Other factors may be unknown." :
+          tone === "good" ? "Confirmed starter, no matching current injury report, 0–1 live fouls and fresh Over support from at least two books. This is not a good-form rating." :
+          "There is not enough verified evidence for a favorable rating. Missing data is not a positive signal.",
+        checkedAt: report?.checkedAt || game?.updatedAt || ""
+      };
+    }
+
+    const playerSignalPopover = element("div");
+    playerSignalPopover.id = "player-signal-popover";
+    playerSignalPopover.hidden = true;
+    playerSignalPopover.setAttribute("role", "dialog");
+    playerSignalPopover.setAttribute("aria-labelledby", "player-signal-title");
+    document.body.append(playerSignalPopover);
+    const playerSignalData = new WeakMap();
+    let activePlayerSignal = null;
+    let playerSignalPinned = false;
+    let playerSignalCloseTimer = null;
+    let suppressSignalFocus = false;
+    const propSignalStatus = document.querySelector("#prop-signal-status");
+    const injurySignalCache = new Map();
+
+    function positionPlayerSignal() {
+      if (!activePlayerSignal || playerSignalPopover.hidden) return;
+      const rect = activePlayerSignal.getBoundingClientRect();
+      if (rect.bottom < 0 || rect.top > innerHeight) {
+        closePlayerSignal();
+        return;
+      }
+      const below = Math.max(0, innerHeight - rect.bottom - 20);
+      const above = Math.max(0, rect.top - 20);
+      const showBelow = below >= Math.min(560, playerSignalPopover.scrollHeight) || below >= above;
+      playerSignalPopover.style.maxHeight = `${Math.min(560, showBelow ? below : above)}px`;
+      const popup = playerSignalPopover.getBoundingClientRect();
+      const left = Math.max(12, Math.min(rect.left, innerWidth - popup.width - 12));
+      const top = showBelow ? rect.bottom + 8 : rect.top - popup.height - 8;
+      playerSignalPopover.style.left = `${left}px`;
+      playerSignalPopover.style.top = `${top}px`;
+    }
+
+    function closePlayerSignal(restoreFocus = false) {
+      clearTimeout(playerSignalCloseTimer);
+      const button = activePlayerSignal;
+      activePlayerSignal = null;
+      playerSignalPinned = false;
+      playerSignalPopover.hidden = true;
+      button?.setAttribute("aria-expanded", "false");
+      if (restoreFocus && button?.isConnected) {
+        suppressSignalFocus = true;
+        button.focus({ preventScroll: true });
+        suppressSignalFocus = false;
+      }
+    }
+
+    function renderPlayerSignal() {
+      const data = playerSignalData.get(activePlayerSignal);
+      if (!data) return;
+      const head = element("div", "player-signal-head");
+      const title = element("h4", "", `${data.player} · ${data.assessment.label}`);
+      title.id = "player-signal-title";
+      const close = element("button", "", "×");
+      close.type = "button";
+      close.setAttribute("aria-label", "Close player signals");
+      close.addEventListener("click", () => closePlayerSignal(true));
+      head.append(title, close);
+      const facts = element("ul", "player-signal-facts");
+      for (const row of data.assessment.rows) {
+        const item = element("li");
+        item.dataset.tone = row.tone;
+        item.append(element("strong", "", row.label), element("span", "", row.text));
+        facts.append(item);
+      }
+      const focusedClose = playerSignalPopover.contains(document.activeElement);
+      playerSignalPopover.replaceChildren(head,
+        element("p", "player-signal-summary", data.assessment.summary), facts,
+        element("p", "player-signal-footnote", `Sources: ESPN reports / box score and returned bookmaker odds.${data.assessment.checkedAt ? ` Checked ${new Date(data.assessment.checkedAt).toLocaleString()}.` : ""} Current snapshot only, not health clearance or betting advice. Refreshes with player odds.`));
+      if (focusedClose) close.focus({ preventScroll: true });
+      positionPlayerSignal();
+    }
+
+    function openPlayerSignal(button, pinned = false) {
+      clearTimeout(playerSignalCloseTimer);
+      activePlayerSignal?.setAttribute("aria-expanded", "false");
+      if (activePlayerSignal !== button) playerSignalPinned = false;
+      activePlayerSignal = button;
+      playerSignalPinned = playerSignalPinned || pinned;
+      button.setAttribute("aria-expanded", "true");
+      playerSignalPopover.hidden = false;
+      renderPlayerSignal();
+    }
+
+    function scheduleSignalClose() {
+      clearTimeout(playerSignalCloseTimer);
+      if (!playerSignalPinned) playerSignalCloseTimer = setTimeout(() => closePlayerSignal(), 250);
+    }
+
+    function updatePlayerSignalButton(button, input) {
+      const assessment = assessPlayerSignals(input);
+      const previous = playerSignalData.get(button);
+      playerSignalData.set(button, { player: input.player, input, assessment });
+      if (previous && JSON.stringify(previous.assessment) === JSON.stringify(assessment)) return;
+      button.dataset.tone = assessment.tone;
+      button.setAttribute("aria-label", `${input.player}: ${assessment.label}. Open player signals`);
+      const icon = element("span", "", assessment.tone === "warning" ? "⚠" : assessment.tone === "good" ? "✓" : "ⓘ");
+      icon.setAttribute("aria-hidden", "true");
+      button.replaceChildren(icon);
+      if (activePlayerSignal === button) renderPlayerSignal();
+    }
+
+    function createPlayerSignalButton(input) {
+      const button = element("button", "prop-signal-button");
+      button.type = "button";
+      button.dataset.signalKey = JSON.stringify([input.sport, input.event.id, input.market, input.player]);
+      button.setAttribute("aria-haspopup", "dialog");
+      button.setAttribute("aria-controls", playerSignalPopover.id);
+      button.setAttribute("aria-expanded", "false");
+      updatePlayerSignalButton(button, input);
+      button.addEventListener("pointerenter", event => {
+        if (event.pointerType !== "touch") openPlayerSignal(button);
+      });
+      button.addEventListener("pointerleave", scheduleSignalClose);
+      button.addEventListener("focus", () => { if (!suppressSignalFocus) openPlayerSignal(button); });
+      button.addEventListener("click", () => {
+        if (activePlayerSignal === button && playerSignalPinned) closePlayerSignal();
+        else openPlayerSignal(button, true);
+      });
+      button.addEventListener("keydown", event => {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          openPlayerSignal(button, true);
+          playerSignalPopover.querySelector("button").focus();
+        }
+      });
+      return button;
+    }
+
+    function restorePlayerSignal(refocus) {
+      if (!activePlayerSignal || activePlayerSignal.isConnected) return;
+      const replacement = [...propResultsElement.querySelectorAll(".prop-signal-button")]
+        .find(button => button.dataset.signalKey === activePlayerSignal.dataset.signalKey);
+      if (replacement && !replacement.closest(".prop-player").hidden) {
+        openPlayerSignal(replacement, playerSignalPinned);
+        if (refocus) {
+          suppressSignalFocus = true;
+          replacement.focus({ preventScroll: true });
+          suppressSignalFocus = false;
+        }
+      }
+      else closePlayerSignal();
+    }
+
+    playerSignalPopover.addEventListener("pointerenter", () => clearTimeout(playerSignalCloseTimer));
+    playerSignalPopover.addEventListener("pointerleave", scheduleSignalClose);
+    document.addEventListener("pointerdown", event => {
+      if (activePlayerSignal && !activePlayerSignal.contains(event.target) && !playerSignalPopover.contains(event.target)) closePlayerSignal();
+    });
+    document.addEventListener("focusin", event => {
+      if (activePlayerSignal && !activePlayerSignal.contains(event.target) && !playerSignalPopover.contains(event.target)) closePlayerSignal();
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && activePlayerSignal) {
+        event.preventDefault();
+        closePlayerSignal(true);
+      }
+    });
+    window.addEventListener("resize", positionPlayerSignal);
+    window.addEventListener("scroll", event => {
+      if (!(event.target instanceof Node) || !playerSignalPopover.contains(event.target)) positionPlayerSignal();
+    }, true);
+    window.setInterval(() => {
+      if (document.hidden) return;
+      for (const button of propResultsElement.querySelectorAll(".prop-signal-button")) {
+        const data = playerSignalData.get(button);
+        if (data) updatePlayerSignalButton(button, data.input);
+      }
+    }, 30_000);
+
+    function fetchSignalInjuries(sport) {
+      const hit = injurySignalCache.get(sport);
+      if (hit && Date.now() - hit.time < 30_000) return hit.promise;
+      const promise = getJson(`/api/player-injuries?sport=${encodeURIComponent(sport)}`);
+      injurySignalCache.set(sport, { time: Date.now(), promise });
+      promise.catch(() => injurySignalCache.delete(sport));
+      return promise;
+    }
+
+    async function loadPlayerSignals(inputs, requestId, sport, event, market) {
+      propSignalStatus.textContent = "Checking injury, lineup and live-foul signals...";
+      const gameRequest = event.commence_time && event.home_team && event.away_team
+        ? fetchLiveGame({ sport, date: event.commence_time, home: event.home_team, away: event.away_team })
+        : Promise.reject(new Error("Game date or teams were not provided."));
+      const [injuries, game] = await Promise.allSettled([fetchSignalInjuries(sport), gameRequest]);
+      if (requestId !== playerPropsRequestId || sport !== sportSelect.value ||
+          event.id !== propEventSelect.value || market !== propMarketSelect.value) return;
+      const context = {
+        injuries: injuries.status === "fulfilled" ? injuries.value : null,
+        injuryError: injuries.status === "rejected" ? injuries.reason.message : "",
+        game: game.status === "fulfilled" ? game.value : null,
+        gameError: game.status === "rejected" ? game.reason.message : ""
+      };
+      for (const { button, input } of inputs) {
+        if (button.isConnected) updatePlayerSignalButton(button, { ...input, context });
+      }
+      propSignalStatus.textContent = context.injuryError || context.gameError
+        ? "Some player data could not be loaded. Open an icon for details; the next refresh will retry."
+        : "Signals checked. Form, public bet counts, projected rotation and historical foul tendencies are not available.";
+    }
+
     const propSearchInput = document.querySelector("#prop-search");
 
     // Hides player cards that don't match the search. Runs after every refresh so the filter sticks.
@@ -3199,6 +3557,7 @@
         card.hidden = !match;
         if (match) shown += 1;
       }
+      if (activePlayerSignal?.isConnected && activePlayerSignal.closest(".prop-player").hidden) closePlayerSignal();
       if (term && !shown) {
         propResultsElement.append(element("div", "empty-state prop-no-match", `No player matches "${propSearchInput.value.trim()}" for this game and market.`));
       }
@@ -3219,6 +3578,8 @@
       ]);
       playerPicksElement.hidden = !config;
       if (!config) {
+        closePlayerSignal();
+        propSignalStatus.textContent = "";
         playerPropsHasLoaded = false;
         playerPropsRefreshQueued = false;
         playerPropsRequestId += 1;
@@ -3266,6 +3627,8 @@
         propMarketSelect.value
       ]);
       if (nextSelectionKey !== previousSelectionKey) {
+        closePlayerSignal();
+        propSignalStatus.textContent = "";
         playerPropsHasLoaded = false;
         playerPropsLastUpdatedAt = null;
         playerPropsLastUpdatedKey = "";
@@ -3280,6 +3643,8 @@
           : "Loading the selected game and market automatically…"
         : "No games are available.";
       if (!propEvents.length) {
+        closePlayerSignal();
+        propSignalStatus.textContent = "";
         playerPropsHasLoaded = false;
         propResultsElement.replaceChildren();
         propCountElement.textContent = "";
@@ -3398,6 +3763,8 @@
         );
 
         if (!sortedPlayers.length) {
+          closePlayerSignal();
+          propSignalStatus.textContent = "";
           propResultsElement.replaceChildren(element(
             "div",
             "empty-state",
@@ -3413,6 +3780,7 @@
         }
 
         const results = document.createDocumentFragment();
+        const signalInputs = [];
         const maxVisibleLinesPerPlayer = 3;
         for (const [rank, playerGroup] of sortedPlayers.entries()) {
           const visibleLines = playerGroup.lines.slice(0, maxVisibleLinesPerPlayer);
@@ -3423,7 +3791,12 @@
           if (rank < 3 && playerGroup.strongestProbability > 0) {
             heading.prepend(element("span", "prop-rank", rank === 0 ? "🏆 Best" : `#${rank + 1}`));
           }
-          header.append(heading);
+          const playerHeading = element("div", "prop-player-heading");
+          const signalInput = { player: playerGroup.player, sport, event, market, context: { loading: true } };
+          const signalButton = createPlayerSignalButton(signalInput);
+          signalInputs.push({ button: signalButton, input: signalInput });
+          playerHeading.append(heading, signalButton);
+          header.append(playerHeading);
           if (playerGroup.strongestProbability > 0) {
             const best = element("span", `prop-best-pct ${marketHeatClass(playerGroup.strongestProbability)}`, `${(playerGroup.strongestProbability * 100).toFixed(1)}%`);
             best.title = "Highest market-implied probability across this player's lines";
@@ -3545,6 +3918,7 @@
           (total, playerLines) => total + playerLines.length,
           0
         );
+        const signalHadFocus = activePlayerSignal && document.activeElement === activePlayerSignal;
         propResultsElement.replaceChildren(results);
         if (!window.wiselyPremium && event.guest) {
           const hidden = Math.max(0, event.guest.total - event.guest.shown);
@@ -3575,6 +3949,8 @@
         propCountElement.textContent = `${sortedPlayers.length} players · ${lineCount} lines`;
         propCountElement.dataset.total = propCountElement.textContent;
         applyPropSearch();
+        restorePlayerSignal(signalHadFocus);
+        void loadPlayerSignals(signalInputs, requestId, sport, event, market);
         playerPropsLastUpdatedAt = new Date();
         playerPropsLastUpdatedKey = selectionKey;
         playerPropsHasLoaded = true;
@@ -3582,6 +3958,13 @@
           `Updated ${playerPropsLastUpdatedAt.toLocaleTimeString()} · auto-refreshes every 60 seconds. Best picks first, ranked by market-implied probability.`;
       } catch (error) {
         if (requestId !== playerPropsRequestId) return;
+        for (const button of propResultsElement.querySelectorAll(".prop-signal-button")) {
+          const data = playerSignalData.get(button);
+          if (data) updatePlayerSignalButton(button, {
+            ...data.input, context: { ...data.input.context, loading: false, refreshError: error.message }
+          });
+        }
+        propSignalStatus.textContent = "Player signal refresh failed. Open an icon for the last available evidence.";
         propStatusElement.className = "error";
         propStatusElement.textContent = playerPropsLastUpdatedAt &&
           playerPropsLastUpdatedKey === selectionKey

@@ -139,6 +139,43 @@ async function requestEspnJson(url) {
   return body;
 }
 
+function playerInjuryReport(feed) {
+  if (!Array.isArray(feed?.injuries) || feed.status !== "success") {
+    throw new Error("ESPN did not return a complete injury report.");
+  }
+  const injuries = [];
+  for (const team of feed.injuries) {
+    if (!team.displayName || !Array.isArray(team.injuries)) {
+      throw new Error("ESPN returned an incomplete team injury report.");
+    }
+    for (const injury of team.injuries) {
+      if (!injury.athlete?.displayName || !injury.status) {
+        throw new Error("ESPN returned an incomplete player injury report.");
+      }
+      injuries.push({
+        name: injury.athlete.displayName,
+        team: team.displayName,
+        status: injury.status,
+        detail: injury.shortComment || injury.longComment || "",
+        reportedAt: injury.date || ""
+      });
+    }
+  }
+  return {
+    source: "ESPN",
+    checkedAt: new Date().toISOString(),
+    sourceUpdatedAt: feed.timestamp || "",
+    injuries
+  };
+}
+
+async function fetchPlayerInjuries(sport) {
+  const feed = await fetchEspnJson(new URL(
+    `https://site.api.espn.com/apis/site/v2/sports/${espnScoreboardSports[sport]}/injuries`
+  ));
+  return playerInjuryReport(feed);
+}
+
 function normalizeTeamName(name) {
   return String(name || "").toLowerCase().replace(/[^a-z]/g, "");
 }
@@ -466,7 +503,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     // Guests may open the main page and the live scores; the odds and everything else need an account.
-    const guestAllowed = ["/", "/index.html", "/api/live-scores", "/api/matchup-insight", "/api/live-game", "/api/preview", "/api/preview-props", "/api/sports", "/api/odds", "/api/player-props", "/api/news", "/game"].includes(url.pathname) ||
+    const guestAllowed = ["/", "/index.html", "/api/live-scores", "/api/matchup-insight", "/api/live-game", "/api/preview", "/api/preview-props", "/api/sports", "/api/odds", "/api/player-props", "/api/player-injuries", "/api/news", "/game"].includes(url.pathname) ||
       /^\/sounds\/[\w-]+\.(mp3|wav|ogg|m4a)$/i.test(url.pathname);
     if (!userKey && !guestAllowed) {
       if (url.pathname.startsWith("/api/")) return await sendJson(response, 401, { error: "Sign in to see the odds." });
@@ -646,6 +683,16 @@ const server = createServer(async (request, response) => {
         return;
       }
       await sendJson(response, 200, props);
+      return;
+    }
+
+    if (url.pathname === "/api/player-injuries") {
+      const sport = url.searchParams.get("sport") || "";
+      if (!Object.hasOwn(espnScoreboardSports, sport)) {
+        await sendJson(response, 400, { error: "Injury reports are not available for this sport." });
+        return;
+      }
+      await sendJson(response, 200, await fetchPlayerInjuries(sport));
       return;
     }
 
@@ -888,6 +935,7 @@ const server = createServer(async (request, response) => {
                 name: player.athlete.displayName,
                 position: player.athlete.position?.abbreviation || "",
                 starter: Boolean(player.starter),
+                starterConfirmed: typeof player.starter === "boolean",
                 onCourt: statusType.state === "in" && Boolean(player.active),
                 stats: []
               };
