@@ -4948,18 +4948,45 @@
     // but changing the legs (adding/removing a pick) makes a new win celebrate again.
     const celebrationQueue = [];
     let celebrationOpen = false;
+    // Games don't need to be over: as soon as every leg reaches its target we wait a few seconds,
+    // re-fetch the live stats to rule out a stat correction, then celebrate if every leg still hits.
+    const winConfirmDelayMs = 5000;
+    const pendingWinChecks = new Map();
+    const parlayWinSignature = legs => legs.map(item => `${item.key}:${item.target}`).sort().join("|");
+    function parlayWinLegs(parlay) {
+      return trackers.filter(item => item.parlay === parlay.id && !item.demo);
+    }
     function checkParlayWins() {
-      let changed = false;
+      let started = false;
       for (const parlay of parlays) {
-        const legs = trackers.filter(item => item.parlay === parlay.id && !item.demo);
-        if (!legs.length || parlayStatus(legs).tone !== "hype") continue;
-        const signature = legs.map(item => `${item.key}:${item.target}`).sort().join("|");
-        if (parlay.celebrated === signature) continue;
-        parlay.celebrated = signature;
-        changed = true;
-        celebrationQueue.push({ parlay, legs: [...legs] });
+        const legs = parlayWinLegs(parlay);
+        if (!legs.length || parlayStatus(legs).tone !== "hype") {
+          pendingWinChecks.delete(parlay.id);
+          continue;
+        }
+        const signature = parlayWinSignature(legs);
+        if (parlay.celebrated === signature || pendingWinChecks.get(parlay.id) === signature) continue;
+        pendingWinChecks.set(parlay.id, signature);
+        started = true;
+        window.setTimeout(() => void confirmParlayWin(parlay.id, signature), winConfirmDelayMs);
       }
-      if (changed) saveParlays();
+      if (started) renderTrackers();
+    }
+    async function confirmParlayWin(parlayId, signature) {
+      if (pendingWinChecks.get(parlayId) !== signature) return;
+      if (trackerPollRunning) await new Promise(resolve => window.setTimeout(resolve, 2000));
+      else await pollTrackers();
+      // A refresh that dropped a leg below its target clears the pending check in checkParlayWins.
+      if (pendingWinChecks.get(parlayId) !== signature) return;
+      pendingWinChecks.delete(parlayId);
+      const parlay = parlays.find(item => item.id === parlayId);
+      if (!parlay || parlay.celebrated === signature) return renderTrackers();
+      const legs = parlayWinLegs(parlay);
+      if (!legs.length || parlayStatus(legs).tone !== "hype" || parlayWinSignature(legs) !== signature) return renderTrackers();
+      parlay.celebrated = signature;
+      saveParlays();
+      renderTrackers();
+      celebrationQueue.push({ parlay, legs: [...legs] });
       showNextCelebration();
     }
     function showNextCelebration() {
@@ -6428,7 +6455,8 @@
         const head = element("summary", "tracker-window-summary");
         const title = element("h4", "tracker-parlay-title");
         title.append(element("span", "tracker-dot-badge", `P${parlays.indexOf(parlay) + 1}`), ` ${parlay.name}`);
-        const badge = element("span", "tracker-parlay-badge", `${status.label} · ${status.hits}/${legs.length} hit`);
+        const statusLabel = status.tone === "hype" && pendingWinChecks.has(parlay.id) ? "All hit · confirming…" : status.label;
+        const badge = element("span", "tracker-parlay-badge", `${statusLabel} · ${status.hits}/${legs.length} hit`);
         const rename = element("button", "tracker-parlay-btn", "Rename");
         rename.type = "button";
         rename.title = "Rename parlay";
