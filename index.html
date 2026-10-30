@@ -1074,6 +1074,12 @@
     .tracker-book-status ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
     .tracker-book-status li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .tracker-book-status li.is-missing { color: #ffb0b0; }
+    .tracker-book-status li.is-pending { color: #ffd27a; }
+    .tracker-book-actions { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+    .tracker-book-actions .tracker-parlay-btn { min-height: 26px; padding: 2px 8px; }
+    .tracker-book-pending { color: #ffd27a; font-weight: 700; }
+    .tracker-book-pending .tracker-parlay-btn { min-height: 26px; padding: 2px 8px; }
+    html[data-theme="light"] .tracker-book-status li.is-pending, html[data-theme="light"] .tracker-book-pending { color: #8a5a00; }
     .tracker-book-status a { flex: 0 0 auto; color: #c9ef5b; font-weight: 800; }
     .tracker-book-note { display: block; margin: 0 0 4px; color: #ffd27a; font-size: .62rem; font-weight: 700; }
     #pick-placement { width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; overflow: auto; border: 1px solid rgba(201,239,91,.45); border-radius: 14px; background: #0f1a24; color: #e7f0ea; box-shadow: 0 24px 60px rgba(0,0,0,.6); }
@@ -4254,7 +4260,6 @@
       const book = parlay.sportsbook;
       const state = { signature, status: "loading", legs: new Map(), title: sportsbookTitle(book), eventLink: "", error: "" };
       parlayBookState.set(parlay.id, state);
-      let changed = false;
       await Promise.all(legs.map(async tracker => {
         const label = trackerStats[tracker.stat].label;
         const market = trackerMarket(tracker);
@@ -4296,27 +4301,43 @@
         const wanted = tracker.requestedTarget ?? tracker.target;
         const choice = chooseBookLine(offers, wanted);
         if (choice.kind === "remove") {
-          if (restoreRequestedTargets([tracker])) changed = true;
           const only = choice.offer
             ? `Only Over ${choice.offer.point} (${formatAmericanOdds(choice.offer.price)}) is offered, an underdog line.`
             : `No matching line is offered.`;
           state.legs.set(tracker.key, { missing: `${only} Remove it for a safer parlay.`, suggestRemove: true });
           return;
         }
+        // Only a suggestion: the tracked target changes when the user accepts it.
         const best = choice.offer;
-        const nextTarget = Math.max(1, Math.floor(best.point) + 1);
-        if (nextTarget !== tracker.target || tracker.bookLine?.book !== book || tracker.bookLine?.point !== best.point || tracker.bookLine?.price !== best.price) {
-          if (nextTarget !== wanted) tracker.requestedTarget = wanted;
-          else delete tracker.requestedTarget;
-          tracker.target = nextTarget;
-          tracker.bookLine = { book, point: best.point, price: best.price, kind: choice.kind };
-          changed = true;
-        }
-        state.legs.set(tracker.key, { link: best.link, direct: best.direct, point: best.point, price: best.price, kind: choice.kind });
+        state.legs.set(tracker.key, {
+          link: best.link,
+          direct: best.direct,
+          suggest: { book, target: Math.max(1, Math.floor(best.point) + 1), point: best.point, price: best.price, kind: choice.kind }
+        });
       }));
-      if (changed) saveTrackers();
       if (parlayBookState.get(parlay.id) !== state) return;
       state.status = state.error ? "error" : "ready";
+      renderTrackers();
+    }
+    const suggestionId = suggest => `${suggest.book}:${suggest.point}:${suggest.target}`;
+    function bookSuggestionPending(tracker, info) {
+      return Boolean(info?.suggest) && tracker.target !== info.suggest.target && tracker.dismissedLine !== suggestionId(info.suggest);
+    }
+    function acceptBookSuggestions(entries) {
+      for (const [tracker, suggest] of entries) {
+        const original = tracker.requestedTarget ?? tracker.target;
+        if (suggest.target !== original) tracker.requestedTarget = original;
+        else delete tracker.requestedTarget;
+        tracker.target = suggest.target;
+        tracker.bookLine = { book: suggest.book, point: suggest.point, price: suggest.price, kind: suggest.kind };
+        delete tracker.dismissedLine;
+      }
+      saveTrackers();
+      renderTrackers();
+    }
+    function keepTrackedLine(tracker, suggest) {
+      tracker.dismissedLine = suggestionId(suggest);
+      saveTrackers();
       renderTrackers();
     }
     function createParlayBookTools(parlay, legs) {
@@ -4337,7 +4358,10 @@
       }
       const title = state?.title || sportsbookTitle(parlay.sportsbook);
       const home = sportsbooks.find(book => book.key === parlay.sportsbook)?.home || "";
-      const legLinks = legs.map(item => state?.legs.get(item.key)).filter(info => info?.link);
+      const legLinks = legs.map(item => {
+        const info = state?.legs.get(item.key);
+        return info?.link && info.suggest && item.target === info.suggest.target ? info : null;
+      }).filter(Boolean);
       const directLeg = legs.length === 1 && legLinks[0]?.direct ? legLinks[0].link : "";
       const href = directLeg || state?.eventLink || home || legLinks[0]?.link || "";
       const open = element("a", "tracker-book-open", `Open in ${title} ↗`);
@@ -4358,36 +4382,76 @@
       } else {
         const missing = legs.filter(item => state.legs.get(item.key)?.missing);
         const removable = missing.filter(item => state.legs.get(item.key)?.suggestRemove);
+        const pending = legs.filter(item => bookSuggestionPending(item, state.legs.get(item.key)));
         const hasDirect = legLinks.some(info => info.direct);
         const guidance = legLinks.length === 0
-          ? `None of these picks are available at ${title} right now.`
+          ? pending.length
+            ? `${title} doesn't offer these exact lines. Review the suggestions below.`
+            : `None of these picks are available at ${title} right now.`
           : !hasDirect
           ? `${title} doesn't provide direct betslip links for these picks. Open ${title} and add the available picks to your betslip.`
           : legs.length === 1
             ? `Open adds this pick to your ${title} betslip.`
             : `Sportsbooks don't accept a whole parlay from one link. Tap Add on each leg to place it in your ${title} betslip, then choose Parlay.`;
         status.append(element("p", "", state.error ? `${state.error} ` : guidance));
+        if (pending.length) {
+          const note = element("p", "tracker-book-pending", `${pending.length} ${pending.length === 1 ? "line change is" : "line changes are"} suggested for ${title}. Nothing changes until you accept.`);
+          if (pending.length > 1) {
+            const all = element("button", "tracker-parlay-btn", "Accept all");
+            all.type = "button";
+            all.addEventListener("click", () => acceptBookSuggestions(pending.map(item => [item, state.legs.get(item.key).suggest])));
+            note.append(" ", all);
+          }
+          status.append(note);
+        }
         if (removable.length) status.append(element("p", "", `${removable.length} ${removable.length === 1 ? "pick has" : "picks have"} no safer line at ${title}. Removing ${removable.length === 1 ? "it" : "them"} is the safer bet.`));
         const list = element("ul");
         for (const tracker of legs) {
           const info = state.legs.get(tracker.key) || {};
-          const item = element("li", info.missing ? "is-missing" : "");
           const short = trackerStats[tracker.stat].short;
-          const adjusted = tracker.requestedTarget !== undefined
-            ? ` (${info.kind === "higher" ? "raised" : "lowered"} from ${tracker.requestedTarget}+, ${formatAmericanOdds(info.price)})`
-            : "";
-          const text = info.missing
-            ? `⚠ ${tracker.name} ${tracker.target}+ ${short}: ${info.missing}`
-            : `✓ ${tracker.name} ${tracker.target}+ ${short}${adjusted}`;
+          const suggest = info.suggest;
+          const matched = suggest && tracker.target === suggest.target;
+          const isPending = bookSuggestionPending(tracker, info);
+          const kept = suggest && !matched && !isPending;
+          const item = element("li", info.missing || kept ? "is-missing" : isPending ? "is-pending" : "");
+          const verb = suggest?.kind === "higher" ? "Raise" : "Lower";
+          let text;
+          if (info.missing) text = `⚠ ${tracker.name} ${tracker.target}+ ${short}: ${info.missing}`;
+          else if (isPending) text = `↻ ${tracker.name} ${short}: ${verb} ${tracker.target}+ → ${suggest.target}+ (Over ${suggest.point}, ${formatAmericanOdds(suggest.price)})`;
+          else if (kept) text = `⚠ ${tracker.name} ${tracker.target}+ ${short}: kept your line. ${title} offers ${suggest.target}+ instead.`;
+          else if (matched) {
+            const changedFrom = tracker.requestedTarget !== undefined && tracker.bookLine?.book === suggest.book
+              ? ` (${tracker.bookLine.kind === "higher" ? "raised" : "lowered"} from ${tracker.requestedTarget}+, ${formatAmericanOdds(suggest.price)})`
+              : "";
+            text = `✓ ${tracker.name} ${tracker.target}+ ${short}${changedFrom}`;
+          } else text = `${tracker.name} ${tracker.target}+ ${short}`;
           item.append(element("span", "", text));
+          const actions = element("span", "tracker-book-actions");
+          if (isPending) {
+            const accept = element("button", "tracker-parlay-btn", "Accept");
+            accept.type = "button";
+            accept.setAttribute("aria-label", `Accept ${suggest.target}+ for ${tracker.name} ${short}`);
+            accept.addEventListener("click", () => acceptBookSuggestions([[tracker, suggest]]));
+            const keep = element("button", "tracker-parlay-btn", "Keep");
+            keep.type = "button";
+            keep.setAttribute("aria-label", `Keep ${tracker.target}+ for ${tracker.name} ${short}`);
+            keep.addEventListener("click", () => keepTrackedLine(tracker, suggest));
+            actions.append(accept, keep);
+          } else if (kept) {
+            const accept = element("button", "tracker-parlay-btn", `Use ${suggest.target}+`);
+            accept.type = "button";
+            accept.setAttribute("aria-label", `Use ${suggest.target}+ for ${tracker.name} ${short}`);
+            accept.addEventListener("click", () => acceptBookSuggestions([[tracker, suggest]]));
+            actions.append(accept);
+          }
           if (info.suggestRemove) {
             const drop = element("button", "tracker-parlay-btn", "Remove");
             drop.type = "button";
             drop.setAttribute("aria-label", `Remove ${tracker.name} ${short} from tracking`);
             drop.addEventListener("click", () => removeTracker(tracker.key));
-            item.append(drop);
+            actions.append(drop);
           }
-          if (info.link && legs.length > 1) {
+          if (matched && info.link && legs.length > 1) {
             const add = element("a", "", info.direct ? "Add ↗" : "Find ↗");
             add.href = info.link;
             add.target = "_blank";
@@ -4395,8 +4459,9 @@
             add.setAttribute("aria-label", info.direct
               ? `Add ${tracker.name} ${short} to ${title} betslip`
               : `Find ${tracker.name} ${short} at ${title}`);
-            item.append(add);
+            actions.append(add);
           }
+          if (actions.childNodes.length) item.append(actions);
           list.append(item);
         }
         status.append(list);
