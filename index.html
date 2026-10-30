@@ -4331,12 +4331,9 @@
     function setParlaySportsbook(parlay, book) {
       parlay.sportsbook = book || "";
       if (!parlay.sportsbook) delete parlay.sportsbook;
-      delete parlay.bookInfoDismissed;
       parlayBookState.delete(parlay.id);
-      const legs = trackers.filter(item => item.parlay === parlay.id);
-      // Choosing a sportsbook again gives a fresh look at suggestions that were dismissed or timed out.
-      for (const tracker of legs) delete tracker.dismissedLine;
-      restoreRequestedTargets(legs);
+      // Picks whose suggestion was already accepted, kept or timed out stay as they are; only fresh picks get suggestions.
+      restoreRequestedTargets(trackers.filter(item => item.parlay === parlay.id && !suggestionsSettled(item)));
       saveTrackers();
       saveParlays();
       renderTrackers();
@@ -4407,11 +4404,19 @@
     }
     const suggestionId = suggest => `${suggest.book}:${suggest.point}:${suggest.target}`;
     const removalSuggestionId = book => `${book}:remove`;
+    // Once a pick's suggestion is accepted, kept or times out, that pick never gets another suggestion in this parlay
+    // (even if the book moves its line or a different sportsbook is chosen). Moving it to another parlay starts fresh.
+    function suggestionsSettled(tracker) {
+      return Boolean(tracker.parlay) && tracker.suggestionsSettled === tracker.parlay;
+    }
+    function settleSuggestions(tracker) {
+      if (tracker.parlay) tracker.suggestionsSettled = tracker.parlay;
+    }
     function bookSuggestionPending(tracker, info) {
-      return Boolean(info?.suggest) && tracker.target !== info.suggest.target && tracker.dismissedLine !== suggestionId(info.suggest);
+      return Boolean(info?.suggest) && !suggestionsSettled(tracker) && tracker.target !== info.suggest.target && tracker.dismissedLine !== suggestionId(info.suggest);
     }
     function removalSuggestionPending(tracker, info, book) {
-      return Boolean(info?.suggestRemove) && tracker.dismissedLine !== removalSuggestionId(book);
+      return Boolean(info?.suggestRemove) && !suggestionsSettled(tracker) && tracker.dismissedLine !== removalSuggestionId(book);
     }
     // Unanswered suggestions quietly expire after being on screen this long, keeping the user's line.
     const suggestionTimeoutMs = 60 * 1000;
@@ -4448,7 +4453,7 @@
         if (ownerKey.startsWith("parlay:")) {
           const parlay = parlays.find(item => `parlay:${item.id}` === ownerKey);
           if (parlay?.sportsbook) {
-            parlay.bookInfoDismissed = parlay.sportsbook;
+            parlay.bookInfoDismissed = true;
             saveParlays();
             changed = true;
           }
@@ -4457,6 +4462,7 @@
         const tracker = trackers.find(item => item.key === ownerKey);
         if (!tracker) continue;
         tracker.dismissedLine = key.slice(split + 1);
+        settleSuggestions(tracker);
         changed = true;
       }
       if (changed) {
@@ -4475,6 +4481,7 @@
         tracker.target = suggest.target;
         tracker.bookLine = { book: suggest.book, point: suggest.point, price: suggest.price, kind: suggest.kind };
         delete tracker.dismissedLine;
+        settleSuggestions(tracker);
         forgetSuggestions(tracker);
       }
       saveTrackers();
@@ -4482,6 +4489,7 @@
     }
     function keepTrackedLine(tracker, id) {
       tracker.dismissedLine = id;
+      settleSuggestions(tracker);
       forgetSuggestions(tracker);
       saveTrackers();
       renderTrackers();
@@ -4524,6 +4532,8 @@
       if (!legs.length) {
         status.append(element("p", "", `Add picks to see them at ${title}.`));
       } else if (!state || state.status === "loading") {
+        // The box was already dismissed and no pick can get a new suggestion, so don't flash it back while loading.
+        if (parlay.bookInfoDismissed && legs.every(suggestionsSettled)) return { controls: [select, open], status: null };
         status.append(element("p", "", `Checking ${title} lines…`));
       } else {
         const missing = legs.filter(item => state.legs.get(item.key)?.missing);
@@ -4629,7 +4639,7 @@
         // otherwise let it time out (or be closed) like the suggestions do.
         if (!state.error && !pending.length && !removable.length) {
           if (state.hadSuggestions) return { controls: [select, open], status: dismissBookInfo(parlay) };
-          if (parlay.bookInfoDismissed === parlay.sportsbook) return { controls: [select, open], status: null };
+          if (parlay.bookInfoDismissed) return { controls: [select, open], status: null };
           const close = element("button", "tracker-book-close", "✕");
           close.type = "button";
           close.title = "Hide";
@@ -4647,7 +4657,7 @@
       return { controls: [select, open], status };
     }
     function dismissBookInfo(parlay, rerender = false) {
-      parlay.bookInfoDismissed = parlay.sportsbook;
+      parlay.bookInfoDismissed = true;
       saveParlays();
       if (rerender) renderTrackers();
       return null;
