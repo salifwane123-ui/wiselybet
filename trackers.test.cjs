@@ -13,21 +13,59 @@ function slice(start, end) {
   return html.slice(from, to);
 }
 const code = [
+  slice("    function normalizeTeamName(", "    function teamNamesMatch("),
+  slice("    // True once a pick's stat reached its target", "    function burstBellSparks("),
   slice("    const baseballPitcherStats = new Set(", "    function sportEmoji(tracker) {"),
   slice("    // Over and Under picks share one stored threshold", "    const trackerSnapshots = new Map();"),
+  slice("    function createParlay(", "    function renameParlay("),
+  slice("    // Default names (\"Parlay 2\") follow", "    // Asks what to do with the picks before a parlay is deleted."),
+  slice("    function restoreRequestedTargets(", "    function setParlaySportsbook("),
   slice("    function chooseBookLine(", "    const bookPropsCache"),
   slice("    // A parlay wins only if every leg hits", "    // Applause:"),
   slice("    function replacementFactor(snapshot) {", "    // Always-on performance read"),
   slice("    // Over keys keep their original shape", "    function syncTrackButtons"),
-  slice("    function paceModel(tracker) {", "    function baseballRead(")
+  slice("    // Adds a pick to a parlay, or as a single pick", "    const historyKey = "),
+  slice("    const historyKey = ", "    function historyRecord()"),
+  slice("    function paceModel(tracker) {", "    function baseballRead("),
+  slice("    // Copies of a pick in several parlays pop for the same play", "    // Sparks and confetti flying out")
 ].join("\n");
 const trackerSnapshots = new Map();
-const page = runInNewContext(`${code}
-({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead });`, {
+const storage = new Map();
+let clock = Date.parse("2025-01-15T00:00:00Z");
+class FakeDate extends Date {
+  static now() { return clock; }
+}
+const noop = () => {};
+const timers = [];
+const sounds = [];
+// The page's own state; functions that reassign `trackers` or `parlays` update these properties.
+const context = {
   trackerSnapshots,
+  trackers: [],
+  parlays: [],
+  parlayBookState: new Map(),
+  currentEvents: [{ id: "e1", home_team: "Boston Celtics", away_team: "New York Knicks", commence_time: "2025-01-15T00:30:00Z" }],
+  localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
+  Date: FakeDate,
+  window: { setTimeout: callback => timers.push(callback) },
+  saveTrackers: noop,
+  saveParlays: noop,
+  syncTrackButtons: noop,
+  setTrackerPanelOpen: noop,
+  renderTrackers: noop,
+  renderHistory: noop,
+  forgetSuggestions: noop,
+  queueSound: sound => sounds.push(sound.name),
+  playCashSound: function cash() {},
+  playScoreSound: function score() {},
+  pollTrackers: async () => {},
   trackerStats: { PTS: { label: "Points", short: "PTS" }, REB: { label: "Rebounds", short: "REB" } },
   isFootballSport: sport => sport === "americanfootball_nfl" || sport === "americanfootball_ncaaf"
-});
+};
+const page = runInNewContext(`${code}
+({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead,
+   pickIdentity, pickSlot, pickCopyIn, addTracker, assignParlay, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
+   playOnce });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -175,4 +213,181 @@ test("phone alerts cover Over and Under picks", async () => {
   result = trackerAlerts(under, before(23), game("in", { PTS: 26, PF: 2 }), kind => kind !== "score");
   assert.deepEqual(titles(result), ["Foul"]);
   assert.equal(result.next.hit, true);
+});
+
+const track = (name, stat, target, parlay, side) => page.addTracker(name, "basketball_nba", "e1", stat, target, parlay, side);
+const twoParlays = () => {
+  context.parlays = [{ id: "p1", name: "Parlay 1" }, { id: "p2", name: "Parlay 2" }];
+  context.trackers = [];
+  trackerSnapshots.clear();
+};
+
+test("the same pick can be in several parlays and once as a single pick", () => {
+  twoParlays();
+  const plainKey = page.trackerKey("Test Player", "e1", "PTS");
+  const first = track("Test Player", "PTS", 25, "p1");
+  const second = track("Test Player", "PTS", 25, "p2");
+  const single = track("Test Player", "PTS", 22, "");
+  assert.deepEqual(plain(context.trackers.map(item => [item.parlay, item.target])), [["p1", 25], ["p2", 25], ["", 22]]);
+  assert.equal(new Set(context.trackers.map(item => item.key)).size, 3);
+  assert.ok(context.trackers.every(item => page.pickIdentity(item) === plainKey && item.key !== plainKey));
+  assert.deepEqual(plain(JSON.parse(first.key).slice(0, 3)), JSON.parse(plainKey));
+  assert.equal(page.pickCopyIn(plainKey, "p2"), second);
+  assert.equal(page.pickCopyIn(plainKey, ""), single);
+
+  // A parlay that already has the pick only gets the new line; the other copies keep theirs.
+  assert.equal(track("Test Player", "PTS", 28, "p1"), first);
+  assert.equal(context.trackers.length, 3);
+  assert.deepEqual(plain(context.trackers.map(item => item.target)), [28, 25, 22]);
+
+  // The Under on the same stat is a different pick.
+  const underPick = track("Test Player", "PTS", 25, "p1", "under");
+  assert.equal(context.trackers.length, 4);
+  assert.equal(page.pickIdentity(underPick), page.trackerKey("Test Player", "e1", "PTS", "under"));
+  assert.equal(page.addTracker("Test Player", "basketball_nba", "unknown-game", "PTS", 25, "p1"), null);
+});
+
+test("a new line starts the pick over under a fresh key", () => {
+  twoParlays();
+  const pick = track("Test Player", "PTS", 25, "p1");
+  const firstKey = pick.key;
+  trackerSnapshots.set(firstKey, { current: 26, hitNotified: true, recorded: true });
+  assert.equal(track("Test Player", "PTS", 25, "p1").key, firstKey);
+  assert.equal(trackerSnapshots.has(firstKey), true);
+  assert.equal(track("Test Player", "PTS", 30, "p1"), pick);
+  assert.notEqual(pick.key, firstKey);
+  assert.equal(trackerSnapshots.has(firstKey), false);
+
+  // Picks saved with the plain key keep it, and a removed pick's key isn't handed to the next copy.
+  const plainKey = page.trackerKey("Test Player", "e1", "PTS");
+  context.trackers = [{ ...plain(pick), key: plainKey, parlay: "p2" }];
+  assert.equal(track("Test Player", "PTS", 30, "p2").key, plainKey);
+  const removedKey = pick.key;
+  assert.notEqual(track("Test Player", "PTS", 30, "p1").key, removedKey);
+  assert.equal(new Set(context.trackers.map(item => item.key)).size, 2);
+});
+
+test("a pick whose parlay is gone counts as a single pick", () => {
+  twoParlays();
+  const leftover = track("Test Player", "PTS", 25, "p1");
+  leftover.parlay = "deleted-parlay";
+  assert.equal(page.pickSlot("deleted-parlay"), "");
+  assert.equal(track("Test Player", "PTS", 27, ""), leftover);
+  assert.equal(leftover.parlay, "");
+  assert.equal(leftover.target, 27);
+  assert.equal(context.trackers.length, 1);
+});
+
+test("moving a pick never puts two copies in one parlay", () => {
+  twoParlays();
+  track("Test Player", "PTS", 25, "p1");
+  const copy = track("Test Player", "PTS", 25, "p2");
+  page.assignParlay(copy, "p1");
+  assert.equal(copy.parlay, "p2");
+  page.assignParlay(copy, "");
+  assert.equal(copy.parlay, "");
+  page.assignParlay(copy, "__new");
+  assert.equal(context.parlays.length, 3);
+  assert.equal(copy.parlay, context.parlays[2].id);
+});
+
+test("deleting a parlay keeps its picks as singles without doubling one", () => {
+  twoParlays();
+  track("Test Player", "PTS", 22, "");
+  const leg = track("Test Player", "PTS", 25, "p1");
+  track("Other Player", "REB", 8, "p1");
+  const otherParlay = track("Test Player", "PTS", 25, "p2");
+  trackerSnapshots.set(leg.key, { current: 3 });
+  page.deleteParlay(context.parlays[0]);
+  assert.deepEqual(plain(context.trackers.map(item => [item.name, item.parlay, item.target])),
+    [["Test Player", "", 22], ["Other Player", "", 8], ["Test Player", "p2", 25]]);
+  assert.equal(trackerSnapshots.has(leg.key), false);
+  assert.equal(otherParlay.parlay, "p2");
+
+  page.deleteParlay(context.parlays[0], { removePicks: true });
+  assert.deepEqual(plain(context.trackers.map(item => item.name)), ["Test Player", "Other Player"]);
+});
+
+test("a player's alerts stay on while one of his picks in the game is open", () => {
+  twoParlays();
+  const low = track("Test Player", "PTS", 20, "p1");
+  const high = track("Test Player", "PTS", 30, "p2");
+  trackerSnapshots.set(low.key, { current: 22 });
+  trackerSnapshots.set(high.key, { current: 22 });
+  assert.deepEqual(plain(page.goalReachedNames()), []);
+  trackerSnapshots.set(high.key, { current: 31 });
+  assert.deepEqual(plain(page.goalReachedNames()), ["testplayer"]);
+  trackerSnapshots.clear();
+});
+
+test("copies of a pick announce each alert once", () => {
+  assert.equal(page.firstAnnouncement("alert|foul|Test Player committed a foul (3 PF)."), true);
+  assert.equal(page.firstAnnouncement("alert|foul|Test Player committed a foul (3 PF)."), false);
+  assert.equal(page.firstAnnouncement("alert|foul|Test Player committed a foul (4 PF)."), true);
+  clock += 6000;
+  assert.equal(page.firstAnnouncement("alert|foul|Test Player committed a foul (3 PF)."), true);
+});
+
+test("a pick in several parlays is recorded once in the history", () => {
+  storage.clear();
+  const pick = { name: "Test Player", sport: "basketball_nba", eventId: "e1", stat: "PTS", target: 25, home: "Boston Celtics", away: "New York Knicks" };
+  page.recordHistory({ ...pick, key: "a", parlay: "p1" }, 27, "win");
+  page.recordHistory({ ...pick, key: "b", parlay: "p2" }, 27, "win");
+  assert.equal(page.readHistory().length, 1);
+  page.recordHistory({ ...pick, key: "c", target: 30 }, 27, "loss");
+  page.recordHistory({ ...pick, key: "d", side: "under" }, 27, "loss");
+  page.recordHistory({ ...pick, key: "e", eventId: "e2" }, 27, "win");
+  const history = page.readHistory();
+  assert.equal(history.length, 4);
+  assert.deepEqual(plain(history.map(item => [item.eventId, item.target, item.side || "over", item.result])),
+    [["e2", 25, "over", "win"], ["e1", 25, "under", "loss"], ["e1", 30, "over", "loss"], ["e1", 25, "over", "win"]]);
+});
+
+test("results saved before history kept the game id still count once", () => {
+  const pick = { name: "Test Player", sport: "basketball_nba", eventId: "e1", stat: "PTS", target: 25, home: "Boston Celtics", away: "New York Knicks", date: "2025-01-15T00:30:00Z" };
+  const saved = at => JSON.stringify([{ name: "Test Player", stat: "PTS", target: 25, final: 27, result: "win", game: "New York Knicks @ Boston Celtics", at }]);
+  storage.set("courtside.history.v1", saved("2025-01-15T02:45:00Z"));
+  page.recordHistory(pick, 27, "win");
+  assert.equal(page.readHistory().length, 1);
+  // The same teams met on another day.
+  storage.set("courtside.history.v1", saved("2025-01-10T02:45:00Z"));
+  page.recordHistory(pick, 27, "win");
+  assert.equal(page.readHistory().length, 2);
+});
+
+test("a play sounds once when several copies of the pick pop for it", () => {
+  timers.length = 0;
+  sounds.length = 0;
+  page.playOnce("pop|e1|Test Player|PTS|22", false);
+  page.playOnce("pop|e1|Test Player|PTS|22", true);
+  page.playOnce("pop|e1|Test Player|PTS|22", false);
+  assert.equal(timers.length, 1);
+  timers.splice(0).forEach(run => run());
+  assert.deepEqual(sounds, ["cash"]);
+  // The next poll seeing the same play stays quiet; a new play sounds again.
+  page.playOnce("pop|e1|Test Player|PTS|22", false);
+  assert.equal(timers.length, 0);
+  page.playOnce("pop|e1|Test Player|PTS|24", false);
+  timers.splice(0).forEach(run => run());
+  assert.deepEqual(sounds, ["cash", "score"]);
+});
+
+test("phone alerts from copies of a pick are sent once", async () => {
+  const { uniqueMessages } = await import(pathToFileURL(join(__dirname, "push.mjs")).href);
+  const foul = { title: "Foul", body: "Test Player committed a foul (3 PF).", tag: "foul-a" };
+  const lowHit = { title: "🎉 Target hit", body: "Test Player reached 20 points!", tag: "hit-a" };
+  const highHit = { title: "🎉 Target hit", body: "Test Player reached 30 points!", tag: "hit-b" };
+  assert.deepEqual(uniqueMessages([foul, { ...foul, tag: "foul-b" }, lowHit, { ...lowHit, tag: "hit-c" }, highHit]), [foul, lowHit, highHit]);
+});
+
+test("the server forgets a pick's alert state once its game window has passed", async () => {
+  const { forgetFinishedPicks } = await import(pathToFileURL(join(__dirname, "push.mjs")).href);
+  const now = Date.parse("2025-01-15T12:00:00Z");
+  const userState = new Map([
+    ["t:finished", { hit: true, until: now - 1 }],
+    ["t:live", { hit: false, until: now + 60_000 }],
+    ["f:followed", { found: true }]
+  ]);
+  forgetFinishedPicks(userState, now);
+  assert.deepEqual([...userState.keys()], ["t:live", "f:followed"]);
 });

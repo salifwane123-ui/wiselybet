@@ -130,11 +130,18 @@ function localDate(value, tz) {
   catch { return new Date(value).toISOString().slice(0, 10); }
 }
 
+const trackerWindowAfterMs = 7 * 3_600_000;
 function inWindow(entry) {
   const start = Date.parse(entry.date);
   if (!Number.isFinite(start)) return false;
   const now = Date.now();
-  return now >= start - 20 * 60_000 && now <= start + 7 * 3_600_000;
+  return now >= start - 20 * 60_000 && now <= start + trackerWindowAfterMs;
+}
+
+// A pick's game is checked only inside its window, so once that has passed its state is never needed again.
+// Every new or re-lined pick gets a new key, so without this the old states would pile up.
+export function forgetFinishedPicks(userState, now = Date.now()) {
+  for (const [id, state] of userState) if (id.startsWith("t:") && state.until < now) userState.delete(id);
 }
 
 function injuryText(name, injury) {
@@ -213,6 +220,8 @@ export function trackerAlerts(tracker, previous, game, allowed = () => true) {
 }
 
 async function checkUser({ userKey, data }, fetchGame) {
+  const userState = states.get(userKey) || new Map();
+  forgetFinishedPicks(userState);
   let subs, trackers, followed, settings;
   try {
     subs = JSON.parse(data[pushDataKey] || "[]");
@@ -231,7 +240,6 @@ async function checkUser({ userKey, data }, fetchGame) {
   const activeFollowed = live(followed);
   if (!activeTrackers.length && !activeFollowed.length) return;
 
-  const userState = states.get(userKey) || new Map();
   states.set(userKey, userState);
   const messages = [];
   const games = new Map();
@@ -250,7 +258,7 @@ async function checkUser({ userKey, data }, fetchGame) {
     if (!game?.teams) continue;
     const result = trackerAlerts(tracker, previous, game, allowed);
     messages.push(...result.messages);
-    userState.set(id, result.next);
+    userState.set(id, { ...result.next, until: Date.parse(tracker.date) + trackerWindowAfterMs });
   }
 
   const trackedNames = new Set(activeTrackers.map(item => normalize(item.name)));
@@ -286,7 +294,19 @@ async function checkUser({ userKey, data }, fetchGame) {
     userState.set(id, next);
   }
 
-  for (const message of messages.slice(0, 6)) await deliver(userKey, subs, { ...message, url: "/" });
+  for (const message of uniqueMessages(messages).slice(0, 6)) await deliver(userKey, subs, { ...message, url: "/" });
+}
+
+// The same pick can be in several parlays (and one player tracked for several stats), so their copies raise the
+// same alert in the same check; each is sent once.
+export function uniqueMessages(messages) {
+  const seen = new Set();
+  return messages.filter(message => {
+    const id = `${message.title}\n${message.body}`;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
 }
 
 async function runChecks(fetchGame) {

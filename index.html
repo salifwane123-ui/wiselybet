@@ -952,9 +952,11 @@
     .tracker-parlay-select, .tracker-filter select, #parlay-view { color-scheme: dark; background-color: #0f1a24; color: #e7f7b0; }
     .tracker-parlay-select option, .tracker-filter select option, #parlay-view option, .tracker-parlay-select optgroup { background: #0f1a24; color: #e7f7b0; }
     .tracker-parlay-select option:checked, .tracker-filter select option:checked, #parlay-view option:checked { background: #c9ef5b linear-gradient(#c9ef5b, #c9ef5b); color: #10160a; }
+    .tracker-parlay-select option:disabled { color: #6f8091; }
     html[data-theme="light"] .tracker-parlay-select, html[data-theme="light"] .tracker-filter select, html[data-theme="light"] #parlay-view { color-scheme: light; background-color: #fff; color: #1b2418; }
     html[data-theme="light"] .tracker-parlay-select option, html[data-theme="light"] .tracker-filter select option, html[data-theme="light"] #parlay-view option { background: #fff; color: #1b2418; }
     html[data-theme="light"] .tracker-parlay-select option:checked, html[data-theme="light"] .tracker-filter select option:checked, html[data-theme="light"] #parlay-view option:checked { background: #dff5a8 linear-gradient(#dff5a8, #dff5a8); color: #1b2418; }
+    html[data-theme="light"] .tracker-parlay-select option:disabled { color: #98a294; }
     @media (max-width: 560px) { .topbar { flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; } .topbar-actions { flex-wrap: wrap; max-width: 100%; } }
     #ios-install { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 300; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(201,239,91,.4); background: #1a231c; color: #eaf1ec; box-shadow: 0 12px 36px rgba(0,0,0,.6); font-size: .86rem; line-height: 1.4; }
     #ios-install[hidden] { display: none; }
@@ -4144,15 +4146,35 @@
       }
     }
 
-    // Names of players whose tracker goal is already reached; their updates are not announced.
+    // True once a pick's stat reached its target: an Over cashed or an Under busted.
+    function pickReached(tracker) {
+      return (trackerSnapshots.get(tracker.key)?.current ?? 0) >= tracker.target;
+    }
+    // Names of players whose picks in a game have all reached their goal; their updates are not announced.
+    // While one of his picks there is still open (another stat, or a higher line in another parlay), he keeps them.
     function goalReachedNames() {
       try {
-        return trackers
-          .filter(item => !item.demo && (trackerSnapshots.get(item.key)?.current ?? 0) >= item.target)
-          .map(item => normalizeTeamName(item.name));
+        const games = new Map();
+        for (const item of trackers) {
+          if (item.demo) continue;
+          const id = JSON.stringify([normalizeTeamName(item.name), item.eventId]);
+          games.set(id, (games.get(id) ?? true) && pickReached(item));
+        }
+        return [...games].filter(([, reached]) => reached).map(([id]) => JSON.parse(id)[0]);
       } catch {
         return [];
       }
+    }
+
+    // The same pick can be in several parlays, and every copy reacts to the same play in the same update.
+    // True the first time `id` comes up within a few seconds, so each alert and sound is announced once.
+    const recentAnnouncements = new Map();
+    function firstAnnouncement(id) {
+      const now = Date.now();
+      for (const [key, at] of recentAnnouncements) if (now - at > 5000) recentAnnouncements.delete(key);
+      if (recentAnnouncements.has(id)) return false;
+      recentAnnouncements.set(id, now);
+      return true;
     }
 
     function burstBellSparks(button) {
@@ -4176,6 +4198,7 @@
         const lowered = normalizeTeamName(text);
         if (goalReachedNames().some(name => lowered.includes(name))) return;
       }
+      if (!force && !firstAnnouncement(`alert|${kind}|${text}`)) return;
       const entry = { kind, text, time: new Date() };
       playBellSound();
       notificationFeed.unshift(entry);
@@ -4385,11 +4408,9 @@
       followedListElement.replaceChildren(...cards);
     }
 
-    // True when a tracker for this player has already reached its goal.
+    // True when every tracked pick for this player in a game has already reached its goal.
     function playerReachedGoal(name) {
-      const wanted = normalizeTeamName(name);
-      return trackers.some(item => !item.demo && normalizeTeamName(item.name) === wanted &&
-        (trackerSnapshots.get(item.key)?.current ?? 0) >= item.target);
+      return goalReachedNames().includes(normalizeTeamName(name));
     }
 
     function updateFollowedPlayer(player, game, error) {
@@ -4713,6 +4734,11 @@
 
     function assignParlay(tracker, value) {
       const previous = tracker.parlay;
+      // Each parlay holds a pick once; the picker already disables parlays that have this one.
+      if (value !== "__new" && !tracker.demo && pickCopyIn(pickIdentity(tracker), pickSlot(value), tracker)) {
+        renderTrackers();
+        return;
+      }
       if (value === "__new") tracker.parlay = createParlay().id;
       else tracker.parlay = value || "";
       if (tracker.parlay !== previous) restoreRequestedTargets([tracker]);
@@ -4747,7 +4773,13 @@
         for (const key of keys) trackerSnapshots.delete(key);
       } else {
         restoreRequestedTargets(legs);
-        for (const tracker of legs) tracker.parlay = "";
+        for (const tracker of legs) {
+          // A pick that's already a single pick isn't doubled; that copy keeps tracking it.
+          if (pickCopyIn(pickIdentity(tracker), "", tracker)) {
+            trackers = trackers.filter(item => item !== tracker);
+            trackerSnapshots.delete(tracker.key);
+          } else tracker.parlay = "";
+        }
       }
       saveParlays();
       saveTrackers();
@@ -4789,7 +4821,13 @@
         });
         return button;
       };
-      const keep = option("is-keep", "Keep picks as singles", `${count} will keep tracking live as single picks.`, () => deleteParlay(parlay));
+      // Legs that are already single picks stay as they are rather than being added a second time.
+      const doubled = legs.filter(item => pickCopyIn(pickIdentity(item), "", item)).length;
+      const moving = legs.length - doubled;
+      const keepText = !doubled ? `${count} will keep tracking live as single picks.`
+        : !moving ? `${legs.length === 1 ? "It's" : "They're"} already in your single picks, so nothing is added twice.`
+        : `${moving === 1 ? "1 pick" : `${moving} picks`} will keep tracking live as single picks; ${doubled === 1 ? "1 is" : `${doubled} are`} already there.`;
+      const keep = option("is-keep", "Keep picks as singles", keepText, () => deleteParlay(parlay));
       const removeAll = option("is-danger", "Delete parlay and picks", `Stops tracking ${legs.length === 1 ? "this pick" : `all ${count}`}. This can't be undone.`, () => deleteParlay(parlay, { removePicks: true }));
       const cancel = element("button", "parlay-delete-cancel", "Cancel");
       cancel.type = "button";
@@ -4813,8 +4851,16 @@
       const select = document.createElement("select");
       select.className = "tracker-parlay-select";
       select.setAttribute("aria-label", `Parlay for ${tracker.name} ${trackerStats[tracker.stat].label}`);
-      select.append(new Option("Single pick", ""));
-      for (const parlay of parlays) select.append(new Option(`🎟 ${parlay.name}`, parlay.id));
+      // A parlay that already holds this pick (or the single picks, if it's one already) can't take a second copy.
+      const identity = pickIdentity(tracker);
+      const option = (label, value) => {
+        const taken = !tracker.demo && Boolean(pickCopyIn(identity, value, tracker));
+        const item = new Option(taken ? `${label} · has this pick` : label, value);
+        item.disabled = taken;
+        return item;
+      };
+      select.append(option("Single pick", ""));
+      for (const parlay of parlays) select.append(option(`🎟 ${parlay.name}`, parlay.id));
       select.append(new Option("+ New parlay", "__new"));
       select.value = parlays.some(item => item.id === tracker.parlay) ? tracker.parlay : "";
       select.addEventListener("change", () => assignParlay(tracker, select.value));
@@ -4822,7 +4868,8 @@
     }
 
     // Asks where a newly tracked pick belongs. Resolves to a parlay id, "" for a single pick, or null when cancelled.
-    function choosePickPlacement(name, stat, target, side = "over") {
+    // The same pick can go into several parlays; choosing a parlay that already has it just updates its line.
+    function choosePickPlacement(name, eventId, stat, target, side = "over") {
       return new Promise(resolve => {
         document.querySelector("#pick-placement")?.close();
         const dialog = document.createElement("dialog");
@@ -4832,6 +4879,14 @@
         const heading = element("h2", "", "Where should this pick go?");
         heading.id = "pick-placement-title";
         body.append(heading, element("p", "", `${name} · ${pickGoal({ side }, target)} ${trackerStats[stat].label}`));
+        const identity = trackerKey(name, eventId, stat, side);
+        const copyGoal = copy => pickGoal(copy, copy.requestedTarget ?? copy.target);
+        const homes = [...parlays.filter(parlay => pickCopyIn(identity, parlay.id)).map(parlay => parlay.name),
+          ...(pickCopyIn(identity, "") ? ["your single picks"] : [])];
+        if (homes.length) {
+          const where = homes.length > 1 ? `${homes.slice(0, -1).join(", ")} and ${homes[homes.length - 1]}` : homes[0];
+          body.append(element("p", "pick-placement-note", `Already in ${where}. Adding it somewhere else keeps it there too.`));
+        }
         let result = null;
         const finish = value => {
           result = value;
@@ -4843,10 +4898,12 @@
           list.setAttribute("aria-label", "Existing parlays");
           for (const parlay of parlays) {
             const count = trackers.filter(item => item.parlay === parlay.id).length;
-            const choice = element("button", "", `🎟 Add to ${parlay.name}`);
+            const copy = pickCopyIn(identity, parlay.id);
+            const choice = element("button", "", copy ? `🎟 Update in ${parlay.name}` : `🎟 Add to ${parlay.name}`);
             choice.type = "button";
             const book = parlay.sportsbook ? ` · ${sportsbookTitle(parlay.sportsbook)}` : "";
-            choice.append(element("small", "", `${count} ${count === 1 ? "pick" : "picks"}${book}`));
+            const has = copy ? `Has this pick at ${copyGoal(copy)} · ` : "";
+            choice.append(element("small", "", `${has}${count} ${count === 1 ? "pick" : "picks"}${book}`));
             choice.addEventListener("click", () => finish(parlay.id));
             list.append(choice);
           }
@@ -4866,7 +4923,7 @@
           finish(createParlay(nameInput.value).id);
         });
         const actions = element("div", "pick-placement-actions");
-        const single = element("button", "", "Keep as single pick");
+        const single = element("button", "", pickCopyIn(identity, "") ? "Update single pick" : "Keep as single pick");
         single.type = "button";
         single.addEventListener("click", () => finish(""));
         const cancel = element("button", "pick-placement-cancel", "Cancel");
@@ -6251,6 +6308,22 @@
       if (delay) window.setTimeout(play, delay);
       else play();
     }
+    // Copies of a pick in several parlays pop for the same play in the same update. The play sounds once, as the
+    // register if any copy cashed on it.
+    const pendingPlaySounds = new Map();
+    function playOnce(play, cashed) {
+      if (pendingPlaySounds.has(play)) {
+        if (cashed) pendingPlaySounds.set(play, true);
+        return;
+      }
+      if (!firstAnnouncement(play)) return;
+      pendingPlaySounds.set(play, cashed);
+      window.setTimeout(() => {
+        const cash = pendingPlaySounds.get(play);
+        pendingPlaySounds.delete(play);
+        queueSound(cash ? playCashSound : playScoreSound, cash ? 1100 : 450);
+      }, 0);
+    }
 
     // Sparks and confetti flying out from the centre of `host`.
     function burstSparks(host, { count = 14, distance = 70, colors = ["#39ff88", "#c9ef5b", "#ffffff"], time = 0.9 } = {}) {
@@ -6273,12 +6346,13 @@
     }
 
     function showScorePop(name, points, stat, message, tracker, current) {
-      if (message?.text.startsWith("🔥")) queueSound(playCashSound, 1100);
-      else queueSound(playScoreSound, 450);
+      const cashed = Boolean(message?.text.startsWith("🔥"));
+      if (tracker?.demo) queueSound(cashed ? playCashSound : playScoreSound, cashed ? 1100 : 450);
+      else playOnce(`pop|${tracker?.eventId}|${name}|${stat}|${current}`, cashed);
       const tone = message?.tone || "hype";
       const under = isUnderPick(tracker);
       // Reaching the target cashes an Over but busts an Under, so only an Over turns into the big "cashed" pop.
-      const big = Boolean(message?.text.startsWith("🔥")) || (!under && tracker?.target > 0 && Number.isFinite(current) && current >= tracker.target);
+      const big = cashed || (!under && tracker?.target > 0 && Number.isFinite(current) && current >= tracker.target);
       const pop = element("div", `score-pop${big ? " is-cashed" : ""}`);
       const parlay = parlays.find(item => item.id === tracker?.parlay);
       const windowKey = parlay ? `parlay:${parlay.id}` : tracker ? `singles:${tracker.eventId}` : "";
@@ -6360,6 +6434,27 @@
     // Over keys keep their original shape so picks saved before Unders existed still match.
     function trackerKey(name, eventId, stat, side = "over") {
       return JSON.stringify(side === "under" ? [eventId, name, stat, "under"] : [eventId, name, stat]);
+    }
+    // A pick is one player's stat and side in one game. It can be a leg of several parlays and a single pick too,
+    // so every copy has its own key and each parlay holds a pick at most once.
+    function pickIdentity(tracker) {
+      return trackerKey(tracker.name, tracker.eventId, tracker.stat, trackerSide(tracker));
+    }
+    // A parlay's id, or "" for single picks (including picks whose parlay no longer exists).
+    function pickSlot(parlayId) {
+      return parlays.some(item => item.id === parlayId) ? parlayId : "";
+    }
+    function pickCopyIn(identity, slot, except = null) {
+      return trackers.find(item => item !== except && !item.demo && pickIdentity(item) === identity && pickSlot(item.parlay) === slot) || null;
+    }
+    // Every new copy gets a fresh key (picks saved earlier keep their plain one), so a removed or re-lined pick never
+    // hands its alerts, result or phone notifications to the next one.
+    function newTrackerKey(identity) {
+      let key;
+      do {
+        key = JSON.stringify([...JSON.parse(identity), `#${Math.random().toString(36).slice(2, 10)}`]);
+      } while (trackers.some(item => item.key === key));
+      return key;
     }
 
     function syncTrackButtons() {
@@ -6615,13 +6710,13 @@
         // Both sides store the same threshold: the total that cashes an Over and busts an Under.
         const target = chosenSide === "under" ? value + 1 : value;
         const stat = statSelect.value;
-        const placement = await choosePickPlacement(playerGroup.player, stat, target, chosenSide);
+        const placement = await choosePickPlacement(playerGroup.player, eventId, stat, target, chosenSide);
         if (placement === null) return;
-        addTracker(playerGroup.player, sport, eventId, stat, target, placement, chosenSide);
+        const trackerKeyValue = addTracker(playerGroup.player, sport, eventId, stat, target, placement, chosenSide)?.key;
         form.hidden = true;
         // After tracking starts, warn when the pick is unlikely and let the user undo it.
         hint.hidden = true;
-        const trackerKeyValue = trackerKey(playerGroup.player, eventId, stat, chosenSide);
+        if (!trackerKeyValue) return;
         // Pull the live game first so the warning reflects his output so far and the time left.
         let snapshot = null;
         try {
@@ -6649,19 +6744,27 @@
       return { button, form, hint };
     }
 
+    // Adds a pick to a parlay, or as a single pick when parlayId is "". If that parlay already has the pick, that copy
+    // takes the new line; copies in other parlays keep theirs. Returns the tracker (null if the game is unknown).
     function addTracker(name, sport, eventId, stat, target, parlayId, side = "over") {
       const event = currentEvents.find(candidate => candidate.id === eventId);
-      if (!event) return;
-      const key = trackerKey(name, eventId, stat, side);
-      const existing = trackers.find(item => item.key === key);
-      if (existing) {
-        existing.target = target;
-        delete existing.requestedTarget;
-        delete existing.bookLine;
-        if (parlayId !== undefined) existing.parlay = parlayId;
+      if (!event) return null;
+      const identity = trackerKey(name, eventId, stat, side);
+      let tracker = pickCopyIn(identity, pickSlot(parlayId));
+      if (tracker) {
+        if (Number(tracker.target) !== Number(target)) {
+          // A new line is a new bet: its alerts, result and phone notifications start over under a fresh key.
+          trackerSnapshots.delete(tracker.key);
+          forgetSuggestions(tracker);
+          tracker.key = newTrackerKey(identity);
+        }
+        tracker.target = target;
+        delete tracker.requestedTarget;
+        delete tracker.bookLine;
+        tracker.parlay = parlayId || "";
       } else {
-        trackers.push({
-          key,
+        tracker = {
+          key: newTrackerKey(identity),
           name,
           sport,
           eventId,
@@ -6672,13 +6775,15 @@
           away: event.away_team,
           date: event.commence_time,
           parlay: parlayId || ""
-        });
+        };
+        trackers.push(tracker);
       }
       saveTrackers();
       syncTrackButtons();
       setTrackerPanelOpen(true);
       renderTrackers();
       void pollTrackers();
+      return tracker;
     }
 
     const historyKey = "courtside.history.v1";
@@ -6692,6 +6797,18 @@
     }
     function recordHistory(tracker, final, result) {
       const history = readHistory();
+      // One result per pick and line, even when the pick sits in several parlays or is seen again after a reload.
+      // Entries saved before they carried the game id match on the teams and a time after that game's start.
+      const game = `${tracker.away} @ ${tracker.home}`;
+      const start = Date.parse(tracker.date);
+      const sameGame = item => {
+        if (item.eventId) return item.eventId === tracker.eventId;
+        const after = Date.parse(item.at) - start;
+        return item.game === game && after > -15 * 60000 && after < 24 * 3600000;
+      };
+      const side = trackerSide(tracker);
+      if (history.some(item => sameGame(item) && item.name === tracker.name && item.stat === tracker.stat &&
+          Number(item.target) === Number(tracker.target) && trackerSide(item) === side)) return;
       history.unshift({
         name: tracker.name,
         stat: tracker.stat,
@@ -6699,7 +6816,8 @@
         ...(isUnderPick(tracker) ? { side: "under" } : {}),
         final,
         result,
-        game: `${tracker.away} @ ${tracker.home}`,
+        game,
+        eventId: tracker.eventId,
         at: new Date().toISOString()
       });
       try {
@@ -7205,11 +7323,13 @@
           trail.poorScore = current;
         }
       }
-      // Status alerts for tracked players: bench/court, fouls and injury report.
-      // Skipped when the player is also followed (that already alerts) or another tracker for him alerts.
-      const alertOwner = trackers.find(item => !item.demo && item.name === tracker.name && item.eventId === tracker.eventId);
+      // Status alerts for tracked players: bench/court, fouls and injury report. Skipped when the player is also
+      // followed (that already alerts). His first pick in this game raises them for all of his picks (he can be in
+      // several parlays), for as long as one of them is still open.
+      const playerPicks = trackers.filter(item => !item.demo && item.name === tracker.name && item.eventId === tracker.eventId);
       const alsoFollowed = followedPlayers.some(item => normalizeTeamName(item.name) === wanted);
-      if (previous && !previous.error && !tracker.demo && alertOwner === tracker && !alsoFollowed && !(previous.current >= tracker.target)) {
+      if (previous && !previous.error && !tracker.demo && playerPicks[0] === tracker && !alsoFollowed &&
+          playerPicks.some(item => !pickReached(item))) {
         if (snapshot.state === "in" && athlete && snapshot.onCourt !== previous.onCourt) {
           pushNotification("court", snapshot.onCourt ? `${tracker.name} is on the court.` : `${tracker.name} went to the bench.`);
         }
@@ -7234,14 +7354,15 @@
         if (under) {
           pushNotification("score", `${tracker.name} went over ${pickLine(tracker.target)} ${label} — Under lost. ❌`);
         } else {
-          if (tracker.stat !== "PTS") playCashSound();
+          // Copies of this pick in other parlays cash on the same play; the register rings once.
+          if (tracker.stat !== "PTS" && firstAnnouncement(`cash|${pickIdentity(tracker)}|${tracker.target}`)) playCashSound();
           pushNotification("score", `${tracker.name} reached ${tracker.target} ${label}! 🎉`);
         }
       }
       snapshot.hitNotified = snapshot.hitNotified || current >= tracker.target;
       if (under && outcome === "won" && !snapshot.wonNotified && previous) {
         // A score pop that just cashed the pick already played the register.
-        if (!popped) playCashSound();
+        if (!popped && firstAnnouncement(`cash|${pickIdentity(tracker)}|${tracker.target}`)) playCashSound();
         pushNotification("score", `${tracker.name} stayed under ${pickLine(tracker.target)} ${label}${snapshot.state === "post" ? "" : " (fouled out)"} — pick cashed! 🎉`);
       }
       snapshot.wonNotified = snapshot.wonNotified || (under && outcome === "won");
