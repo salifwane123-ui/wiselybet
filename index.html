@@ -1515,6 +1515,7 @@
           "topbar"
           "sports"
           "notice"
+          "sync"
           "dashboard";
         gap: 0;
         padding-bottom: calc(76px + env(safe-area-inset-bottom));
@@ -1591,6 +1592,7 @@
       .sidebar-footer { display: none; }
       .top-navigation { display: none; }
       .notice { grid-area: notice; margin: 8px 13px; }
+      #account-sync-status { grid-area: sync; }
       .dashboard-grid { grid-area: dashboard; grid-template-columns: minmax(0,1fr); gap: 12px; padding: 0 13px 20px; }
       .live-game-card { min-height: 0; padding: 12px; }
       .live-game-card a { min-height: 0; }
@@ -1707,7 +1709,7 @@
                   </div>
                   <input type="file" id="data-file" accept="application/json,.json" hidden>
                   <p id="data-message" class="settings-note" role="status"></p>
-                  <p class="settings-note">Followed players, trackers, parlays, record and settings are saved to your account and follow you across devices.</p>
+                  <p class="settings-note">Followed players, trackers, parlays, record and settings are saved to your account and follow you across devices. Pending changes are kept on this device until account sync succeeds. If a sync warning appears, reconnect or sign in again to finish saving.</p>
                 </section>
               </div>
             </div>
@@ -1725,6 +1727,7 @@
       <div class="notice">
         Market prices are not predictions or betting advice. Availability depends on your API plan and configured region.
       </div>
+      <p id="account-sync-status" class="notice" role="status" hidden></p>
 
       <div class="dashboard-grid">
         <main class="main-column">
@@ -1971,9 +1974,18 @@
       var markerKey = "wiselybet.user";
       var rawSet = Storage.prototype.setItem;
       var rawRemove = Storage.prototype.removeItem;
+      var syncStatus = document.querySelector("#account-sync-status");
+      function reportSyncError(message, error) {
+        console.error(message, error);
+        syncStatus.textContent = message;
+        syncStatus.hidden = false;
+      }
       var xhr = new XMLHttpRequest();
       xhr.open("GET", "/api/user-data", false);
-      try { xhr.send(); } catch (error) { return; }
+      try { xhr.send(); } catch (error) {
+        reportSyncError("Account sync is unavailable. Your local picks have been kept. Please reconnect and refresh.", error);
+        return;
+      }
       if (xhr.status === 401) {
         // Guest: browse the page without account data; drop anything a previous account left in this browser.
         if (localStorage.getItem(markerKey)) {
@@ -1984,9 +1996,15 @@
         }
         return;
       }
-      if (xhr.status !== 200) return;
+      if (xhr.status !== 200) {
+        reportSyncError("Account sync is unavailable. Your local picks have been kept. Please reconnect and refresh.", xhr.status);
+        return;
+      }
       var account;
-      try { account = JSON.parse(xhr.responseText); } catch (error) { return; }
+      try { account = JSON.parse(xhr.responseText); } catch (error) {
+        reportSyncError("Account data could not be loaded. Your local picks have been kept.", error);
+        return;
+      }
       window.wiselyUser = account.username;
       window.wiselySub = account.subscription || null;
       window.wiselyPremium = !window.wiselySub || window.wiselySub.status !== "expired";
@@ -2000,6 +2018,20 @@
       var marker = localStorage.getItem(markerKey);
       var serverKeys = Object.keys(serverData);
       var upload = {};
+      var journalKey = "wiselybet.pendingSync.v1:" + account.username;
+      var pending = {};
+      try {
+        var savedPending = JSON.parse(localStorage.getItem(journalKey) || "{}");
+        if (!savedPending || typeof savedPending !== "object" || Array.isArray(savedPending)) throw new Error("Invalid pending saves.");
+        Object.keys(savedPending).forEach(function (key) {
+          if (key.indexOf(prefix) === 0 && (savedPending[key] === null || typeof savedPending[key] === "string")) {
+            pending[key] = savedPending[key];
+          }
+        });
+      } catch (error) {
+        reportSyncError("Pending account saves could not be read. Please export your data before refreshing again.", error);
+        return;
+      }
       if (marker && marker !== account.username) {
         localKeys.forEach(function (key) { rawRemove.call(localStorage, key); });
         localKeys = [];
@@ -2010,29 +2042,53 @@
       } else {
         localKeys.forEach(function (key) { upload[key] = localStorage.getItem(key); });
       }
+      // Unacknowledged edits are newer than the server snapshot, including explicit deletions.
+      Object.keys(pending).forEach(function (key) {
+        if (pending[key] === null) rawRemove.call(localStorage, key);
+        else rawSet.call(localStorage, key, pending[key]);
+      });
       rawSet.call(localStorage, markerKey, account.username);
 
-      var pending = {};
       var timer = null;
+      var saving = false;
+      function persistPending() {
+        try {
+          if (Object.keys(pending).length) rawSet.call(localStorage, journalKey, JSON.stringify(pending));
+          else rawRemove.call(localStorage, journalKey);
+        } catch (error) {
+          reportSyncError("Your changes could not be backed up locally. Please keep this page open until account sync completes.", error);
+        }
+      }
       function flush() {
+        clearTimeout(timer);
         timer = null;
-        var data = pending;
-        pending = {};
+        if (saving) return;
+        var data = Object.assign({}, pending);
         if (!Object.keys(data).length) return;
+        saving = true;
         fetch("/api/user-data", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ data: data }),
           keepalive: JSON.stringify(data).length < 60000
         }).then(function (reply) {
-          if (reply.status === 401) location.replace("/login");
-        }).catch(function () {
-          Object.keys(data).forEach(function (key) { if (!(key in pending)) pending[key] = data[key]; });
+          if (!reply.ok) throw new Error("Account save failed (HTTP " + reply.status + ").");
+          Object.keys(data).forEach(function (key) {
+            if (pending[key] === data[key]) delete pending[key];
+          });
+          persistPending();
+          syncStatus.hidden = true;
+        }).catch(function (error) {
+          reportSyncError("Your changes are saved on this device but have not synced to your account. We will retry automatically; sign in again if your session has expired.", error);
+        }).finally(function () {
+          saving = false;
+          if (Object.keys(pending).length && !timer) timer = setTimeout(flush, 5000);
         });
       }
       function queue(key, value) {
         if (String(key).indexOf(prefix) !== 0) return;
         pending[key] = value;
+        persistPending();
         if (!timer) timer = setTimeout(flush, 800);
       }
       Storage.prototype.setItem = function (key, value) {
@@ -2044,7 +2100,9 @@
         if (this === window.localStorage) queue(key, null);
       };
       window.addEventListener("pagehide", flush);
-      Object.keys(upload).forEach(function (key) { queue(key, upload[key]); });
+      window.addEventListener("online", flush);
+      Object.keys(upload).forEach(function (key) { if (!(key in pending)) queue(key, upload[key]); });
+      if (Object.keys(pending).length && !timer) timer = setTimeout(flush, 800);
     })();
   </script>
   <script>

@@ -270,37 +270,46 @@ export async function updateUserData(userKey, body, internal = false) {
   if (!user || !body || typeof body.data !== "object" || !body.data || Array.isArray(body.data)) {
     throw httpError(400, "Invalid data.");
   }
-  const next = { ...(firebaseEnabled ? await getUserData(userKey) : user.data) };
-  for (const [key, value] of Object.entries(body.data)) {
-    if (!/^courtside\.[\w.-]{1,60}$/.test(key)) continue;
-    if (key === pushDataKey && !internal) continue;
-    if (value === null) delete next[key];
-    else if (typeof value === "string") next[key] = value;
-  }
-  if (Object.keys(next).length > 40 || Buffer.byteLength(JSON.stringify(next)) > maxDataBytes) {
-    throw httpError(413, "Saved data is too large.");
+  function mergeData(current) {
+    const next = { ...current };
+    for (const [key, value] of Object.entries(body.data)) {
+      if (!/^courtside\.[\w.-]{1,60}$/.test(key)) continue;
+      if (key === pushDataKey && !internal) continue;
+      if (value === null) delete next[key];
+      else if (typeof value === "string") next[key] = value;
+    }
+    if (Object.keys(next).length > 40 || Buffer.byteLength(JSON.stringify(next)) > maxDataBytes) {
+      throw httpError(413, "Saved data is too large.");
+    }
+    return next;
   }
   if (firebaseEnabled) {
     const { db } = await firebase();
-    // Readable copies so the tracked players and parlays can be browsed in the Firebase console.
-    const readable = {};
-    for (const [field, key] of [["trackedPlayers", "courtside.trackers.v1"], ["parlays", "courtside.parlays.v1"]]) {
-      try {
-        const parsed = JSON.parse(next[key] || "[]");
-        readable[field] = (Array.isArray(parsed) ? parsed : []).slice(0, 50).map(item => {
-          const clean = {};
-          for (const [name, value] of Object.entries(item || {})) {
-            if (["string", "number", "boolean"].includes(typeof value)) clean[name] = value;
-          }
-          return clean;
-        });
-      } catch { readable[field] = []; }
-    }
-    const email = firebaseNames.get(userKey);
-    await db.collection("users").doc(userKey).set({ ...(email ? { email } : {}), data: next, hasPush: Boolean(next[pushDataKey]), ...readable, updatedAt: new Date().toISOString() }, { merge: true });
+    const reference = db.collection("users").doc(userKey);
+    await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(reference);
+      const next = mergeData(snapshot.exists ? snapshot.data().data || {} : {});
+      // Readable copies so the tracked players and parlays can be browsed in the Firebase console.
+      const readable = {};
+      for (const [field, key] of [["trackedPlayers", "courtside.trackers.v1"], ["parlays", "courtside.parlays.v1"]]) {
+        try {
+          const parsed = JSON.parse(next[key] || "[]");
+          readable[field] = (Array.isArray(parsed) ? parsed : []).slice(0, 50).map(item => {
+            const clean = {};
+            for (const [name, value] of Object.entries(item || {})) {
+              if (["string", "number", "boolean"].includes(typeof value)) clean[name] = value;
+            }
+            return clean;
+          });
+        } catch { readable[field] = []; }
+      }
+      const email = firebaseNames.get(userKey);
+      const update = { ...(email ? { email } : {}), data: next, hasPush: Boolean(next[pushDataKey]), ...readable, updatedAt: new Date().toISOString() };
+      transaction.set(reference, update, { mergeFields: Object.keys(update) });
+    });
     return;
   }
-  user.data = next;
+  user.data = mergeData(user.data);
   await persist();
 }
 

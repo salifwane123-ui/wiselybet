@@ -481,6 +481,7 @@ const server = createServer(async (request, response) => {
         delete data[pushDataKey];
       } catch (caught) {
         console.error("Could not load account data:", caught.message);
+        return await sendJson(response, 503, { error: "Account data is temporarily unavailable. Please try again." });
       }
       return await sendJson(response, 200, { username: displayName(userKey), data, subscription: sub });
     }
