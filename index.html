@@ -1144,6 +1144,9 @@
     .tracker-dot-group .tracker-dot.is-under { width: 9px; height: 8px; }
     #tracker-panel { max-height: 72vh; margin-bottom: 6px; padding: 8px; overflow-y: auto; border: 1px solid #2d3e50; border-radius: 10px; background: #0f1a24; box-shadow: 0 10px 28px rgba(0,0,0,.5); scrollbar-width: thin; }
     .tracker-window-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); align-items: start; gap: 8px; }
+    /* Masonry: layoutTrackerMasonry gives each window a row span matching its height (gap included),
+       so windows below a collapsed one move up instead of waiting for the tallest window in the row. */
+    .tracker-window-grid.is-masonry { grid-auto-rows: 2px; row-gap: 0; margin-bottom: -8px; }
     /* The dock grows with the number of tracking windows instead of always spanning 920px. */
     @media (min-width: 561px) {
       #tracker-dock { transition: width .35s cubic-bezier(.2,.9,.3,1); }
@@ -7932,6 +7935,34 @@
       trackerSnapshots.set(tracker.key, snapshot);
     }
 
+    // Packs the tracking windows like masonry: each window spans as many 2px grid rows as it is tall, so a window
+    // under a collapsed one starts right below it instead of below the tallest window of that row.
+    const trackerMasonryRow = 2;
+    const trackerMasonryObserver = window.ResizeObserver
+      ? new ResizeObserver(entries => {
+        for (const grid of new Set(entries.map(entry => entry.target.parentElement))) layoutTrackerMasonry(grid);
+      })
+      : null;
+    function layoutTrackerMasonry(grid) {
+      if (!grid?.isConnected || !grid.classList.contains("tracker-window-grid")) return;
+      const windows = [...grid.children];
+      // A hidden panel has nothing to measure; the observer runs this again once it shows.
+      if (!windows.length || windows.some(item => !item.offsetHeight)) return;
+      const style = getComputedStyle(grid);
+      const columns = style.gridTemplateColumns.split(" ").filter(size => parseFloat(size) > 0).length;
+      if (columns < 2 || windows.length <= columns) {
+        grid.classList.remove("is-masonry");
+        for (const item of windows) item.style.removeProperty("grid-row-end");
+        return;
+      }
+      const gap = parseFloat(style.columnGap) || 0;
+      const spans = windows.map(item => `span ${Math.max(1, Math.ceil((item.offsetHeight + gap) / trackerMasonryRow))}`);
+      windows.forEach((item, index) => {
+        if (item.style.gridRowEnd !== spans[index]) item.style.gridRowEnd = spans[index];
+      });
+      grid.classList.add("is-masonry");
+    }
+
     function renderTrackers() {
       // Keep animating while the user is editing a target: remember the field and restore it after the redraw.
       const focused = document.activeElement;
@@ -8159,11 +8190,14 @@
 
       syncParlayFilter();
       trackerPanel.parentElement.dataset.windows = String(Math.min(groupedCards.length, 3));
+      trackerMasonryObserver?.disconnect();
       if (groupedCards.length) {
         const windows = element("div", "tracker-window-grid");
         windows.setAttribute("aria-label", "Parlay and single-pick tracking windows");
         windows.append(...groupedCards);
         trackerPanel.replaceChildren(windows);
+        for (const group of groupedCards) trackerMasonryObserver?.observe(group);
+        layoutTrackerMasonry(windows);
       } else {
         trackerPanel.replaceChildren(element("p", "tracker-empty", trackers.length
           ? "No picks in this view. Choose another option above."
