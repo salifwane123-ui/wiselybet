@@ -4352,6 +4352,56 @@
       { key: "betus", title: "BetUS", home: "" }
     ];
     const sportsbookTitles = new Map(sportsbooks.map(book => [book.key, book.title]));
+    // Sportsbooks only hand out a betslip link per pick. These books accept several selections in one link,
+    // so the picks' own betslip links are merged into one that loads the whole parlay. Returns "" when the
+    // book has no multi-pick format or a link doesn't look as expected.
+    function combineBetslipLinks(book, links) {
+      if (!links.length) return "";
+      if (links.length === 1) return links[0];
+      let urls;
+      try {
+        urls = links.map(link => new URL(link));
+      } catch {
+        return "";
+      }
+      const [first] = urls;
+      if (urls.some(url => url.origin !== first.origin)) return "";
+      const values = name => {
+        const found = urls.map(url => url.searchParams.get(name) ?? url.searchParams.get(`${name}[0]`));
+        return found.every(Boolean) ? found : null;
+      };
+      const indexed = (pairs) => pairs.map(([name, list]) => list.map((value, index) => `${name}[${index}]=${encodeURIComponent(value)}`));
+      switch (book) {
+        case "fanduel": {
+          const markets = values("marketId");
+          const selections = values("selectionId");
+          if (!markets || !selections) return "";
+          const [marketParams, selectionParams] = indexed([["marketId", markets], ["selectionId", selections]]);
+          return `${first.origin}/addToBetslip?${marketParams.map((param, index) => `${param}&${selectionParams[index]}`).join("&")}`;
+        }
+        case "draftkings": {
+          const outcomes = values("outcomes");
+          if (!outcomes) return "";
+          // "+" separates outcomes and reads back as a space.
+          const ids = [...new Set(outcomes.flatMap(value => value.split(/[\s+]+/)).filter(Boolean))];
+          return `${first.origin}${first.pathname}?outcomes=${ids.map(encodeURIComponent).join("+")}`;
+        }
+        case "williamhill_us": {
+          const ids = values("selectionIds");
+          return ids ? `${first.origin}${first.pathname}?selectionIds=${ids.map(encodeURIComponent).join(",")}` : "";
+        }
+        case "betmgm": {
+          const options = values("options");
+          return options ? `${first.origin}${first.pathname}?options=${options.map(encodeURIComponent).join(",")}` : "";
+        }
+        case "espnbet": {
+          const ids = values("market_selection_id");
+          return ids ? `${first.origin}${first.pathname}?${indexed([["market_selection_id", ids]])[0].join("&")}` : "";
+        }
+        default:
+          return "";
+      }
+    }
     function sportsbookTitle(key) {
       return sportsbookTitles.get(key) || key;
     }
@@ -4606,11 +4656,19 @@
         const info = state?.legs.get(item.key);
         return info?.link && info.suggest && item.target === info.suggest.target ? info : null;
       }).filter(Boolean);
-      const directLeg = legs.length === 1 && legLinks[0]?.direct ? legLinks[0].link : "";
-      const href = directLeg || state?.eventLink || home || legLinks[0]?.link || "";
-      const open = element("a", "tracker-book-open", `Open in ${title} ↗`);
+      const directLinks = legLinks.filter(info => info.direct).map(info => info.link);
+      const slipLink = combineBetslipLinks(parlay.sportsbook, directLinks);
+      const carried = slipLink ? directLinks.length : 0;
+      const href = slipLink || state?.eventLink || home || legLinks[0]?.link || "";
+      const openLabel = !carried
+        ? `Open in ${title} ↗`
+        : carried === legs.length
+          ? `Open betslip in ${title} · ${carried} ${carried === 1 ? "pick" : "picks"} ↗`
+          : `Open in ${title} · ${carried} of ${legs.length} picks ↗`;
+      const open = element("a", "tracker-book-open", openLabel);
       open.target = "_blank";
       open.rel = "noopener noreferrer";
+      if (carried) open.title = `Loads ${carried === legs.length ? "every pick" : `${carried} of ${legs.length} picks`} into your ${title} betslip`;
       if (href) open.href = href;
       else {
         open.setAttribute("aria-disabled", "true");
@@ -4638,7 +4696,11 @@
           ? `${title} doesn't provide direct betslip links for these picks. Open ${title} and add the available picks to your betslip.`
           : legs.length === 1
             ? `Open adds this pick to your ${title} betslip.`
-            : `Sportsbooks don't accept a whole parlay from one link. Tap Add on each leg to place it in your ${title} betslip, then choose Parlay.`;
+            : carried === legs.length
+              ? `Open loads all ${carried} picks into your ${title} betslip. Check that ${title} shows them as a parlay before placing the bet.`
+              : carried
+                ? `Open loads ${carried} of ${legs.length} picks into your ${title} betslip. Add the rest with the link on each pick, then choose Parlay.`
+                : `${title} doesn't accept a whole parlay from one link. Tap Add on each leg to place it in your ${title} betslip, then choose Parlay.`;
         status.append(element("p", "", state.error ? `${state.error} ` : guidance));
         if (pending.length) {
           const note = element("p", "tracker-book-pending", `${pending.length} ${pending.length === 1 ? "line change is" : "line changes are"} suggested for ${title}. Nothing changes unless you accept; unanswered suggestions hide after a minute.`);
