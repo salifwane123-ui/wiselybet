@@ -585,7 +585,7 @@ const server = createServer(async (request, response) => {
 
       const props = await fetchOddsApi(
         `sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(eventId)}/odds/`,
-        { regions, markets: market, oddsFormat: "decimal" }
+        { regions, markets: market, oddsFormat: "decimal", includeLinks: "true" }
       );
       if (!premium) {
         // Guests and expired trials get one market and the best-rated players (same ranking the page uses).

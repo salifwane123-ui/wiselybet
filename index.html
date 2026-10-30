@@ -1065,6 +1065,40 @@
     .tracker-window-summary .tracker-parlay-badge { flex: 0 0 auto; margin: 0; }
     .tracker-window-tools { display: flex; justify-content: flex-end; gap: 8px; padding: 0 0 8px; }
     .tracker-window-tools .tracker-parlay-btn { min-height: 30px; padding: 4px 9px; }
+    .tracker-window-tools { flex-wrap: wrap; align-items: center; }
+    .tracker-book-select { flex: 1 1 140px; min-width: 0; min-height: 30px; padding: 4px 8px; border: 1px solid rgba(201,239,91,.4); border-radius: 6px; background: #0f1a24; color: #e7f7b0; font-size: .7rem; font-weight: 750; color-scheme: dark; }
+    .tracker-book-open { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 4px 10px; border-radius: 6px; background: #c9ef5b; color: #10160a; font-size: .7rem; font-weight: 850; text-decoration: none; }
+    .tracker-book-open[aria-disabled="true"] { opacity: .55; pointer-events: none; }
+    .tracker-book-status { margin: 0 0 8px; padding: 7px 8px; border: 1px solid rgba(201,239,91,.25); border-radius: 8px; background: rgba(0,0,0,.18); color: #d9e3cf; font-size: .64rem; line-height: 1.4; }
+    .tracker-book-status p { margin: 0 0 5px; }
+    .tracker-book-status ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+    .tracker-book-status li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .tracker-book-status li.is-missing { color: #ffb0b0; }
+    .tracker-book-status a { flex: 0 0 auto; color: #c9ef5b; font-weight: 800; }
+    .tracker-book-note { display: block; margin: 0 0 4px; color: #ffd27a; font-size: .62rem; font-weight: 700; }
+    #pick-placement { width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; overflow: auto; border: 1px solid rgba(201,239,91,.45); border-radius: 14px; background: #0f1a24; color: #e7f0ea; box-shadow: 0 24px 60px rgba(0,0,0,.6); }
+    #pick-placement::backdrop { background: rgba(4,9,14,.65); }
+    #pick-placement[open] { animation: tracker-window-enter .24s cubic-bezier(.2,.9,.3,1) both; }
+    .pick-placement-body { display: grid; gap: 10px; padding: 16px; }
+    .pick-placement-body h2 { margin: 0; font-size: 1rem; }
+    .pick-placement-body > p { margin: 0; color: var(--muted); font-size: .78rem; }
+    .pick-placement-list { display: grid; gap: 6px; }
+    .pick-placement-list button, .pick-placement-new button, .pick-placement-actions button { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid rgba(201,239,91,.35); border-radius: 10px; background: rgba(201,239,91,.08); color: #e7f7b0; font-size: .8rem; font-weight: 750; text-align: left; }
+    .pick-placement-list button small { display: block; color: var(--muted); font-size: .68rem; font-weight: 600; }
+    .pick-placement-new { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+    .pick-placement-new input { min-width: 0; min-height: 40px; padding: 6px 10px; border-radius: 10px; font-size: .8rem; }
+    .pick-placement-new button { width: auto; background: #c9ef5b; color: #10160a; text-align: center; }
+    .pick-placement-actions { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+    .pick-placement-actions button { text-align: center; }
+    .pick-placement-actions .pick-placement-cancel { width: auto; border-color: #2d3e50; background: transparent; color: var(--muted); }
+    @media (prefers-reduced-motion: reduce) { #pick-placement[open] { animation: none; } }
+    html[data-theme="light"] .tracker-book-select { border-color: rgba(61,98,8,.4); background: #fff; color: #1b2418; color-scheme: light; }
+    html[data-theme="light"] .tracker-book-open { background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] .tracker-book-status { border-color: rgba(61,98,8,.25); background: #f6faef; color: #1b2418; }
+    html[data-theme="light"] .tracker-book-status a { color: #3d6208; }
+    html[data-theme="light"] #pick-placement { border-color: rgba(61,98,8,.45); background: #fff; color: #1b2418; }
+    html[data-theme="light"] .pick-placement-list button, html[data-theme="light"] .pick-placement-actions button { border-color: rgba(61,98,8,.3); background: #f6faef; color: #1b2418; }
+    html[data-theme="light"] .pick-placement-new button { background: #4d7a0b; color: #fff; }
     .tracker-window-events:empty { display: none; }
     .tracker-window-events .score-pop { margin-bottom: 10px; }
     .score-pop-group { color: var(--muted); font-size: .7rem; font-weight: 700; }
@@ -1920,7 +1954,7 @@
 
       function canShowNotice() {
         return document.visibilityState === "visible" &&
-          !document.querySelector("#age-gate:not([hidden]), #tour-overlay:not([hidden]), #news-overlay:not([hidden]), #bell-panel:not([hidden]), #settings-panel:not([hidden])");
+          !document.querySelector("#age-gate:not([hidden]), #tour-overlay:not([hidden]), #news-overlay:not([hidden]), #bell-panel:not([hidden]), #settings-panel:not([hidden]), #pick-placement[open]");
       }
 
       function hideNotice() {
@@ -4013,18 +4047,21 @@
       }
     }
 
-    function createParlay() {
+    function createParlay(name) {
       let number = parlays.length + 1;
       while (parlays.some(item => item.name === `Parlay ${number}`)) number += 1;
-      const parlay = { id: `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, name: `Parlay ${number}` };
+      const cleanName = String(name || "").trim().slice(0, 40);
+      const parlay = { id: `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, name: cleanName || `Parlay ${number}` };
       parlays.push(parlay);
       saveParlays();
       return parlay;
     }
 
     function assignParlay(tracker, value) {
+      const previous = tracker.parlay;
       if (value === "__new") tracker.parlay = createParlay().id;
       else tracker.parlay = value || "";
+      if (tracker.parlay !== previous) restoreRequestedTargets([tracker]);
       saveTrackers();
       renderTrackers();
     }
@@ -4039,6 +4076,8 @@
 
     function deleteParlay(parlay) {
       parlays = parlays.filter(item => item.id !== parlay.id);
+      parlayBookState.delete(parlay.id);
+      restoreRequestedTargets(trackers.filter(item => item.parlay === parlay.id));
       for (const tracker of trackers) if (tracker.parlay === parlay.id) tracker.parlay = "";
       saveParlays();
       saveTrackers();
@@ -4055,6 +4094,299 @@
       select.value = parlays.some(item => item.id === tracker.parlay) ? tracker.parlay : "";
       select.addEventListener("change", () => assignParlay(tracker, select.value));
       return select;
+    }
+
+    // Asks where a newly tracked pick belongs. Resolves to a parlay id, "" for a single pick, or null when cancelled.
+    function choosePickPlacement(name, stat, target) {
+      return new Promise(resolve => {
+        document.querySelector("#pick-placement")?.close();
+        const dialog = document.createElement("dialog");
+        dialog.id = "pick-placement";
+        dialog.setAttribute("aria-labelledby", "pick-placement-title");
+        const body = element("div", "pick-placement-body");
+        const heading = element("h2", "", "Where should this pick go?");
+        heading.id = "pick-placement-title";
+        body.append(heading, element("p", "", `${name} · ${target}+ ${trackerStats[stat].label}`));
+        let result = null;
+        const finish = value => {
+          result = value;
+          dialog.close();
+        };
+        if (parlays.length) {
+          const list = element("div", "pick-placement-list");
+          list.setAttribute("role", "group");
+          list.setAttribute("aria-label", "Existing parlays");
+          for (const parlay of parlays) {
+            const count = trackers.filter(item => item.parlay === parlay.id).length;
+            const choice = element("button", "", `🎟 Add to ${parlay.name}`);
+            choice.type = "button";
+            const book = parlay.sportsbook ? ` · ${sportsbookTitle(parlay.sportsbook)}` : "";
+            choice.append(element("small", "", `${count} ${count === 1 ? "pick" : "picks"}${book}`));
+            choice.addEventListener("click", () => finish(parlay.id));
+            list.append(choice);
+          }
+          body.append(list);
+        }
+        const newRow = element("form", "pick-placement-new");
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.maxLength = 40;
+        nameInput.placeholder = "New parlay name (optional)";
+        nameInput.setAttribute("aria-label", "New parlay name");
+        const create = element("button", "", "Create & add");
+        create.type = "submit";
+        newRow.append(nameInput, create);
+        newRow.addEventListener("submit", event => {
+          event.preventDefault();
+          finish(createParlay(nameInput.value).id);
+        });
+        const actions = element("div", "pick-placement-actions");
+        const single = element("button", "", "Keep as single pick");
+        single.type = "button";
+        single.addEventListener("click", () => finish(""));
+        const cancel = element("button", "pick-placement-cancel", "Cancel");
+        cancel.type = "button";
+        cancel.addEventListener("click", () => finish(null));
+        actions.append(single, cancel);
+        body.append(newRow, actions);
+        dialog.append(body);
+        dialog.addEventListener("click", event => { if (event.target === dialog) finish(null); });
+        dialog.addEventListener("keydown", event => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          finish(null);
+        });
+        dialog.addEventListener("close", () => {
+          dialog.remove();
+          resolve(result);
+        }, { once: true });
+        document.body.append(dialog);
+        dialog.showModal();
+        (body.querySelector(".pick-placement-list button") || nameInput).focus();
+      });
+    }
+
+    // Homepages are only listed where the official address is known; other books rely on links from the odds feed.
+    const sportsbooks = [
+      { key: "draftkings", title: "DraftKings", home: "https://sportsbook.draftkings.com" },
+      { key: "fanduel", title: "FanDuel", home: "https://sportsbook.fanduel.com" },
+      { key: "betmgm", title: "BetMGM", home: "https://sports.betmgm.com" },
+      { key: "williamhill_us", title: "Caesars", home: "https://sportsbook.caesars.com" },
+      { key: "fanatics", title: "Fanatics", home: "https://sportsbook.fanatics.com" },
+      { key: "espnbet", title: "ESPN BET", home: "" },
+      { key: "betrivers", title: "BetRivers", home: "https://www.betrivers.com" },
+      { key: "hardrockbet", title: "Hard Rock Bet", home: "" },
+      { key: "ballybet", title: "Bally Bet", home: "" },
+      { key: "bovada", title: "Bovada", home: "https://www.bovada.lv" },
+      { key: "betonlineag", title: "BetOnline.ag", home: "https://www.betonline.ag" },
+      { key: "mybookieag", title: "MyBookie.ag", home: "" },
+      { key: "lowvig", title: "LowVig.ag", home: "" },
+      { key: "betus", title: "BetUS", home: "" }
+    ];
+    const sportsbookTitles = new Map(sportsbooks.map(book => [book.key, book.title]));
+    function sportsbookTitle(key) {
+      return sportsbookTitles.get(key) || key;
+    }
+    function safeLink(value) {
+      try {
+        const url = new URL(String(value || ""));
+        return url.protocol === "https:" ? url.href : "";
+      } catch {
+        return "";
+      }
+    }
+    function trackerMarket(tracker) {
+      const map = marketToTrackerStatBySport[tracker.sport] || {};
+      return Object.keys(map).find(market => map[market] === tracker.stat) || "";
+    }
+    // "Over X.5" settles as a win at X+1, so the closest line is the one nearest target − 0.5. Ties take the easier line.
+    function closestBookLine(offers, target) {
+      const wanted = target - 0.5;
+      return offers.reduce((best, offer) => {
+        const gap = Math.abs(offer.point - wanted);
+        const bestGap = Math.abs(best.point - wanted);
+        return gap < bestGap - 1e-9 || (Math.abs(gap - bestGap) <= 1e-9 && offer.point < best.point) ? offer : best;
+      });
+    }
+    const bookPropsCache = new Map();
+    function fetchBookProps(sport, eventId, market) {
+      const key = `${sport}|${eventId}|${market}`;
+      const hit = bookPropsCache.get(key);
+      if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.promise;
+      const promise = getJson(`/api/player-props?sport=${encodeURIComponent(sport)}&eventId=${encodeURIComponent(eventId)}&market=${encodeURIComponent(market)}`);
+      bookPropsCache.set(key, { at: Date.now(), promise });
+      promise.catch(() => { if (bookPropsCache.get(key)?.promise === promise) bookPropsCache.delete(key); });
+      return promise;
+    }
+
+    const parlayBookState = new Map();
+    function parlayBookSignature(parlay, legs) {
+      return [parlay.sportsbook, ...legs.map(item => `${item.key}:${item.requestedTarget ?? item.target}`).sort()].join("|");
+    }
+    function restoreRequestedTargets(legs) {
+      let changed = false;
+      for (const tracker of legs) {
+        if (tracker.requestedTarget !== undefined) {
+          tracker.target = tracker.requestedTarget;
+          delete tracker.requestedTarget;
+          changed = true;
+        }
+        if (tracker.bookLine) {
+          delete tracker.bookLine;
+          changed = true;
+        }
+      }
+      return changed;
+    }
+    function setParlaySportsbook(parlay, book) {
+      parlay.sportsbook = book || "";
+      if (!parlay.sportsbook) delete parlay.sportsbook;
+      parlayBookState.delete(parlay.id);
+      if (restoreRequestedTargets(trackers.filter(item => item.parlay === parlay.id))) saveTrackers();
+      saveParlays();
+      renderTrackers();
+    }
+    // Matches each leg to the chosen book's posted line for that player and moves the target to the closest line it offers.
+    async function resolveParlayBook(parlay, legs, signature) {
+      const book = parlay.sportsbook;
+      const state = { signature, status: "loading", legs: new Map(), title: sportsbookTitle(book), eventLink: "", error: "" };
+      parlayBookState.set(parlay.id, state);
+      let changed = false;
+      await Promise.all(legs.map(async tracker => {
+        const label = trackerStats[tracker.stat].label;
+        const market = trackerMarket(tracker);
+        if (!market) {
+          state.legs.set(tracker.key, { missing: `No ${label} lines are available for this pick.` });
+          return;
+        }
+        let data;
+        try {
+          data = await fetchBookProps(tracker.sport, tracker.eventId, market);
+        } catch (error) {
+          state.error = error.message || "Couldn't load sportsbook lines.";
+          state.legs.set(tracker.key, { missing: "Lines couldn't be loaded." });
+          return;
+        }
+        const bookmaker = (data?.bookmakers || []).find(item => item.key === book);
+        if (bookmaker?.title) state.title = bookmaker.title;
+        const eventLink = safeLink(bookmaker?.link);
+        if (eventLink && !state.eventLink) state.eventLink = eventLink;
+        const offers = [];
+        for (const propMarket of bookmaker?.markets || []) {
+          for (const outcome of propMarket.outcomes || []) {
+            if ((outcome.description || outcome.name) !== tracker.name || String(outcome.name).toLowerCase() !== "over") continue;
+            const point = Number(outcome.point);
+            if (!Number.isFinite(point) || point < 0) continue;
+            offers.push({
+              point,
+              link: safeLink(outcome.link) || safeLink(propMarket.link) || eventLink,
+              direct: Boolean(safeLink(outcome.link))
+            });
+          }
+        }
+        if (!offers.length) {
+          state.legs.set(tracker.key, { missing: `Not offered at ${state.title}.` });
+          return;
+        }
+        if (parlay.sportsbook !== book || !trackers.includes(tracker)) return;
+        const wanted = tracker.requestedTarget ?? tracker.target;
+        const best = closestBookLine(offers, wanted);
+        const nextTarget = Math.max(1, Math.floor(best.point) + 1);
+        if (nextTarget !== tracker.target || tracker.bookLine?.book !== book || tracker.bookLine?.point !== best.point) {
+          if (nextTarget !== wanted) tracker.requestedTarget = wanted;
+          else delete tracker.requestedTarget;
+          tracker.target = nextTarget;
+          tracker.bookLine = { book, point: best.point };
+          changed = true;
+        }
+        state.legs.set(tracker.key, { link: best.link, direct: best.direct, point: best.point });
+      }));
+      if (changed) saveTrackers();
+      if (parlayBookState.get(parlay.id) !== state) return;
+      state.status = state.error ? "error" : "ready";
+      renderTrackers();
+    }
+    function createParlayBookTools(parlay, legs) {
+      const select = element("select", "tracker-book-select");
+      select.setAttribute("aria-label", `Sportsbook for ${parlay.name}`);
+      select.append(new Option("Choose sportsbook…", ""));
+      for (const book of sportsbooks) select.append(new Option(book.title, book.key));
+      if (parlay.sportsbook && !sportsbookTitles.has(parlay.sportsbook)) select.append(new Option(parlay.sportsbook, parlay.sportsbook));
+      select.value = parlay.sportsbook || "";
+      select.addEventListener("change", () => setParlaySportsbook(parlay, select.value));
+      if (!parlay.sportsbook) return { controls: [select], status: null };
+
+      const signature = parlayBookSignature(parlay, legs);
+      let state = parlayBookState.get(parlay.id);
+      if (legs.length && (!state || state.signature !== signature)) {
+        void resolveParlayBook(parlay, legs, signature);
+        state = parlayBookState.get(parlay.id);
+      }
+      const title = state?.title || sportsbookTitle(parlay.sportsbook);
+      const home = sportsbooks.find(book => book.key === parlay.sportsbook)?.home || "";
+      const legLinks = legs.map(item => state?.legs.get(item.key)).filter(info => info?.link);
+      const directLeg = legs.length === 1 && legLinks[0]?.direct ? legLinks[0].link : "";
+      const href = directLeg || state?.eventLink || home || legLinks[0]?.link || "";
+      const open = element("a", "tracker-book-open", `Open in ${title} ↗`);
+      open.target = "_blank";
+      open.rel = "noopener noreferrer";
+      if (href) open.href = href;
+      else {
+        open.setAttribute("aria-disabled", "true");
+        open.title = `No ${title} link is available yet`;
+      }
+
+      const status = element("div", "tracker-book-status");
+      status.setAttribute("role", "status");
+      if (!legs.length) {
+        status.append(element("p", "", `Add picks to see them at ${title}.`));
+      } else if (!state || state.status === "loading") {
+        status.append(element("p", "", `Checking ${title} lines…`));
+      } else {
+        const missing = legs.filter(item => state.legs.get(item.key)?.missing);
+        const hasDirect = legLinks.some(info => info.direct);
+        const guidance = legLinks.length === 0
+          ? `None of these picks are available at ${title} right now.`
+          : !hasDirect
+          ? `${title} doesn't provide direct betslip links for these picks. Open ${title} and add the available picks to your betslip.`
+          : legs.length === 1
+            ? `Open adds this pick to your ${title} betslip.`
+            : `Sportsbooks don't accept a whole parlay from one link. Tap Add on each leg to place it in your ${title} betslip, then choose Parlay.`;
+        status.append(element("p", "", state.error ? `${state.error} ` : guidance));
+        if (missing.length) status.append(element("p", "", `${missing.length} ${missing.length === 1 ? "pick isn't" : "picks aren't"} available at ${title}. Swap ${missing.length === 1 ? "it" : "them"} or try another sportsbook.`));
+        const list = element("ul");
+        for (const tracker of legs) {
+          const info = state.legs.get(tracker.key) || {};
+          const item = element("li", info.missing ? "is-missing" : "");
+          const short = trackerStats[tracker.stat].short;
+          const text = info.missing
+            ? `⚠ ${tracker.name} ${tracker.target}+ ${short}: ${info.missing}`
+            : `✓ ${tracker.name} ${tracker.target}+ ${short}${tracker.requestedTarget !== undefined ? ` (was ${tracker.requestedTarget}+)` : ""}`;
+          item.append(element("span", "", text));
+          if (info.link && legs.length > 1) {
+            const add = element("a", "", info.direct ? "Add ↗" : "Find ↗");
+            add.href = info.link;
+            add.target = "_blank";
+            add.rel = "noopener noreferrer";
+            add.setAttribute("aria-label", info.direct
+              ? `Add ${tracker.name} ${short} to ${title} betslip`
+              : `Find ${tracker.name} ${short} at ${title}`);
+            item.append(add);
+          }
+          list.append(item);
+        }
+        status.append(list);
+        if (state.error) {
+          const retry = element("button", "tracker-parlay-btn", "Retry");
+          retry.type = "button";
+          retry.addEventListener("click", () => {
+            parlayBookState.delete(parlay.id);
+            renderTrackers();
+          });
+          status.append(retry);
+        }
+      }
+      return { controls: [select, open], status };
     }
 
     // Final report once every game in a parlay is over: results, why picks missed, risks, and advice.
@@ -4852,7 +5184,9 @@
           return;
         }
         const stat = statSelect.value;
-        addTracker(playerGroup.player, sport, eventId, stat, target);
+        const placement = await choosePickPlacement(playerGroup.player, stat, target);
+        if (placement === null) return;
+        addTracker(playerGroup.player, sport, eventId, stat, target, placement);
         form.hidden = true;
         // After tracking starts, warn when the pick is unlikely and let the user undo it.
         hint.hidden = true;
@@ -4884,13 +5218,16 @@
       return { button, form, hint };
     }
 
-    function addTracker(name, sport, eventId, stat, target) {
+    function addTracker(name, sport, eventId, stat, target, parlayId) {
       const event = currentEvents.find(candidate => candidate.id === eventId);
       if (!event) return;
       const key = trackerKey(name, eventId, stat);
       const existing = trackers.find(item => item.key === key);
       if (existing) {
         existing.target = target;
+        delete existing.requestedTarget;
+        delete existing.bookLine;
+        if (parlayId !== undefined) existing.parlay = parlayId;
       } else {
         trackers.push({
           key,
@@ -4901,7 +5238,8 @@
           target,
           home: event.home_team,
           away: event.away_team,
-          date: event.commence_time
+          date: event.commence_time,
+          parlay: parlayId || ""
         });
       }
       saveTrackers();
@@ -5455,7 +5793,13 @@
         const verdictInfo = performanceVerdict(tracker, snapshot, assessment);
         const verdictBox = element("div", `tracker-verdict tone-${verdictInfo.tone}`);
         verdictBox.append(element("strong", "", verdictInfo.title), element("p", "", verdictInfo.text));
-        card.append(top, createParlayPicker(tracker), score, bar, verdictBox);
+        card.append(top, createParlayPicker(tracker));
+        const legParlay = parlays.find(item => item.id === tracker.parlay);
+        if (legParlay?.sportsbook && tracker.bookLine?.book === legParlay.sportsbook && tracker.requestedTarget !== undefined) {
+          card.append(element("span", "tracker-book-note",
+            `Adjusted for ${sportsbookTitle(legParlay.sportsbook)}: ${tracker.requestedTarget}+ → ${tracker.target}+ (Over ${tracker.bookLine.point})`));
+        }
+        card.append(score, bar, verdictBox);
         if (snapshot.state === "post" && snapshot.found !== false) {
           const recap = gameRecap(tracker, snapshot);
           const box = element("div", `tracker-recap tone-${recap.tone}`);
@@ -5498,8 +5842,11 @@
         del.addEventListener("click", () => deleteParlay(parlay));
         head.append(title, badge);
         const tools = element("div", "tracker-window-tools");
-        tools.append(rename, del);
-        group.append(head, tools, element("div", "tracker-window-events"));
+        const bookTools = createParlayBookTools(parlay, legs);
+        tools.append(...bookTools.controls, rename, del);
+        group.append(head, tools);
+        if (bookTools.status) group.append(bookTools.status);
+        group.append(element("div", "tracker-window-events"));
         const legsKey = legs.map(item => item.key).sort().join("|");
         if (parlay.report && parlay.report.key === legsKey) group.append(createParlayReportBox(parlay));
         if (legs.length) {
@@ -5510,7 +5857,7 @@
             group.append(card);
           }
         } else {
-          group.append(element("p", "tracker-empty", "No picks yet. Use the dropdown on a pick card to add it here."));
+          group.append(element("p", "tracker-empty", "No picks yet. Track a player and choose this parlay in the pop-up, or use the dropdown on a pick card."));
         }
         groupedCards.push(group);
       }
@@ -6230,7 +6577,7 @@
         { target: "#game-list", title: "Compare game odds", body: "Every game shows the best available price from the bookmakers. Open \"Review odds\" on a card for spreads, totals and the full breakdown." },
         { target: ".sidebar-link[href=\"#player-picks\"]", title: "Browse player props", body: "Pick a game and a market such as Points or Assists to see each player's line, Over/Under prices and market-implied probability.", list: ["Follow ★ saves a player so you can find them fast", "Track 📊 adds the pick to your live tracker with a target"] },
         { title: "Track a player pick", demo: "track", body: "Found a player you like? Press Track 📊 on their row. The pick is saved with the line as its target, for example 24.5 points.", list: ["Create a free account to track (guests can preview)", "Group several picks into a parlay to follow them together"] },
-        { target: "#tracker-toggle", title: "Keep monitoring it", demo: "monitor", body: "Open the Live tracker at the bottom of the screen. Each parlay has its own tracking window, with its picks, progress and scoring animations kept together. Expand or collapse each window independently.", list: ["Green bar: on pace, gold: close, full: target hit", "Single picks stay separate, grouped by game", "Use the parlay filter to focus on one group"] },
+        { target: "#tracker-toggle", title: "Keep monitoring it", demo: "monitor", body: "Open the Live tracker at the bottom of the screen. Each parlay has its own tracking window, with its picks, progress and scoring animations kept together. Expand or collapse each window independently.", list: ["Green bar: on pace, gold: close, full: target hit", "When you track a pick, choose a parlay, create one or keep it single", "Pick a sportsbook on a parlay to match its lines and open it there"] },
         { target: "#bell-wrap", title: "Updates throughout the game", demo: "alerts", body: "You don't have to watch the screen. WiselyBet pops a notification and plays a sound as your pick moves, and keeps the last 10 updates in the bell.", list: ["Heads-up when a player is close to the target", "Alert the moment the target is hit", "Parlay summary when every pick has hit or the games end"] },
         { target: "#bell-wrap", title: "See the outcome", body: "The bell keeps your last 10 updates. When every pick in a parlay has hit, or the games finish, you get a final summary showing what hit and what missed." },
         { target: "#upcoming-games", title: "Upcoming games", body: "Jump straight to a matchup that's about to start. Live games are also pinned at the top of the page with scores refreshing every 15 seconds." },
