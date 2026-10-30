@@ -258,7 +258,7 @@ function loginPolicy() {
     .replace("media-src 'self'", `media-src 'self'; frame-src ${frame}`);
 }
 
-const appIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="28" fill="#12150f"/><circle cx="64" cy="64" r="40" fill="none" stroke="#c9ef5b" stroke-width="10"/><path d="M82 48a26 26 0 1 0 0 32" fill="none" stroke="#c9ef5b" stroke-width="10" stroke-linecap="round"/></svg>`;
+const appIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" fill="#0c1713"/><circle cx="64" cy="64" r="43" fill="none" stroke="#f4efdc" stroke-width="3.5"/><path d="M64 21c-12 14-17 30-15 47 1 12 7 23 16 34M30 43c18-4 36 2 50 17M98 39c-16 2-31 10-42 23" fill="none" stroke="#f4efdc" stroke-width="3" stroke-linecap="round"/><path d="M25 67h15l14 14 31-32" fill="none" stroke="#a9ec24" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/><path d="m81 36 22-6-6 22-3-10-10-3z" fill="#a9ec24"/></svg>`;
 const webManifest = JSON.stringify({
   name: "WiselyBet Market Board",
   short_name: "WiselyBet",
@@ -266,7 +266,11 @@ const webManifest = JSON.stringify({
   display: "standalone",
   background_color: "#12150f",
   theme_color: "#12150f",
-  icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" }]
+  icons: [
+    { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+    { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+    { src: "/icon.svg", sizes: "any", type: "image/svg+xml" }
+  ]
 });
 const serviceWorker = `const shell = "courtside-shell-v4";
 self.addEventListener("push", event => {
