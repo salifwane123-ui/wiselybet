@@ -380,6 +380,7 @@
     .team-logo, .team-logo-fallback { flex: 0 0 auto; width: 25px; height: 25px; border-radius: 50%; }
     .team-logo { object-fit: contain; background: rgba(255,255,255,.07); }
     .team-logo-fallback { display: grid; place-items: center; background: rgba(167,124,255,.14); color: #d8c6ff; font-size: .58rem; font-weight: 750; }
+    .team-logo-fallback[hidden] { display: none; }
     .team-identity-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .live-game-team strong { color: #f0eff7; font-size: .85rem; font-variant-numeric: tabular-nums; }
     .date-filter { margin: 0 0 12px; padding: 11px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.025); }
@@ -1707,6 +1708,7 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr);
         grid-template-areas:
+          "deals"
           "topbar"
           "sports"
           "notice"
@@ -1902,11 +1904,175 @@
       .topbar-heading { display: flex; align-items: center; min-height: 40px; }
       .topbar #bell-button, .topbar #settings-button { top: 10px; }
       /* The phone grid flattens the page; keep the disclaimer at the bottom instead of an empty grid cell */
-      .site-footer { grid-row: 6; grid-column: 1; margin: 8px 13px 0; }
+      .site-footer { grid-row: 7; grid-column: 1; margin: 8px 13px 0; }
       /* Embedded on the game page the bell needs a real box: the parent iframe is clipped to its bounding rect */
       html.embed #bell-wrap { display: block; position: fixed; top: 17px; right: 12px; }
       html.embed #bell-button { position: relative; top: auto; right: auto; }
       html.embed #bell-panel { top: calc(100% + 8px); right: 0; left: auto; width: calc(100vw - 24px); margin-top: 0; }
+    }
+    /* Don't-miss discounts carousel */
+    .price-deals {
+      position: relative;
+      container: deals / inline-size;
+      margin: 14px 0 0;
+      padding: 14px 16px 12px;
+      overflow: hidden;
+      border: 1px solid rgba(201,239,91,.2);
+      border-radius: 16px;
+      background:
+        radial-gradient(120% 160% at 0% 0%, rgba(201,239,91,.15), transparent 55%),
+        radial-gradient(90% 140% at 100% 100%, rgba(255,166,77,.08), transparent 60%),
+        linear-gradient(135deg, #1d2118, #13160f);
+      box-shadow: 0 12px 30px rgba(0,0,0,.22);
+    }
+    .price-deals[hidden] { display: none; }
+    .deals-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .deals-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .deals-tag { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: rgba(201,239,91,.14); font-size: 1.05rem; }
+    .price-deals h2 { margin: 0; color: #eef6dc; font-size: 1rem; letter-spacing: -.01em; }
+    .deals-sub { margin: 2px 0 0; color: #a5ada9; font-size: .74rem; }
+    .deals-sub-short { display: none; }
+    .deals-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+    .deals-counter { min-width: 38px; margin-right: 2px; color: #a5ada9; font-size: .74rem; font-variant-numeric: tabular-nums; text-align: right; }
+    .deals-nav { display: grid; width: 32px; height: 32px; min-height: 0; place-items: center; padding: 0; border: 1px solid rgba(201,239,91,.22); border-radius: 50%; background: rgba(201,239,91,.08); color: #dff3a6; }
+    .deals-nav:hover:not(:disabled) { background: rgba(201,239,91,.2); }
+    .deals-nav svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .deals-nav .icon-play { fill: currentColor; stroke-width: 1.2; }
+    .deals-nav .icon-play, .price-deals.is-paused .deals-nav .icon-pause { display: none; }
+    .price-deals.is-paused .deals-nav .icon-play { display: block; }
+    .deals-viewport { display: grid; margin-top: 12px; overflow: hidden; border-radius: 12px; touch-action: pan-y; }
+    /* Opacity as well as visibility: loaded team logos carry an inline visibility:visible that would show through hidden slides */
+    .deal-slide { grid-area: 1 / 1; min-width: 0; visibility: hidden; opacity: 0; }
+    .deal-slide.is-active, .deal-slide.is-leaving { visibility: visible; opacity: 1; }
+    .deal-slide.is-active { animation: deal-in-next .55s cubic-bezier(.22,.8,.2,1) both; }
+    .deal-slide.is-leaving { pointer-events: none; animation: deal-out-next .55s cubic-bezier(.22,.8,.2,1) both; }
+    .deals-viewport[data-dir="prev"] .deal-slide.is-active { animation-name: deal-in-prev; }
+    .deals-viewport[data-dir="prev"] .deal-slide.is-leaving { animation-name: deal-out-prev; }
+    .deals-viewport[data-dir="none"] .deal-slide.is-active { animation: none; }
+    @keyframes deal-in-next { from { opacity: 0; transform: translateX(70%); } to { opacity: 1; transform: none; } }
+    @keyframes deal-out-next { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-70%); } }
+    @keyframes deal-in-prev { from { opacity: 0; transform: translateX(-70%); } to { opacity: 1; transform: none; } }
+    @keyframes deal-out-prev { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(70%); } }
+    .deal-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px 20px; height: 100%; padding: 13px 16px; border: 1px solid rgba(225,233,229,.08); border-radius: 12px; background: rgba(255,255,255,.035); }
+    .deal-chips { display: flex; flex-wrap: wrap; grid-column: 1 / -1; gap: 6px; }
+    .deal-chip { padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.06); color: #c0c5bf; font-size: .68rem; font-weight: 700; letter-spacing: .02em; }
+    .deal-chip.is-top { background: rgba(255,153,51,.16); color: #ffc27a; }
+    .deal-main { min-width: 0; }
+    .deal-title { display: flex; align-items: center; gap: 8px; min-width: 0; color: #f2f7e6; font-size: 1.08rem; font-weight: 800; }
+    .deal-title .team-identity { min-width: 0; }
+    .deal-title .team-logo, .deal-title .team-logo-fallback { width: 30px; height: 30px; }
+    .deal-draw-icon { display: grid; flex: 0 0 auto; width: 30px; height: 30px; place-items: center; border-radius: 50%; background: rgba(255,255,255,.07); font-size: .95rem; }
+    .deal-to-win { flex: 0 0 auto; color: #a5ada9; font-size: .8rem; font-weight: 600; }
+    .deal-meta { margin: 4px 0 0; overflow: hidden; color: #a5ada9; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+    .deal-price { text-align: right; }
+    .deal-price-value { display: block; color: #c9ef5b; font-size: 1.6rem; font-weight: 850; font-variant-numeric: tabular-nums; line-height: 1; }
+    .deal-price-book { display: block; margin-top: 5px; color: #e2e8d8; font-size: .76rem; font-weight: 700; }
+    .deal-price-typical { display: block; margin-top: 2px; color: #a5ada9; font-size: .7rem; }
+    .deal-price-typical s { text-decoration-thickness: 1.5px; }
+    .deal-saving { display: grid; justify-items: center; gap: 2px; min-width: 112px; padding: 8px 12px; border: 1px dashed rgba(201,239,91,.38); border-radius: 12px; background: rgba(201,239,91,.1); text-align: center; cursor: help; }
+    .deal-saving strong { color: #d9f58a; font-size: 1.05rem; font-weight: 850; }
+    .deal-saving span { color: #b9c2a5; font-size: .68rem; }
+    .deal-cta { min-height: 0; padding: 10px 15px; border-radius: 10px; background: #c9ef5b; color: #12150f; font-weight: 800; white-space: nowrap; }
+    .deal-cta:hover:not(:disabled) { background: #dbf78a; }
+    .deal-empty { display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 13px 16px; border: 1px dashed rgba(225,233,229,.14); border-radius: 12px; color: #c0c5bf; font-size: .84rem; }
+    .deal-empty strong { display: block; color: #eef6dc; font-size: .92rem; }
+    .deal-empty-icon { flex: 0 0 auto; font-size: 1.4rem; }
+    .deal-loading { display: grid; grid-template-columns: minmax(0, 1fr) 90px 112px 120px; align-items: center; gap: 20px; min-height: 92px; padding: 13px 16px; }
+    .deal-loading .skeleton { min-height: 46px; }
+    .deal-loading .skeleton:first-child { min-height: 60px; }
+    .deals-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+    .deals-dots { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 2px; }
+    .deals-dot { display: grid; width: 14px; height: 18px; min-height: 0; place-items: center; padding: 0; border: 0; border-radius: 999px; background: transparent; transition: width .25s ease; }
+    .deals-dot::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: rgba(225,233,229,.24); transition: width .25s ease, background-color .25s ease; }
+    .deals-dot:hover:not(:disabled) { background: transparent; }
+    .deals-dot:hover::before { background: rgba(225,233,229,.45); }
+    .deals-dot[aria-current="true"] { width: 28px; }
+    .deals-dot[aria-current="true"]::before { width: 22px; background: #c9ef5b; }
+    .deals-progress { flex: 1 1 auto; height: 3px; overflow: hidden; border-radius: 999px; background: rgba(225,233,229,.1); }
+    .deals-progress i { display: block; width: 100%; height: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, #8fc32b, #c9ef5b); }
+    .deals-progress i.run { animation: deal-progress 6.5s linear forwards; }
+    .price-deals.is-paused .deals-progress i.run, .price-deals:has(:focus-visible) .deals-progress i.run { animation-play-state: paused; }
+    @media (hover: hover) { .price-deals:hover .deals-progress i.run { animation-play-state: paused; } }
+    @keyframes deal-progress { to { transform: scaleX(1); } }
+    .price-deals.is-single .deals-controls, .price-deals.is-single .deals-foot { display: none; }
+    .deal-spotlight { animation: deal-spotlight 2.4s ease-out; }
+    @keyframes deal-spotlight { 0%, 35% { box-shadow: 0 0 0 3px rgba(201,239,91,.75), 0 0 28px rgba(201,239,91,.3); } 100% { box-shadow: 0 0 0 0 rgba(201,239,91,0); } }
+    html[data-theme="light"] .price-deals {
+      border-color: rgba(77,122,11,.28);
+      background:
+        radial-gradient(120% 160% at 0% 0%, rgba(150,200,40,.2), transparent 55%),
+        radial-gradient(90% 140% at 100% 100%, rgba(240,150,40,.1), transparent 60%),
+        linear-gradient(135deg, #fbfdf6, #f0f5e4);
+      box-shadow: 0 8px 22px rgba(40,58,22,.08);
+    }
+    html[data-theme="light"] .price-deals h2, html[data-theme="light"] .deal-title, html[data-theme="light"] .deal-empty strong { color: #1b2418; }
+    html[data-theme="light"] .deals-sub, html[data-theme="light"] .deals-counter, html[data-theme="light"] .deal-meta, html[data-theme="light"] .deal-to-win, html[data-theme="light"] .deal-price-typical, html[data-theme="light"] .deal-empty { color: var(--muted); }
+    html[data-theme="light"] .deals-tag { background: rgba(120,170,30,.18); }
+    html[data-theme="light"] .deals-nav { border-color: rgba(77,122,11,.35); background: rgba(120,170,30,.12); color: #2f4d08; }
+    html[data-theme="light"] .deals-nav:hover:not(:disabled) { background: rgba(120,170,30,.24); }
+    html[data-theme="light"] .deal-card { border-color: rgba(47,77,8,.12); background: #fff; }
+    html[data-theme="light"] .deal-empty { border-color: rgba(47,77,8,.2); background: rgba(255,255,255,.6); }
+    html[data-theme="light"] .deal-chip { background: rgba(47,77,8,.07); color: #3b4637; }
+    html[data-theme="light"] .deal-chip.is-top { background: rgba(214,110,10,.14); color: #8a4300; }
+    html[data-theme="light"] .deal-draw-icon { background: rgba(47,77,8,.08); }
+    html[data-theme="light"] .deal-price-value { color: #3d6208; }
+    html[data-theme="light"] .deal-price-book { color: #26301f; }
+    html[data-theme="light"] .deal-saving { border-color: rgba(77,122,11,.42); background: rgba(120,170,30,.12); }
+    html[data-theme="light"] .deal-saving strong { color: #2f4d08; }
+    html[data-theme="light"] .deal-saving span { color: #4c5a45; }
+    html[data-theme="light"] .deal-cta { background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] .deal-cta:hover:not(:disabled) { background: #3d6208; }
+    html[data-theme="light"] .deals-dot::before { background: rgba(47,77,8,.2); }
+    html[data-theme="light"] .deals-dot:hover::before { background: rgba(47,77,8,.4); }
+    html[data-theme="light"] .deals-dot[aria-current="true"]::before { background: #4d7a0b; }
+    html[data-theme="light"] .deals-progress { background: rgba(47,77,8,.1); }
+    html[data-theme="light"] .deals-progress i { background: linear-gradient(90deg, #79a81e, #4d7a0b); }
+    /* Slide layout follows the carousel's own width, which depends on the sidebar as well as the viewport */
+    @container deals (max-width: 760px) {
+      .deal-card { grid-template-columns: minmax(0, 1fr) auto auto; }
+      .deal-main { grid-column: 1 / -1; }
+      .deal-price { text-align: left; }
+      .deal-loading { grid-template-columns: minmax(0, 1fr) 112px 120px; }
+      .deal-loading .skeleton:first-child { grid-column: 1 / -1; }
+    }
+    @container deals (max-width: 480px) {
+      .deals-viewport { margin-top: 10px; }
+      .deal-card { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 11px 12px; }
+      .deal-title { font-size: 1rem; }
+      .deal-price-value { font-size: 1.4rem; }
+      .deal-saving { min-width: 0; padding: 7px 10px; }
+      .deal-cta { grid-column: 1 / -1; width: 100%; padding: 8px 14px; }
+      .deals-foot { margin-top: 8px; }
+      .deal-loading { grid-template-columns: minmax(0, 1fr) 100px; gap: 12px; }
+      .deal-loading .skeleton:last-child { display: none; }
+    }
+    @media (max-width: 560px) {
+      .price-deals { grid-area: deals; margin: 10px 13px 0; padding: 11px 12px 8px; }
+      .deals-tag { display: none; }
+      .price-deals h2 { font-size: .95rem; }
+      .deals-sub { font-size: .68rem; }
+      .deals-sub-long { display: none; }
+      .deals-sub-short { display: inline; }
+      .deals-counter { display: none; }
+      .deals-nav { width: 30px; height: 30px; }
+    }
+    @media (max-width: 380px) {
+      .deals-sub { font-size: .66rem; }
+    }
+    @supports not (container-type: inline-size) {
+      @media (max-width: 560px) {
+        .deal-card { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 11px 12px; }
+        .deal-main, .deal-cta { grid-column: 1 / -1; }
+        .deal-price { text-align: left; }
+        .deal-saving { min-width: 0; }
+        .deal-cta { width: 100%; }
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .deal-slide.is-active, .deal-slide.is-leaving, .deal-spotlight { animation: none; }
+      .deal-slide.is-leaving { visibility: hidden; opacity: 0; }
+      .deals-dot, .deals-dot::before { transition: none; }
+      .deals-progress, #deals-pause { display: none; }
     }
   </style>
 </head>
@@ -1938,6 +2104,28 @@
     </aside>
 
     <div class="app-content">
+      <section id="price-deals" class="price-deals" aria-roledescription="carousel" aria-labelledby="price-deals-title" hidden>
+        <div class="deals-head">
+          <div class="deals-heading">
+            <span class="deals-tag" aria-hidden="true">🏷️</span>
+            <div>
+              <h2 id="price-deals-title">Don't-miss discounts</h2>
+              <p class="deals-sub"><span class="deals-sub-long">Sportsbooks paying more than the rest of the market right now</span><span class="deals-sub-short">Paying more than the market</span> · prices, not predictions</p>
+            </div>
+          </div>
+          <div class="deals-controls">
+            <span id="deals-counter" class="deals-counter" aria-hidden="true"></span>
+            <button type="button" id="deals-prev" class="deals-nav" aria-label="Previous discount"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
+            <button type="button" id="deals-pause" class="deals-nav" aria-label="Pause slides"><svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg></button>
+            <button type="button" id="deals-next" class="deals-nav" aria-label="Next discount"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
+          </div>
+        </div>
+        <div id="deals-viewport" class="deals-viewport" aria-live="off"></div>
+        <div class="deals-foot">
+          <div id="deals-dots" class="deals-dots" role="group" aria-label="Choose a discount"></div>
+          <div class="deals-progress" aria-hidden="true"><i id="deals-progress-bar"></i></div>
+        </div>
+      </section>
       <header class="topbar">
         <div class="topbar-heading">
           <p class="eyebrow">Market intelligence · live board</p>
@@ -2513,6 +2701,13 @@
     const sportNavigationElement = document.querySelector("#sport-navigation");
     const upcomingListElement = document.querySelector("#upcoming-list");
     const upcomingCountElement = document.querySelector("#upcoming-count");
+    const priceDealsElement = document.querySelector("#price-deals");
+    const dealsViewport = document.querySelector("#deals-viewport");
+    const dealsDotsElement = document.querySelector("#deals-dots");
+    const dealsCounterElement = document.querySelector("#deals-counter");
+    const dealsProgressBar = document.querySelector("#deals-progress-bar");
+    const dealsPauseButton = document.querySelector("#deals-pause");
+    const priceDealsState = { deals: [], index: 0, sport: "", leaveTimer: 0, swipedAt: 0 };
     // Show at most 6 live matches; scroll the list when there are more.
     function fitLiveGamesHeight() {
       liveGamesElement.style.maxHeight = "";
@@ -2792,6 +2987,11 @@
           createTeamIdentity(score?.home, event.home_team || "Home")
         );
       }
+      dealsViewport?.querySelectorAll(".deal-slide").forEach((slide, index) => {
+        const deal = priceDealsState.deals[index];
+        const identity = slide.querySelector(".deal-title .team-identity");
+        if (deal && identity) identity.replaceWith(createTeamIdentity(dealTeam(deal), deal.outcome));
+      });
     }
 
     function matchingLiveScore(event) {
@@ -3017,6 +3217,7 @@
       teamSearch.value = "";
       renderUpcomingGames([]);
       renderLiveScores([]);
+      hidePriceDeals();
     }
 
     async function getJson(path) {
@@ -3047,6 +3248,304 @@
       return body;
     }
 
+    // A discount is one sportsbook paying more for a moneyline outcome than the no-vig consensus of the other books.
+    function findPriceDiscounts(events, now = Date.now(), limit = 8) {
+      const deals = [];
+      for (const event of Array.isArray(events) ? events : []) {
+        const start = Date.parse(event?.commence_time);
+        if (!Number.isFinite(start) || start <= now) continue;
+        const quotes = new Map();
+        for (const bookmaker of event.bookmakers || []) {
+          const market = (bookmaker?.markets || []).find(item => item?.key === "h2h");
+          const outcomes = (market?.outcomes || []).filter(outcome => outcome?.name && Number(outcome.price) > 1);
+          if (outcomes.length < 2) continue;
+          const overround = outcomes.reduce((sum, outcome) => sum + 1 / Number(outcome.price), 0);
+          for (const outcome of outcomes) {
+            const price = Number(outcome.price);
+            if (!quotes.has(outcome.name)) quotes.set(outcome.name, []);
+            quotes.get(outcome.name).push({
+              book: bookmaker.title || bookmaker.key || "Sportsbook",
+              price,
+              fair: 1 / price / overround
+            });
+          }
+        }
+        for (const [outcome, list] of quotes) {
+          if (list.length < 3) continue;
+          const best = list.reduce((top, quote) => (quote.price > top.price ? quote : top));
+          // Compare the best price against the other books only, so one generous book can't inflate its own benchmark.
+          const others = list.filter(quote => quote !== best);
+          const probability = others.reduce((sum, quote) => sum + quote.fair, 0) / others.length;
+          const prices = others.map(quote => quote.price).sort((a, b) => a - b);
+          const middle = Math.floor(prices.length / 2);
+          const typical = prices.length % 2 ? prices[middle] : (prices[middle - 1] + prices[middle]) / 2;
+          const edge = best.price * probability - 1;
+          // Skip longshots, ties and gaps so large they are more likely a stale quote than a real price.
+          if (probability < 0.08 || best.price <= typical || edge < 0.005 || edge > 0.25) continue;
+          deals.push({
+            eventId: event.id,
+            home: event.home_team,
+            away: event.away_team,
+            start,
+            outcome,
+            price: best.price,
+            book: best.book,
+            typical,
+            probability,
+            edge,
+            books: list.length
+          });
+        }
+      }
+      return deals.sort((a, b) => b.edge - a.edge || a.start - b.start).slice(0, limit);
+    }
+
+    function renderPriceDeals(events) {
+      if (!priceDealsElement || embedMode) return;
+      window.clearTimeout(priceDealsState.leaveTimer);
+      priceDealsElement.hidden = false;
+      priceDealsElement.removeAttribute("aria-busy");
+      dealsDotsElement.replaceChildren();
+      dealsCounterElement.textContent = "";
+
+      if (events === null) {
+        priceDealsState.deals = [];
+        priceDealsState.index = 0;
+        priceDealsElement.classList.add("is-single");
+        priceDealsElement.setAttribute("aria-busy", "true");
+        const loading = element("div", "deal-loading");
+        loading.setAttribute("aria-hidden", "true");
+        for (let i = 0; i < 4; i += 1) loading.append(element("div", "skeleton"));
+        dealsViewport.replaceChildren(loading);
+        restartDealsProgress();
+        return;
+      }
+
+      const previous = priceDealsState.deals[priceDealsState.index];
+      const deals = findPriceDiscounts(events);
+      priceDealsState.deals = deals;
+      priceDealsState.sport = sportSelect.value;
+      priceDealsElement.classList.toggle("is-single", deals.length < 2);
+
+      if (!deals.length) {
+        priceDealsState.index = 0;
+        const empty = element("div", "deal-empty");
+        const icon = element("span", "deal-empty-icon", "🔎");
+        icon.setAttribute("aria-hidden", "true");
+        const text = element("div");
+        text.append(
+          element("strong", "", "No standout discounts right now"),
+          element("span", "", events.length
+            ? "Every sportsbook is pricing these games close to the market. Prices move all day — check back closer to game time."
+            : "There are no upcoming games with odds for this sport yet.")
+        );
+        empty.append(icon, text);
+        dealsViewport.replaceChildren(empty);
+        restartDealsProgress();
+        return;
+      }
+
+      dealsViewport.replaceChildren(...deals.map((deal, index) => createDealSlide(deal, index, deals.length)));
+      dealsDotsElement.replaceChildren(...deals.map((deal, index) => {
+        const dot = element("button", "deals-dot");
+        dot.type = "button";
+        dot.setAttribute("aria-label", `Show discount ${index + 1}: ${deal.outcome} at ${deal.book}`);
+        dot.addEventListener("click", () => showDeal(index, index < priceDealsState.index ? "prev" : "next"));
+        return dot;
+      }));
+      const keep = previous ? deals.findIndex(deal => dealKey(deal) === dealKey(previous)) : -1;
+      showDeal(Math.max(0, keep), "none");
+    }
+
+    function dealKey(deal) {
+      return `${deal.eventId}|${deal.outcome}|${deal.book}`;
+    }
+
+    function hidePriceDeals() {
+      if (!priceDealsElement) return;
+      window.clearTimeout(priceDealsState.leaveTimer);
+      priceDealsState.deals = [];
+      priceDealsState.index = 0;
+      priceDealsState.sport = "";
+      priceDealsElement.hidden = true;
+      dealsViewport.replaceChildren();
+      dealsDotsElement.replaceChildren();
+      restartDealsProgress();
+    }
+
+    function dealTeam(deal) {
+      const score = matchingLiveScore({ home_team: deal.home, away_team: deal.away });
+      if (deal.outcome === deal.home) return score?.home;
+      if (deal.outcome === deal.away) return score?.away;
+      return null;
+    }
+
+    function formatDealTime(start) {
+      const date = new Date(start);
+      if (Number.isNaN(date.getTime())) return "";
+      const now = new Date();
+      const time = date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const key = localDateKey(date);
+      if (key === localDateKey(now)) return `Today ${time}`;
+      if (key === localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1))) return `Tomorrow ${time}`;
+      return `${date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · ${time}`;
+    }
+
+    function createDealSlide(deal, index, total) {
+      const slide = element("article", "deal-slide");
+      slide.setAttribute("role", "group");
+      slide.setAttribute("aria-roledescription", "slide");
+      slide.setAttribute("aria-label", `${index + 1} of ${total}`);
+      const card = element("div", "deal-card");
+
+      const chips = element("div", "deal-chips");
+      chips.append(element("span", index === 0 ? "deal-chip is-top" : "deal-chip", index === 0 ? "🔥 Top discount" : `#${index + 1} discount`));
+      const when = [sportSelect.selectedOptions[0]?.textContent?.trim(), formatDealTime(deal.start)].filter(Boolean).join(" · ");
+      if (when) chips.append(element("span", "deal-chip", when));
+
+      const main = element("div", "deal-main");
+      const title = element("div", "deal-title");
+      if (/^draw$/i.test(deal.outcome)) {
+        const icon = element("span", "deal-draw-icon", "🤝");
+        icon.setAttribute("aria-hidden", "true");
+        title.append(icon, element("span", "team-identity-name", "Draw"));
+      } else {
+        title.append(createTeamIdentity(dealTeam(deal), deal.outcome), element("span", "deal-to-win", "to win"));
+      }
+      main.append(title, element("p", "deal-meta", `${deal.away || "Away"} @ ${deal.home || "Home"} · ${deal.books} books compared`));
+
+      const price = element("div", "deal-price");
+      const typical = element("span", "deal-price-typical", "Typical book ");
+      typical.append(element("s", "", formatAmericanOdds(deal.typical)));
+      price.append(
+        element("span", "deal-price-value", formatAmericanOdds(deal.price)),
+        element("span", "deal-price-book", `at ${deal.book}`),
+        typical
+      );
+
+      const saving = element("div", "deal-saving");
+      const extra = (deal.price - deal.typical) * 100;
+      saving.append(
+        element("strong", "", `+${(deal.edge * 100).toFixed(1)}% vs market`),
+        element("span", "", `+$${extra >= 1 ? extra.toFixed(0) : extra.toFixed(2)} extra per $100 bet`)
+      );
+      saving.title = `The other ${deal.books - 1} sportsbooks, with their margin removed, give ${deal.outcome === "Draw" ? "a draw" : deal.outcome} about a ${(deal.probability * 100).toFixed(1)}% chance. ${deal.book} pays more than that fair price — a better price, not a guaranteed win.`;
+
+      const cta = element("button", "deal-cta", "Compare odds →");
+      cta.type = "button";
+      cta.setAttribute("aria-label", `Compare all sportsbook odds for ${deal.away || "Away"} at ${deal.home || "Home"}`);
+      cta.addEventListener("click", () => openDealMatch(deal.eventId));
+
+      card.append(chips, main, price, saving, cta);
+      slide.append(card);
+      return slide;
+    }
+
+    function showDeal(index, direction = "next") {
+      const slides = [...dealsViewport.querySelectorAll(".deal-slide")];
+      if (!slides.length) return;
+      const nextIndex = ((index % slides.length) + slides.length) % slides.length;
+      const current = slides.find(slide => slide.classList.contains("is-active"));
+      window.clearTimeout(priceDealsState.leaveTimer);
+      for (const slide of slides) slide.classList.remove("is-leaving");
+      dealsViewport.dataset.dir = direction;
+      if (current && current !== slides[nextIndex]) {
+        current.classList.add("is-leaving");
+        priceDealsState.leaveTimer = window.setTimeout(() => current.classList.remove("is-leaving"), 650);
+      }
+      slides.forEach((slide, slideIndex) => {
+        const active = slideIndex === nextIndex;
+        slide.classList.toggle("is-active", active);
+        slide.inert = !active;
+        slide.setAttribute("aria-hidden", String(!active));
+      });
+      [...dealsDotsElement.children].forEach((dot, dotIndex) => dot.setAttribute("aria-current", String(dotIndex === nextIndex)));
+      priceDealsState.index = nextIndex;
+      dealsCounterElement.textContent = `${nextIndex + 1} / ${slides.length}`;
+      restartDealsProgress();
+    }
+
+    function restartDealsProgress() {
+      dealsProgressBar.classList.remove("run");
+      if (priceDealsState.deals.length < 2) return;
+      void dealsProgressBar.offsetWidth;
+      dealsProgressBar.classList.add("run");
+    }
+
+    function stepDeal(step) {
+      if (priceDealsState.deals.length < 2) return;
+      showDeal(priceDealsState.index + step, step < 0 ? "prev" : "next");
+    }
+
+    function openDealMatch(eventId) {
+      let matchCard = document.getElementById(`match-${eventId}`);
+      if (!matchCard) {
+        dateSelect.value = "all";
+        teamSearch.value = "";
+        renderFilteredMatches();
+        matchCard = document.getElementById(`match-${eventId}`);
+      }
+      if (!matchCard) return;
+      const oddsReview = matchCard.querySelector(".odds-review");
+      if (oddsReview) oddsReview.open = true;
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      matchCard.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+      oddsReview?.querySelector("summary")?.focus({ preventScroll: true });
+      matchCard.classList.remove("deal-spotlight");
+      void matchCard.offsetWidth;
+      matchCard.classList.add("deal-spotlight");
+      window.setTimeout(() => matchCard.classList.remove("deal-spotlight"), 2500);
+    }
+
+    if (priceDealsElement) {
+      document.querySelector("#deals-prev").addEventListener("click", () => stepDeal(-1));
+      document.querySelector("#deals-next").addEventListener("click", () => stepDeal(1));
+      dealsPauseButton.addEventListener("click", () => {
+        const paused = priceDealsElement.classList.toggle("is-paused");
+        dealsPauseButton.setAttribute("aria-label", paused ? "Play slides" : "Pause slides");
+        dealsViewport.setAttribute("aria-live", paused ? "polite" : "off");
+      });
+      dealsProgressBar.addEventListener("animationend", () => {
+        if (priceDealsState.deals.some(deal => deal.start <= Date.now())) {
+          renderPriceDeals(currentEvents);
+          return;
+        }
+        stepDeal(1);
+      });
+      // Announce slide changes only while autoplay is stopped by focus or the pause button.
+      priceDealsElement.addEventListener("focusin", () => dealsViewport.setAttribute("aria-live", "polite"));
+      priceDealsElement.addEventListener("focusout", event => {
+        if (priceDealsElement.contains(event.relatedTarget) || priceDealsElement.classList.contains("is-paused")) return;
+        dealsViewport.setAttribute("aria-live", "off");
+      });
+      priceDealsElement.addEventListener("keydown", event => {
+        if (event.key === "ArrowLeft") stepDeal(-1);
+        else if (event.key === "ArrowRight") stepDeal(1);
+        else return;
+        event.preventDefault();
+      });
+      let swipe = null;
+      dealsViewport.addEventListener("pointerdown", event => {
+        swipe = event.pointerType === "mouse" ? null : { x: event.clientX, y: event.clientY, id: event.pointerId };
+      });
+      dealsViewport.addEventListener("pointerup", event => {
+        if (!swipe || event.pointerId !== swipe.id) return;
+        const dx = event.clientX - swipe.x;
+        const dy = event.clientY - swipe.y;
+        swipe = null;
+        if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+        priceDealsState.swipedAt = Date.now();
+        stepDeal(dx < 0 ? 1 : -1);
+      });
+      dealsViewport.addEventListener("pointercancel", () => { swipe = null; });
+      // A swipe that ends on the button must not also open the game.
+      dealsViewport.addEventListener("click", event => {
+        if (Date.now() - priceDealsState.swipedAt > 400) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }, true);
+    }
+
     function renderMatches(events) {
       currentEvents = [...events].sort((a, b) => {
         const timeA = Date.parse(a.commence_time);
@@ -3056,6 +3555,7 @@
         return timeA - timeB;
       });
       matchesElement.replaceChildren();
+      renderPriceDeals(currentEvents);
 
       if (!currentEvents.length) {
         dateFilterElement.hidden = true;
@@ -8013,6 +8513,10 @@
       statusElement.className = "muted";
       statusElement.textContent = "Loading odds…";
       showSkeletons(matchesElement);
+      if (priceDealsState.sport !== sport || priceDealsElement?.hidden) {
+        priceDealsState.sport = sport;
+        renderPriceDeals(null);
+      }
       try {
         const events = await getJson(`/api/odds?sport=${encodeURIComponent(sport)}`);
         if (requestId !== oddsRequestId || sport !== sportSelect.value) return;
