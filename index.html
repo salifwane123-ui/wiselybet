@@ -1092,6 +1092,13 @@
     .tracker-book-status li.is-missing { color: #ffb0b0; }
     .tracker-book-status li.is-pending { color: #ffd27a; }
     .tracker-book-status li:has(.tracker-book-timer) { padding-bottom: 5px; }
+    .tracker-book-status.is-dismissible { position: relative; padding-right: 30px; padding-bottom: 9px; }
+    .tracker-book-close { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 22px; height: 22px; min-height: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; font-size: .72rem; opacity: .7; cursor: pointer; }
+    .tracker-book-close:hover, .tracker-book-close:focus-visible { background: rgba(255,255,255,.1); opacity: 1; }
+    .tracker-book-status.is-dismissible > .tracker-book-timer { right: 8px; bottom: 4px; left: 8px; }
+    .tracker-book-add { display: inline-block; margin: 0 0 6px; color: #c9ef5b; font-size: .66rem; font-weight: 800; text-decoration: none; }
+    .tracker-book-add:hover { text-decoration: underline; }
+    html[data-theme="light"] .tracker-book-add { color: #3d6208; }
     .tracker-book-timer { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; border-radius: 2px; background: currentColor; opacity: .45; transform-origin: left center; animation: tracker-suggestion-timer linear forwards; pointer-events: none; }
     @keyframes tracker-suggestion-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
     @media (prefers-reduced-motion: reduce) { .tracker-book-timer { display: none; } }
@@ -4281,6 +4288,7 @@
     function setParlaySportsbook(parlay, book) {
       parlay.sportsbook = book || "";
       if (!parlay.sportsbook) delete parlay.sportsbook;
+      delete parlay.bookInfoDismissed;
       parlayBookState.delete(parlay.id);
       const legs = trackers.filter(item => item.parlay === parlay.id);
       // Choosing a sportsbook again gives a fresh look at suggestions that were dismissed or timed out.
@@ -4393,7 +4401,17 @@
         if (now - at < suggestionTimeoutMs) continue;
         suggestionSeenAt.delete(key);
         const split = key.indexOf("|");
-        const tracker = trackers.find(item => item.key === key.slice(0, split));
+        const ownerKey = key.slice(0, split);
+        if (ownerKey.startsWith("parlay:")) {
+          const parlay = parlays.find(item => `parlay:${item.id}` === ownerKey);
+          if (parlay?.sportsbook) {
+            parlay.bookInfoDismissed = parlay.sportsbook;
+            saveParlays();
+            changed = true;
+          }
+          continue;
+        }
+        const tracker = trackers.find(item => item.key === ownerKey);
         if (!tracker) continue;
         tracker.dismissedLine = key.slice(split + 1);
         changed = true;
@@ -4564,8 +4582,32 @@
           });
           status.append(retry);
         }
+        // Nothing left to decide: close the box as soon as the last suggestion is answered,
+        // otherwise let it time out (or be closed) like the suggestions do.
+        if (!state.error && !pending.length && !removable.length) {
+          if (state.hadSuggestions) return { controls: [select, open], status: dismissBookInfo(parlay) };
+          if (parlay.bookInfoDismissed === parlay.sportsbook) return { controls: [select, open], status: null };
+          const close = element("button", "tracker-book-close", "✕");
+          close.type = "button";
+          close.title = "Hide";
+          close.setAttribute("aria-label", `Hide ${title} info for ${parlay.name}`);
+          close.addEventListener("click", () => dismissBookInfo(parlay, true));
+          const left = Math.max(0, suggestionTimeoutMs - (Date.now() - suggestionShownAt({ key: `parlay:${parlay.id}` }, "box")));
+          const timer = element("span", "tracker-book-timer");
+          timer.style.animationDuration = `${suggestionTimeoutMs}ms`;
+          timer.style.animationDelay = `${left - suggestionTimeoutMs}ms`;
+          status.classList.add("is-dismissible");
+          status.prepend(close);
+          status.append(timer);
+        } else if (pending.length || removable.length) state.hadSuggestions = true;
       }
       return { controls: [select, open], status };
+    }
+    function dismissBookInfo(parlay, rerender = false) {
+      parlay.bookInfoDismissed = parlay.sportsbook;
+      saveParlays();
+      if (rerender) renderTrackers();
+      return null;
     }
 
     // Final report once every game in a parlay is over: results, why picks missed, risks, and advice.
@@ -5980,6 +6022,16 @@
         if (legParlay?.sportsbook && tracker.bookLine?.book === legParlay.sportsbook && tracker.requestedTarget !== undefined) {
           card.append(element("span", "tracker-book-note",
             `${tracker.bookLine.kind === "higher" ? "Raised" : "Lowered"} for ${sportsbookTitle(legParlay.sportsbook)}: ${tracker.requestedTarget}+ → ${tracker.target}+ (Over ${tracker.bookLine.point}${Number(tracker.bookLine.price) > 1 ? ` at ${formatAmericanOdds(tracker.bookLine.price)}` : ""})`));
+        }
+        const legBook = legParlay?.sportsbook ? parlayBookState.get(legParlay.id) : null;
+        const legInfo = legBook?.status === "ready" ? legBook.legs.get(tracker.key) : null;
+        if (snapshot.state !== "post" && legInfo?.link && legInfo.suggest && tracker.target === legInfo.suggest.target) {
+            const bookTitle = legBook.title || sportsbookTitle(legParlay.sportsbook);
+            const add = element("a", "tracker-book-add", legInfo.direct ? `Add to ${bookTitle} betslip ↗` : `Find at ${bookTitle} ↗`);
+            add.href = legInfo.link;
+            add.target = "_blank";
+            add.rel = "noopener noreferrer";
+            card.append(add);
         }
         card.append(score, bar, verdictBox);
         if (snapshot.state === "post" && snapshot.found !== false) {
