@@ -4199,14 +4199,17 @@
       const map = marketToTrackerStatBySport[tracker.sport] || {};
       return Object.keys(map).find(market => map[market] === tracker.stat) || "";
     }
-    // "Over X.5" settles as a win at X+1, so the closest line is the one nearest target − 0.5. Ties take the easier line.
-    function closestBookLine(offers, target) {
+    // "Over X.5" settles as a win at X+1, so the requested line is target − 0.5. Prefer that line, then the nearest
+    // easier (lower) line. Only move to a harder line when it is still priced as a favourite (negative American odds).
+    function chooseBookLine(offers, target) {
       const wanted = target - 0.5;
-      return offers.reduce((best, offer) => {
-        const gap = Math.abs(offer.point - wanted);
-        const bestGap = Math.abs(best.point - wanted);
-        return gap < bestGap - 1e-9 || (Math.abs(gap - bestGap) <= 1e-9 && offer.point < best.point) ? offer : best;
-      });
+      const exact = offers.find(offer => Math.abs(offer.point - wanted) < 1e-9);
+      if (exact) return { offer: exact, kind: "exact" };
+      const lower = offers.filter(offer => offer.point < wanted).sort((a, b) => b.point - a.point)[0];
+      if (lower) return { offer: lower, kind: "lower" };
+      const higher = offers.filter(offer => offer.point > wanted).sort((a, b) => a.point - b.point)[0];
+      if (higher && Number(higher.price) > 1 && Number(higher.price) < 2) return { offer: higher, kind: "higher" };
+      return { offer: higher || null, kind: "remove" };
     }
     const bookPropsCache = new Map();
     function fetchBookProps(sport, eventId, market) {
@@ -4279,27 +4282,37 @@
             if (!Number.isFinite(point) || point < 0) continue;
             offers.push({
               point,
+              price: Number(outcome.price),
               link: safeLink(outcome.link) || safeLink(propMarket.link) || eventLink,
               direct: Boolean(safeLink(outcome.link))
             });
           }
         }
         if (!offers.length) {
-          state.legs.set(tracker.key, { missing: `Not offered at ${state.title}.` });
+          state.legs.set(tracker.key, { missing: `Not offered at ${state.title}. Remove it for a safer parlay.`, suggestRemove: true });
           return;
         }
         if (parlay.sportsbook !== book || !trackers.includes(tracker)) return;
         const wanted = tracker.requestedTarget ?? tracker.target;
-        const best = closestBookLine(offers, wanted);
+        const choice = chooseBookLine(offers, wanted);
+        if (choice.kind === "remove") {
+          if (restoreRequestedTargets([tracker])) changed = true;
+          const only = choice.offer
+            ? `Only Over ${choice.offer.point} (${formatAmericanOdds(choice.offer.price)}) is offered, an underdog line.`
+            : `No matching line is offered.`;
+          state.legs.set(tracker.key, { missing: `${only} Remove it for a safer parlay.`, suggestRemove: true });
+          return;
+        }
+        const best = choice.offer;
         const nextTarget = Math.max(1, Math.floor(best.point) + 1);
-        if (nextTarget !== tracker.target || tracker.bookLine?.book !== book || tracker.bookLine?.point !== best.point) {
+        if (nextTarget !== tracker.target || tracker.bookLine?.book !== book || tracker.bookLine?.point !== best.point || tracker.bookLine?.price !== best.price) {
           if (nextTarget !== wanted) tracker.requestedTarget = wanted;
           else delete tracker.requestedTarget;
           tracker.target = nextTarget;
-          tracker.bookLine = { book, point: best.point };
+          tracker.bookLine = { book, point: best.point, price: best.price, kind: choice.kind };
           changed = true;
         }
-        state.legs.set(tracker.key, { link: best.link, direct: best.direct, point: best.point });
+        state.legs.set(tracker.key, { link: best.link, direct: best.direct, point: best.point, price: best.price, kind: choice.kind });
       }));
       if (changed) saveTrackers();
       if (parlayBookState.get(parlay.id) !== state) return;
@@ -4344,6 +4357,7 @@
         status.append(element("p", "", `Checking ${title} lines…`));
       } else {
         const missing = legs.filter(item => state.legs.get(item.key)?.missing);
+        const removable = missing.filter(item => state.legs.get(item.key)?.suggestRemove);
         const hasDirect = legLinks.some(info => info.direct);
         const guidance = legLinks.length === 0
           ? `None of these picks are available at ${title} right now.`
@@ -4353,16 +4367,26 @@
             ? `Open adds this pick to your ${title} betslip.`
             : `Sportsbooks don't accept a whole parlay from one link. Tap Add on each leg to place it in your ${title} betslip, then choose Parlay.`;
         status.append(element("p", "", state.error ? `${state.error} ` : guidance));
-        if (missing.length) status.append(element("p", "", `${missing.length} ${missing.length === 1 ? "pick isn't" : "picks aren't"} available at ${title}. Swap ${missing.length === 1 ? "it" : "them"} or try another sportsbook.`));
+        if (removable.length) status.append(element("p", "", `${removable.length} ${removable.length === 1 ? "pick has" : "picks have"} no safer line at ${title}. Removing ${removable.length === 1 ? "it" : "them"} is the safer bet.`));
         const list = element("ul");
         for (const tracker of legs) {
           const info = state.legs.get(tracker.key) || {};
           const item = element("li", info.missing ? "is-missing" : "");
           const short = trackerStats[tracker.stat].short;
+          const adjusted = tracker.requestedTarget !== undefined
+            ? ` (${info.kind === "higher" ? "raised" : "lowered"} from ${tracker.requestedTarget}+, ${formatAmericanOdds(info.price)})`
+            : "";
           const text = info.missing
             ? `⚠ ${tracker.name} ${tracker.target}+ ${short}: ${info.missing}`
-            : `✓ ${tracker.name} ${tracker.target}+ ${short}${tracker.requestedTarget !== undefined ? ` (was ${tracker.requestedTarget}+)` : ""}`;
+            : `✓ ${tracker.name} ${tracker.target}+ ${short}${adjusted}`;
           item.append(element("span", "", text));
+          if (info.suggestRemove) {
+            const drop = element("button", "tracker-parlay-btn", "Remove");
+            drop.type = "button";
+            drop.setAttribute("aria-label", `Remove ${tracker.name} ${short} from tracking`);
+            drop.addEventListener("click", () => removeTracker(tracker.key));
+            item.append(drop);
+          }
           if (info.link && legs.length > 1) {
             const add = element("a", "", info.direct ? "Add ↗" : "Find ↗");
             add.href = info.link;
@@ -5797,7 +5821,7 @@
         const legParlay = parlays.find(item => item.id === tracker.parlay);
         if (legParlay?.sportsbook && tracker.bookLine?.book === legParlay.sportsbook && tracker.requestedTarget !== undefined) {
           card.append(element("span", "tracker-book-note",
-            `Adjusted for ${sportsbookTitle(legParlay.sportsbook)}: ${tracker.requestedTarget}+ → ${tracker.target}+ (Over ${tracker.bookLine.point})`));
+            `${tracker.bookLine.kind === "higher" ? "Raised" : "Lowered"} for ${sportsbookTitle(legParlay.sportsbook)}: ${tracker.requestedTarget}+ → ${tracker.target}+ (Over ${tracker.bookLine.point}${Number(tracker.bookLine.price) > 1 ? ` at ${formatAmericanOdds(tracker.bookLine.price)}` : ""})`));
         }
         card.append(score, bar, verdictBox);
         if (snapshot.state === "post" && snapshot.found !== false) {
