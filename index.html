@@ -1913,168 +1913,124 @@
       html.embed #bell-button { position: relative; top: auto; right: auto; }
       html.embed #bell-panel { top: calc(100% + 8px); right: 0; left: auto; width: calc(100vw - 24px); margin-top: 0; }
     }
-    /* Don't-miss discounts carousel */
+    /* Top discounts ticker: a slim strip above the top bar. Mobile-first; container queries widen it into one row. */
     .price-deals {
       position: relative;
       container: deals / inline-size;
-      margin: 14px 0 0;
-      padding: 14px 16px 12px;
+      margin: 12px 0 0;
       overflow: hidden;
-      border: 1px solid rgba(201,239,91,.2);
-      border-radius: 16px;
-      background:
-        radial-gradient(120% 160% at 0% 0%, rgba(201,239,91,.15), transparent 55%),
-        radial-gradient(90% 140% at 100% 100%, rgba(255,166,77,.08), transparent 60%),
-        linear-gradient(135deg, #1d2118, #13160f);
-      box-shadow: 0 12px 30px rgba(0,0,0,.22);
+      border: 1px solid rgba(225,233,229,.1);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(22,25,21,.94), rgba(17,20,17,.9));
+      box-shadow: 0 8px 20px rgba(0,0,0,.12), inset 0 1px rgba(255,255,255,.03);
     }
     .price-deals[hidden] { display: none; }
-    .deals-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .deals-heading { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .deals-tag { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: rgba(201,239,91,.14); font-size: 1.05rem; }
-    .price-deals h2 { margin: 0; color: #eef6dc; font-size: 1rem; letter-spacing: -.01em; }
-    .deals-sub { margin: 2px 0 0; color: #a5ada9; font-size: .74rem; }
-    .deals-sub-short { display: none; }
-    .deals-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; }
-    .deals-counter { min-width: 38px; margin-right: 2px; color: #a5ada9; font-size: .74rem; font-variant-numeric: tabular-nums; text-align: right; }
-    .deals-nav { display: grid; width: 32px; height: 32px; min-height: 0; place-items: center; padding: 0; border: 1px solid rgba(201,239,91,.22); border-radius: 50%; background: rgba(201,239,91,.08); color: #dff3a6; }
-    .deals-nav:hover:not(:disabled) { background: rgba(201,239,91,.2); }
-    .deals-nav svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .deals-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label controls" "slide slide"; align-items: center; gap: 7px 12px; padding: 8px 8px 10px 12px; }
+    .deals-label { display: flex; grid-area: label; align-items: center; gap: 8px; min-width: 0; }
+    .deals-label-icon { display: grid; flex: 0 0 auto; width: 24px; height: 24px; place-items: center; border-radius: 7px; background: rgba(201,239,91,.12); color: #c9ef5b; }
+    .deals-label-icon svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .price-deals h2 { margin: 0; overflow: hidden; color: #e4f4c4; font-size: .68rem; font-weight: 800; letter-spacing: .1em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+    .deals-sub { display: none; margin: 2px 0 0; color: var(--muted); font-size: .68rem; white-space: nowrap; }
+    .deals-controls { display: flex; grid-area: controls; align-items: center; gap: 2px; }
+    .deals-counter { min-width: 30px; color: var(--muted); font-size: .7rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; }
+    .deals-nav { display: grid; width: 28px; height: 28px; min-height: 0; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 7px; background: transparent; color: #c0c5bf; }
+    .deals-nav:hover:not(:disabled) { border-color: rgba(225,233,229,.12); background: rgba(255,255,255,.06); color: #eef6dc; }
+    .deals-nav svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .deals-nav .icon-play { fill: currentColor; stroke-width: 1.2; }
     .deals-nav .icon-play, .price-deals.is-paused .deals-nav .icon-pause { display: none; }
     .price-deals.is-paused .deals-nav .icon-play { display: block; }
-    .deals-viewport { display: grid; margin-top: 12px; overflow: hidden; border-radius: 12px; touch-action: pan-y; }
+    .deals-viewport { display: grid; grid-area: slide; min-width: 0; padding-top: 9px; overflow: hidden; border-top: 1px solid rgba(225,233,229,.08); touch-action: pan-y; }
     /* Opacity as well as visibility: loaded team logos carry an inline visibility:visible that would show through hidden slides */
     .deal-slide { grid-area: 1 / 1; min-width: 0; visibility: hidden; opacity: 0; }
     .deal-slide.is-active, .deal-slide.is-leaving { visibility: visible; opacity: 1; }
-    .deal-slide.is-active { animation: deal-in-next .55s cubic-bezier(.22,.8,.2,1) both; }
-    .deal-slide.is-leaving { pointer-events: none; animation: deal-out-next .55s cubic-bezier(.22,.8,.2,1) both; }
+    .deal-slide.is-active { animation: deal-in-next .45s cubic-bezier(.22,.8,.2,1) both; }
+    .deal-slide.is-leaving { pointer-events: none; animation: deal-out-next .45s cubic-bezier(.22,.8,.2,1) both; }
     .deals-viewport[data-dir="prev"] .deal-slide.is-active { animation-name: deal-in-prev; }
     .deals-viewport[data-dir="prev"] .deal-slide.is-leaving { animation-name: deal-out-prev; }
     .deals-viewport[data-dir="none"] .deal-slide.is-active { animation: none; }
-    @keyframes deal-in-next { from { opacity: 0; transform: translateX(70%); } to { opacity: 1; transform: none; } }
-    @keyframes deal-out-next { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-70%); } }
-    @keyframes deal-in-prev { from { opacity: 0; transform: translateX(-70%); } to { opacity: 1; transform: none; } }
-    @keyframes deal-out-prev { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(70%); } }
-    .deal-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px 20px; height: 100%; padding: 13px 16px; border: 1px solid rgba(225,233,229,.08); border-radius: 12px; background: rgba(255,255,255,.035); }
-    .deal-chips { display: flex; flex-wrap: wrap; grid-column: 1 / -1; gap: 6px; }
-    .deal-chip { padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.06); color: #c0c5bf; font-size: .68rem; font-weight: 700; letter-spacing: .02em; }
-    .deal-chip.is-top { background: rgba(255,153,51,.16); color: #ffc27a; }
-    .deal-main { min-width: 0; }
-    .deal-title { display: flex; align-items: center; gap: 8px; min-width: 0; color: #f2f7e6; font-size: 1.08rem; font-weight: 800; }
-    .deal-title .team-identity { min-width: 0; }
-    .deal-title .team-logo, .deal-title .team-logo-fallback { width: 30px; height: 30px; }
-    .deal-draw-icon { display: grid; flex: 0 0 auto; width: 30px; height: 30px; place-items: center; border-radius: 50%; background: rgba(255,255,255,.07); font-size: .95rem; }
-    .deal-to-win { flex: 0 0 auto; color: #a5ada9; font-size: .8rem; font-weight: 600; }
-    .deal-meta { margin: 4px 0 0; overflow: hidden; color: #a5ada9; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
-    .deal-price { text-align: right; }
-    .deal-price-value { display: block; color: #c9ef5b; font-size: 1.6rem; font-weight: 850; font-variant-numeric: tabular-nums; line-height: 1; }
-    .deal-price-book { display: block; margin-top: 5px; color: #e2e8d8; font-size: .76rem; font-weight: 700; }
-    .deal-price-typical { display: block; margin-top: 2px; color: #a5ada9; font-size: .7rem; }
-    .deal-price-typical s { text-decoration-thickness: 1.5px; }
-    .deal-saving { display: grid; justify-items: center; gap: 2px; min-width: 112px; padding: 8px 12px; border: 1px dashed rgba(201,239,91,.38); border-radius: 12px; background: rgba(201,239,91,.1); text-align: center; cursor: help; }
-    .deal-saving strong { color: #d9f58a; font-size: 1.05rem; font-weight: 850; }
-    .deal-saving span { color: #b9c2a5; font-size: .68rem; }
-    .deal-cta { min-height: 0; padding: 10px 15px; border-radius: 10px; background: #c9ef5b; color: #12150f; font-weight: 800; white-space: nowrap; }
-    .deal-cta:hover:not(:disabled) { background: #dbf78a; }
-    .deal-empty { display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 13px 16px; border: 1px dashed rgba(225,233,229,.14); border-radius: 12px; color: #c0c5bf; font-size: .84rem; }
-    .deal-empty strong { display: block; color: #eef6dc; font-size: .92rem; }
-    .deal-empty-icon { flex: 0 0 auto; font-size: 1.4rem; }
-    .deal-loading { display: grid; grid-template-columns: minmax(0, 1fr) 90px 112px 120px; align-items: center; gap: 20px; min-height: 92px; padding: 13px 16px; }
-    .deal-loading .skeleton { min-height: 46px; }
-    .deal-loading .skeleton:first-child { min-height: 60px; }
-    .deals-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
-    .deals-dots { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 2px; }
-    .deals-dot { display: grid; width: 14px; height: 18px; min-height: 0; place-items: center; padding: 0; border: 0; border-radius: 999px; background: transparent; transition: width .25s ease; }
-    .deals-dot::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: rgba(225,233,229,.24); transition: width .25s ease, background-color .25s ease; }
-    .deals-dot:hover:not(:disabled) { background: transparent; }
-    .deals-dot:hover::before { background: rgba(225,233,229,.45); }
-    .deals-dot[aria-current="true"] { width: 28px; }
-    .deals-dot[aria-current="true"]::before { width: 22px; background: #c9ef5b; }
-    .deals-progress { flex: 1 1 auto; height: 3px; overflow: hidden; border-radius: 999px; background: rgba(225,233,229,.1); }
-    .deals-progress i { display: block; width: 100%; height: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, #8fc32b, #c9ef5b); }
+    @keyframes deal-in-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+    @keyframes deal-out-next { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-28px); } }
+    @keyframes deal-in-prev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+    @keyframes deal-out-prev { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(28px); } }
+    .deal-card { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "main main main cta" "best market edge edge"; align-items: center; gap: 8px 18px; }
+    .deal-main { grid-area: main; min-width: 0; }
+    .deal-title { display: flex; align-items: center; gap: 7px; min-width: 0; color: #f2f7e6; font-size: .86rem; font-weight: 750; line-height: 1.25; }
+    .deal-title .team-identity { gap: 7px; min-width: 0; }
+    .deal-title .team-logo, .deal-title .team-logo-fallback, .deal-draw-icon { width: 22px; height: 22px; }
+    .deal-title .team-logo-fallback { font-size: .5rem; }
+    .deal-draw-icon { display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; background: rgba(255,255,255,.08); color: #e2e8d8; font-size: .62rem; font-weight: 850; }
+    .deal-to-win { flex: 0 0 auto; color: var(--muted); font-size: .7rem; font-weight: 600; }
+    .deal-meta { margin: 2px 0 0 29px; overflow: hidden; color: var(--muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+    .deal-stat { display: grid; gap: 1px; min-width: 0; }
+    .deal-stat-best { grid-area: best; }
+    .deal-stat-market { grid-area: market; }
+    .deal-stat-edge { grid-area: edge; justify-self: start; cursor: help; }
+    .deal-stat-label { max-width: 150px; overflow: hidden; color: var(--muted); font-size: .6rem; font-weight: 700; letter-spacing: .06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+    .deal-stat-label b { color: #e2e8d8; font-weight: 750; letter-spacing: .02em; text-transform: none; }
+    .deal-stat-value { color: #eef6dc; font-size: .96rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; }
+    .deal-stat-best .deal-stat-value { color: #c9ef5b; }
+    .deal-stat-market .deal-stat-value { color: #b6bcb5; font-weight: 700; }
+    .deal-stat-edge .deal-stat-value { justify-self: start; padding: 0 6px; border-radius: 5px; background: rgba(201,239,91,.13); color: #d9f58a; }
+    .deal-cta { display: inline-flex; grid-area: cta; align-items: center; gap: 6px; height: 30px; min-height: 0; padding: 0 11px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: transparent; color: #dff3a6; font-size: .74rem; font-weight: 750; white-space: nowrap; transition: background-color .15s, border-color .15s, color .15s; }
+    .deal-cta:hover:not(:disabled) { border-color: #c9ef5b; background: #c9ef5b; color: #12150f; }
+    .deal-cta svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .deal-empty { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-height: 34px; align-content: center; color: var(--muted); font-size: .74rem; }
+    .deal-empty strong { color: #eef6dc; font-weight: 750; }
+    .deal-loading { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 56px); align-items: center; gap: 16px; }
+    .deal-loading .skeleton { min-height: 32px; border-radius: 8px; }
+    .deals-progress { position: absolute; right: 0; bottom: 0; left: 0; height: 2px; overflow: hidden; }
+    .deals-progress i { display: block; width: 100%; height: 100%; transform: scaleX(0); transform-origin: left; background: rgba(201,239,91,.6); }
     .deals-progress i.run { animation: deal-progress 6.5s linear forwards; }
     .price-deals.is-paused .deals-progress i.run, .price-deals:has(:focus-visible) .deals-progress i.run { animation-play-state: paused; }
     @media (hover: hover) { .price-deals:hover .deals-progress i.run { animation-play-state: paused; } }
     @keyframes deal-progress { to { transform: scaleX(1); } }
-    .price-deals.is-single .deals-controls, .price-deals.is-single .deals-foot { display: none; }
+    .price-deals.is-single .deals-controls, .price-deals.is-single .deals-progress { display: none; }
     .deal-spotlight { animation: deal-spotlight 2.4s ease-out; }
     @keyframes deal-spotlight { 0%, 35% { box-shadow: 0 0 0 3px rgba(201,239,91,.75), 0 0 28px rgba(201,239,91,.3); } 100% { box-shadow: 0 0 0 0 rgba(201,239,91,0); } }
-    html[data-theme="light"] .price-deals {
-      border-color: rgba(77,122,11,.28);
-      background:
-        radial-gradient(120% 160% at 0% 0%, rgba(150,200,40,.2), transparent 55%),
-        radial-gradient(90% 140% at 100% 100%, rgba(240,150,40,.1), transparent 60%),
-        linear-gradient(135deg, #fbfdf6, #f0f5e4);
-      box-shadow: 0 8px 22px rgba(40,58,22,.08);
+    /* The pick and its numbers share one row once there is room */
+    @container deals (min-width: 560px) {
+      .deal-card { grid-template-columns: minmax(0, 1fr) auto auto auto auto; grid-template-areas: "main best market edge cta"; gap: 0 16px; }
+      .deal-stat-best { padding-left: 16px; border-left: 1px solid rgba(225,233,229,.08); }
     }
-    html[data-theme="light"] .price-deals h2, html[data-theme="light"] .deal-title, html[data-theme="light"] .deal-empty strong { color: #1b2418; }
-    html[data-theme="light"] .deals-sub, html[data-theme="light"] .deals-counter, html[data-theme="light"] .deal-meta, html[data-theme="light"] .deal-to-win, html[data-theme="light"] .deal-price-typical, html[data-theme="light"] .deal-empty { color: var(--muted); }
-    html[data-theme="light"] .deals-tag { background: rgba(120,170,30,.18); }
-    html[data-theme="light"] .deals-nav { border-color: rgba(77,122,11,.35); background: rgba(120,170,30,.12); color: #2f4d08; }
-    html[data-theme="light"] .deals-nav:hover:not(:disabled) { background: rgba(120,170,30,.24); }
-    html[data-theme="light"] .deal-card { border-color: rgba(47,77,8,.12); background: #fff; }
-    html[data-theme="light"] .deal-empty { border-color: rgba(47,77,8,.2); background: rgba(255,255,255,.6); }
-    html[data-theme="light"] .deal-chip { background: rgba(47,77,8,.07); color: #3b4637; }
-    html[data-theme="light"] .deal-chip.is-top { background: rgba(214,110,10,.14); color: #8a4300; }
-    html[data-theme="light"] .deal-draw-icon { background: rgba(47,77,8,.08); }
-    html[data-theme="light"] .deal-price-value { color: #3d6208; }
-    html[data-theme="light"] .deal-price-book { color: #26301f; }
-    html[data-theme="light"] .deal-saving { border-color: rgba(77,122,11,.42); background: rgba(120,170,30,.12); }
-    html[data-theme="light"] .deal-saving strong { color: #2f4d08; }
-    html[data-theme="light"] .deal-saving span { color: #4c5a45; }
-    html[data-theme="light"] .deal-cta { background: #4d7a0b; color: #fff; }
-    html[data-theme="light"] .deal-cta:hover:not(:disabled) { background: #3d6208; }
-    html[data-theme="light"] .deals-dot::before { background: rgba(47,77,8,.2); }
-    html[data-theme="light"] .deals-dot:hover::before { background: rgba(47,77,8,.4); }
-    html[data-theme="light"] .deals-dot[aria-current="true"]::before { background: #4d7a0b; }
-    html[data-theme="light"] .deals-progress { background: rgba(47,77,8,.1); }
-    html[data-theme="light"] .deals-progress i { background: linear-gradient(90deg, #79a81e, #4d7a0b); }
-    /* Slide layout follows the carousel's own width, which depends on the sidebar as well as the viewport */
-    @container deals (max-width: 760px) {
-      .deal-card { grid-template-columns: minmax(0, 1fr) auto auto; }
-      .deal-main { grid-column: 1 / -1; }
-      .deal-price { text-align: left; }
-      .deal-loading { grid-template-columns: minmax(0, 1fr) 112px 120px; }
-      .deal-loading .skeleton:first-child { grid-column: 1 / -1; }
+    /* Mid widths: one ticker row too, with only the tag icon as the label */
+    @container deals (min-width: 780px) {
+      .deals-bar { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "label slide controls"; gap: 0 14px; min-height: 58px; padding: 0 8px 0 12px; }
+      .deals-label { align-self: stretch; padding-right: 14px; border-right: 1px solid rgba(225,233,229,.08); }
+      .deals-label-icon { width: 30px; height: 30px; border-radius: 8px; }
+      .deals-label-icon svg { width: 15px; height: 15px; }
+      .deals-label > div { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+      .deals-controls { align-self: stretch; padding-left: 10px; border-left: 1px solid rgba(225,233,229,.08); }
+      .deals-viewport { padding: 9px 0; border-top: 0; }
     }
-    @container deals (max-width: 480px) {
-      .deals-viewport { margin-top: 10px; }
-      .deal-card { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 11px 12px; }
-      .deal-title { font-size: 1rem; }
-      .deal-price-value { font-size: 1.4rem; }
-      .deal-saving { min-width: 0; padding: 7px 10px; }
-      .deal-cta { grid-column: 1 / -1; width: 100%; padding: 8px 14px; }
-      .deals-foot { margin-top: 8px; }
-      .deal-loading { grid-template-columns: minmax(0, 1fr) 100px; gap: 12px; }
-      .deal-loading .skeleton:last-child { display: none; }
+    /* Wide screens: the label shows its title and subtitle */
+    @container deals (min-width: 1040px) {
+      .deals-bar { gap: 0 16px; }
+      .deals-label { padding-right: 16px; }
+      .deals-label > div { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+      .deals-sub { display: block; }
     }
+    html[data-theme="light"] .price-deals { border-color: rgba(40,58,22,.14); background: #fff; box-shadow: 0 6px 18px rgba(40,58,22,.07); }
+    html[data-theme="light"] .price-deals h2 { color: #2f4d08; }
+    html[data-theme="light"] .deals-label-icon { background: rgba(120,170,30,.14); color: #3d6208; }
+    html[data-theme="light"] .deals-label, html[data-theme="light"] .deals-controls, html[data-theme="light"] .deals-viewport, html[data-theme="light"] .deal-stat-best { border-color: rgba(40,58,22,.1); }
+    html[data-theme="light"] .deals-nav { color: #3b4637; }
+    html[data-theme="light"] .deals-nav:hover:not(:disabled) { border-color: rgba(40,58,22,.14); background: rgba(47,77,8,.06); color: #1b2418; }
+    html[data-theme="light"] .deal-title, html[data-theme="light"] .deal-empty strong, html[data-theme="light"] .deal-stat-value { color: #1b2418; }
+    html[data-theme="light"] .deal-draw-icon { background: rgba(47,77,8,.08); color: #26301f; }
+    html[data-theme="light"] .deal-stat-label b { color: #26301f; }
+    html[data-theme="light"] .deal-stat-best .deal-stat-value { color: #3d6208; }
+    html[data-theme="light"] .deal-stat-market .deal-stat-value { color: var(--muted); }
+    html[data-theme="light"] .deal-stat-edge .deal-stat-value { background: rgba(120,170,30,.15); color: #2f4d08; }
+    html[data-theme="light"] .deal-cta { border-color: rgba(77,122,11,.4); color: #2f4d08; }
+    html[data-theme="light"] .deal-cta:hover:not(:disabled) { border-color: #4d7a0b; background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] .deals-progress i { background: rgba(77,122,11,.65); }
     @media (max-width: 560px) {
-      .price-deals { grid-area: deals; margin: 10px 13px 0; padding: 11px 12px 8px; }
-      .deals-tag { display: none; }
-      .price-deals h2 { font-size: .95rem; }
-      .deals-sub { font-size: .68rem; }
-      .deals-sub-long { display: none; }
-      .deals-sub-short { display: inline; }
-      .deals-counter { display: none; }
-      .deals-nav { width: 30px; height: 30px; }
-    }
-    @media (max-width: 380px) {
-      .deals-sub { font-size: .66rem; }
-    }
-    @supports not (container-type: inline-size) {
-      @media (max-width: 560px) {
-        .deal-card { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 11px 12px; }
-        .deal-main, .deal-cta { grid-column: 1 / -1; }
-        .deal-price { text-align: left; }
-        .deal-saving { min-width: 0; }
-        .deal-cta { width: 100%; }
-      }
+      .price-deals { grid-area: deals; margin: 10px 13px 0; }
     }
     @media (prefers-reduced-motion: reduce) {
       .deal-slide.is-active, .deal-slide.is-leaving, .deal-spotlight { animation: none; }
       .deal-slide.is-leaving { visibility: hidden; opacity: 0; }
-      .deals-dot, .deals-dot::before { transition: none; }
+      .deal-cta { transition: none; }
       .deals-progress, #deals-pause { display: none; }
     }
   </style>
@@ -2108,26 +2064,23 @@
 
     <div class="app-content">
       <section id="price-deals" class="price-deals" aria-roledescription="carousel" aria-labelledby="price-deals-title" hidden>
-        <div class="deals-head">
-          <div class="deals-heading">
-            <span class="deals-tag" aria-hidden="true">🏷️</span>
+        <div class="deals-bar">
+          <div class="deals-label">
+            <span class="deals-label-icon" title="Top discounts" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M1.75 8.4V2.75a1 1 0 0 1 1-1H8.4l5.85 5.85a1 1 0 0 1 0 1.41l-5.24 5.24a1 1 0 0 1-1.41 0z"/><circle cx="5.25" cy="5.25" r="1.1"/></svg></span>
             <div>
-              <h2 id="price-deals-title">Don't-miss discounts</h2>
-              <p class="deals-sub"><span class="deals-sub-long">Sportsbooks paying more than the rest of the market right now</span><span class="deals-sub-short">Paying more than the market</span> · prices, not predictions</p>
+              <h2 id="price-deals-title">Top discounts</h2>
+              <p class="deals-sub">Best odds vs. the market</p>
             </div>
           </div>
+          <div id="deals-viewport" class="deals-viewport" aria-live="off"></div>
           <div class="deals-controls">
+            <button type="button" id="deals-prev" class="deals-nav" aria-label="Previous discount"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button>
             <span id="deals-counter" class="deals-counter" aria-hidden="true"></span>
-            <button type="button" id="deals-prev" class="deals-nav" aria-label="Previous discount"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
-            <button type="button" id="deals-pause" class="deals-nav" aria-label="Pause slides"><svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg></button>
             <button type="button" id="deals-next" class="deals-nav" aria-label="Next discount"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
+            <button type="button" id="deals-pause" class="deals-nav" aria-label="Pause slides"><svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg></button>
           </div>
         </div>
-        <div id="deals-viewport" class="deals-viewport" aria-live="off"></div>
-        <div class="deals-foot">
-          <div id="deals-dots" class="deals-dots" role="group" aria-label="Choose a discount"></div>
-          <div class="deals-progress" aria-hidden="true"><i id="deals-progress-bar"></i></div>
-        </div>
+        <div class="deals-progress" aria-hidden="true"><i id="deals-progress-bar"></i></div>
       </section>
       <header class="topbar">
         <div class="topbar-heading">
@@ -2706,7 +2659,6 @@
     const upcomingCountElement = document.querySelector("#upcoming-count");
     const priceDealsElement = document.querySelector("#price-deals");
     const dealsViewport = document.querySelector("#deals-viewport");
-    const dealsDotsElement = document.querySelector("#deals-dots");
     const dealsCounterElement = document.querySelector("#deals-counter");
     const dealsProgressBar = document.querySelector("#deals-progress-bar");
     const dealsPauseButton = document.querySelector("#deals-pause");
@@ -3308,7 +3260,6 @@
       window.clearTimeout(priceDealsState.leaveTimer);
       priceDealsElement.hidden = false;
       priceDealsElement.removeAttribute("aria-busy");
-      dealsDotsElement.replaceChildren();
       dealsCounterElement.textContent = "";
 
       if (events === null) {
@@ -3333,29 +3284,18 @@
       if (!deals.length) {
         priceDealsState.index = 0;
         const empty = element("div", "deal-empty");
-        const icon = element("span", "deal-empty-icon", "🔎");
-        icon.setAttribute("aria-hidden", "true");
-        const text = element("div");
-        text.append(
-          element("strong", "", "No standout discounts right now"),
+        empty.append(
+          element("strong", "", "No standout discounts right now."),
           element("span", "", events.length
-            ? "Every sportsbook is pricing these games close to the market. Prices move all day — check back closer to game time."
+            ? "Every sportsbook is pricing these games close to the market — check back closer to game time."
             : "There are no upcoming games with odds for this sport yet.")
         );
-        empty.append(icon, text);
         dealsViewport.replaceChildren(empty);
         restartDealsProgress();
         return;
       }
 
       dealsViewport.replaceChildren(...deals.map((deal, index) => createDealSlide(deal, index, deals.length)));
-      dealsDotsElement.replaceChildren(...deals.map((deal, index) => {
-        const dot = element("button", "deals-dot");
-        dot.type = "button";
-        dot.setAttribute("aria-label", `Show discount ${index + 1}: ${deal.outcome} at ${deal.book}`);
-        dot.addEventListener("click", () => showDeal(index, index < priceDealsState.index ? "prev" : "next"));
-        return dot;
-      }));
       const keep = previous ? deals.findIndex(deal => dealKey(deal) === dealKey(previous)) : -1;
       showDeal(Math.max(0, keep), "none");
     }
@@ -3372,7 +3312,6 @@
       priceDealsState.sport = "";
       priceDealsElement.hidden = true;
       dealsViewport.replaceChildren();
-      dealsDotsElement.replaceChildren();
       restartDealsProgress();
     }
 
@@ -3401,45 +3340,48 @@
       slide.setAttribute("aria-label", `${index + 1} of ${total}`);
       const card = element("div", "deal-card");
 
-      const chips = element("div", "deal-chips");
-      chips.append(element("span", index === 0 ? "deal-chip is-top" : "deal-chip", index === 0 ? "🔥 Top discount" : `#${index + 1} discount`));
-      const when = [sportSelect.selectedOptions[0]?.textContent?.trim(), formatDealTime(deal.start)].filter(Boolean).join(" · ");
-      if (when) chips.append(element("span", "deal-chip", when));
-
       const main = element("div", "deal-main");
       const title = element("div", "deal-title");
       if (/^draw$/i.test(deal.outcome)) {
-        const icon = element("span", "deal-draw-icon", "🤝");
+        const icon = element("span", "deal-draw-icon", "X");
         icon.setAttribute("aria-hidden", "true");
         title.append(icon, element("span", "team-identity-name", "Draw"));
       } else {
         title.append(createTeamIdentity(dealTeam(deal), deal.outcome), element("span", "deal-to-win", "to win"));
       }
-      main.append(title, element("p", "deal-meta", `${deal.away || "Away"} @ ${deal.home || "Home"} · ${deal.books} books compared`));
+      const meta = [
+        sportSelect.selectedOptions[0]?.textContent?.trim(),
+        formatDealTime(deal.start),
+        `${deal.away || "Away"} @ ${deal.home || "Home"}`,
+        `${deal.books} books`
+      ].filter(Boolean).join(" · ");
+      main.append(title, element("p", "deal-meta", meta));
 
-      const price = element("div", "deal-price");
-      const typical = element("span", "deal-price-typical", "Typical book ");
-      typical.append(element("s", "", formatAmericanOdds(deal.typical)));
-      price.append(
-        element("span", "deal-price-value", formatAmericanOdds(deal.price)),
-        element("span", "deal-price-book", `at ${deal.book}`),
-        typical
-      );
-
-      const saving = element("div", "deal-saving");
+      const stat = (name, label, value) => {
+        const box = element("div", `deal-stat deal-stat-${name}`);
+        box.append(label, value);
+        return box;
+      };
+      const bestLabel = element("span", "deal-stat-label", "Best · ");
+      bestLabel.append(element("b", "", deal.book));
+      const best = stat("best", bestLabel, element("span", "deal-stat-value", formatAmericanOdds(deal.price)));
+      best.title = `Best price, at ${deal.book}`;
+      const market = stat("market", element("span", "deal-stat-label", "Market"), element("span", "deal-stat-value", formatAmericanOdds(deal.typical)));
+      market.title = `Typical price at the other ${deal.books - 1} sportsbooks`;
       const extra = (deal.price - deal.typical) * 100;
-      saving.append(
-        element("strong", "", `+${(deal.edge * 100).toFixed(1)}% vs market`),
-        element("span", "", `+$${extra >= 1 ? extra.toFixed(0) : extra.toFixed(2)} extra per $100 bet`)
-      );
-      saving.title = `The other ${deal.books - 1} sportsbooks, with their margin removed, give ${deal.outcome === "Draw" ? "a draw" : deal.outcome} about a ${(deal.probability * 100).toFixed(1)}% chance. ${deal.book} pays more than that fair price — a better price, not a guaranteed win.`;
+      const extraText = `+$${extra >= 1 ? extra.toFixed(0) : extra.toFixed(2)} extra per $100 bet`;
+      const edgeValue = element("span", "deal-stat-value", `+${(deal.edge * 100).toFixed(1)}%`);
+      edgeValue.append(element("span", "visually-hidden", ` vs market, ${extraText}`));
+      const edge = stat("edge", element("span", "deal-stat-label", "Discount"), edgeValue);
+      edge.title = `${extraText} than the typical book. The other ${deal.books - 1} sportsbooks, with their margin removed, give ${deal.outcome === "Draw" ? "a draw" : deal.outcome} about a ${(deal.probability * 100).toFixed(1)}% chance. ${deal.book} pays more than that fair price — a better price, not a guaranteed win.`;
 
-      const cta = element("button", "deal-cta", "Compare odds →");
+      const cta = element("button", "deal-cta", "Compare");
+      cta.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>');
       cta.type = "button";
       cta.setAttribute("aria-label", `Compare all sportsbook odds for ${deal.away || "Away"} at ${deal.home || "Home"}`);
       cta.addEventListener("click", () => openDealMatch(deal.eventId));
 
-      card.append(chips, main, price, saving, cta);
+      card.append(main, best, market, edge, cta);
       slide.append(card);
       return slide;
     }
@@ -3462,7 +3404,6 @@
         slide.inert = !active;
         slide.setAttribute("aria-hidden", String(!active));
       });
-      [...dealsDotsElement.children].forEach((dot, dotIndex) => dot.setAttribute("aria-current", String(dotIndex === nextIndex)));
       priceDealsState.index = nextIndex;
       dealsCounterElement.textContent = `${nextIndex + 1} / ${slides.length}`;
       restartDealsProgress();
