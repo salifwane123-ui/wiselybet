@@ -1302,6 +1302,13 @@
     .tracker-parlay.tone-hype .tracker-parlay-badge { background: rgba(61,220,132,.22); color: #8dffbd; }
     .tracker-parlay.tone-bad .tracker-parlay-badge { background: rgba(255,77,77,.22); color: #ffb0b0; }
     .tracker-leg-game { margin: 0 0 4px; color: #aab3c2; font-size: .6rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+    /* Card header: the matchup and player sit on a slightly raised band so each pick is easy to scan */
+    .tracker-card-head { margin: -8px -10px 7px; padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05); }
+    .tracker-card-head .tracker-leg-game { margin: 0 0 3px; color: #bcc5d1; font-size: .62rem; }
+    .tracker-card-head .tracker-top h3 { color: #f4f6f9; font-size: .84rem; font-weight: 800; letter-spacing: -.005em; line-height: 1.3; }
+    .tracker-card-head .tracker-stat-tag { margin-left: 6px; padding: 1px 7px; background: rgba(255,255,255,.1); color: #d5dbe3; vertical-align: 1px; }
+    .tracker-card-head .tracker-remove { padding: 2px 8px; border-color: rgba(255,255,255,.14); color: #c3cad4; }
+    .tracker-card-head .tracker-remove:hover:not(:disabled) { border-color: rgba(255,107,107,.55); background: rgba(255,90,90,.12); color: #ffb3b3; }
     .tracker-filter { margin-bottom: 6px; }
     .tracker-filter[hidden] { display: none; }
     .tracker-filter select { width: 100%; padding: 5px 8px; border: 1px solid #c9ef5b; border-radius: 8px; background: #0f1a24; color: #e7f7b0; font-size: .72rem; font-weight: 750; cursor: pointer; }
@@ -1585,6 +1592,12 @@
     html[data-theme="light"] .track-meaning { color: #6b4700; }
     html[data-theme="light"] .track-meaning.is-under { color: #12608f; }
     html[data-theme="light"] .tracker-remove { border-color: rgba(40,58,22,.25); color: #5b6658; }
+    html[data-theme="light"] .tracker-card-head { border-bottom-color: rgba(40,58,22,.1); background: rgba(40,58,22,.045); }
+    html[data-theme="light"] .tracker-card-head .tracker-leg-game { color: #46523f; }
+    html[data-theme="light"] .tracker-card-head .tracker-top h3 { color: #17200f; }
+    html[data-theme="light"] .tracker-card-head .tracker-stat-tag { background: rgba(40,58,22,.1); color: #34402d; }
+    html[data-theme="light"] .tracker-card-head .tracker-remove { border-color: rgba(40,58,22,.25); color: #46523f; }
+    html[data-theme="light"] .tracker-card-head .tracker-remove:hover:not(:disabled) { border-color: rgba(185,43,43,.45); background: #fdeaea; color: #b92b2b; }
     html[data-theme="light"] .tracker-bar { background: rgba(40,58,22,.14); }
     html[data-theme="light"] .tracker-mini strong { color: #1b2418; }
     html[data-theme="light"] .tracker-note { color: #46523f; }
@@ -8032,7 +8045,9 @@
         const verdictInfo = performanceVerdict(tracker, snapshot, assessment);
         const verdictBox = element("div", `tracker-verdict tone-${verdictInfo.tone}`);
         verdictBox.append(element("strong", "", verdictInfo.title), element("p", "", verdictInfo.text));
-        card.append(top);
+        const head = element("header", "tracker-card-head");
+        head.append(top);
+        card.append(head);
         if (snapshot.state !== "post") card.append(createParlayPicker(tracker));
         const legParlay = parlays.find(item => item.id === tracker.parlay);
         if (legParlay?.sportsbook && tracker.bookLine?.book === legParlay.sportsbook && tracker.requestedTarget !== undefined) {
@@ -8104,8 +8119,8 @@
         if (legs.length) {
           for (const tracker of legs) {
             const card = cards[trackers.indexOf(tracker)];
-            const matchup = element("p", "tracker-leg-game",             `${sportEmoji(tracker)} ${tracker.away} @ ${tracker.home}`);
-            card.prepend(matchup);
+            const matchup = element("p", "tracker-leg-game", `${sportEmoji(tracker)} ${tracker.away} @ ${tracker.home}`);
+            card.querySelector(".tracker-card-head").prepend(matchup);
             group.append(card);
           }
         } else {
