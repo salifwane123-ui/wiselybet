@@ -1120,6 +1120,14 @@
     .tracker-dot.is-final { animation: none; box-shadow: none; opacity: .75; outline: 1px solid rgba(255,255,255,.35); outline-offset: 1px; }
     #tracker-panel { max-height: 72vh; margin-bottom: 6px; padding: 8px; overflow-y: auto; border: 1px solid #2d3e50; border-radius: 10px; background: #0f1a24; box-shadow: 0 10px 28px rgba(0,0,0,.5); scrollbar-width: thin; }
     .tracker-window-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); align-items: start; gap: 8px; }
+    /* The dock grows with the number of tracking windows instead of always spanning 920px. */
+    @media (min-width: 561px) {
+      #tracker-dock { transition: width .35s cubic-bezier(.2,.9,.3,1); }
+      #tracker-dock[data-windows="0"], #tracker-dock[data-windows="1"] { width: min(440px, calc(100vw - 32px)); }
+      #tracker-dock[data-windows="2"] { width: min(680px, calc(100vw - 32px)); }
+      html.embed #tracker-dock[data-windows="0"], html.embed #tracker-dock[data-windows="1"] { width: min(440px, calc(100vw - 48px)); }
+      html.embed #tracker-dock[data-windows="2"] { width: min(600px, calc(100vw - 48px)); }
+    }
     .tracker-window { --window-pad: 9px; --window-tint: rgba(201,239,91,.035); --window-base: #0f1a24; min-width: 0; max-height: 58vh; margin: 0; padding: var(--window-pad); overflow: auto; border: 1px solid rgba(201,239,91,.3); border-radius: 12px; background: var(--window-tint); scrollbar-width: thin; }
     .tracker-window { overflow-x: hidden; }
     .tracker-window-enter { animation: tracker-window-enter .32s cubic-bezier(.2,.9,.3,1) both; }
@@ -6765,6 +6773,7 @@
       }
 
       syncParlayFilter();
+      trackerPanel.parentElement.dataset.windows = String(Math.min(groupedCards.length, 3));
       if (groupedCards.length) {
         const windows = element("div", "tracker-window-grid");
         windows.setAttribute("aria-label", "Parlay and single-pick tracking windows");
