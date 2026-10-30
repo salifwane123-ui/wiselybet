@@ -1019,6 +1019,11 @@
     #bell-panel[hidden] { display: none; }
     .bell-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(145,161,179,.15); font-size: .85rem; }
     .bell-head button { width: auto; min-height: 0; padding: 3px 10px; font-size: .72rem; }
+    .bell-head-actions { display: flex; gap: 6px; }
+    #bell-test { border: 1px solid rgba(201,239,91,.45); background: transparent; color: #c9ef5b; }
+    #bell-test:hover:not(:disabled) { background: rgba(201,239,91,.16); }
+    html[data-theme="light"] #bell-test { border-color: rgba(77,122,11,.5); color: #3d6208; }
+    html[data-theme="light"] #bell-test:hover:not(:disabled) { background: rgba(120,170,30,.16); }
     #bell-list { margin: 0; padding: 0; max-height: 360px; overflow-y: auto; list-style: none; }
     #bell-list li { display: grid; gap: 2px; padding: 9px 14px; border-top: 1px solid rgba(145,161,179,.1); font-size: .8rem; }
     #bell-list li:first-child { border-top: 0; }
@@ -1818,7 +1823,7 @@
           <div id="bell-wrap">
             <button id="bell-button" type="button" aria-label="Notifications" aria-expanded="false" aria-controls="bell-panel"><span class="bell-glyph" aria-hidden="true">🔔</span><span id="bell-badge" hidden></span></button>
             <div id="bell-panel" role="dialog" aria-label="Last 10 updates" hidden>
-              <div class="bell-head"><strong>Last 10 updates</strong><button id="bell-clear" type="button">Clear</button></div>
+              <div class="bell-head"><strong>Last 10 updates</strong><span class="bell-head-actions"><button id="bell-test" type="button" title="Send a sample notification">🔔 Test</button><button id="bell-clear" type="button">Clear</button></span></div>
               <ul id="bell-list"></ul>
             </div>
           </div>
@@ -3819,6 +3824,21 @@
       renderBell();
     });
     renderBell();
+
+    const testAlerts = [
+      ["score", "🔔 Test: LeBron James just hit 25+ PTS!"],
+      ["foul", "🔔 Test: Jayson Tatum picked up his 4th foul."],
+      ["injury", "🔔 Test: Stephen Curry is questionable to return (ankle)."],
+      ["score", "🔔 Test: Your parlay is 2 of 3 — one pick to go!"]
+    ];
+    let testAlertIndex = 0;
+    // Closes the panel first so the full bell animation and unread badge are visible.
+    document.querySelector("#bell-test").addEventListener("click", event => {
+      event.stopPropagation();
+      setBellOpen(false);
+      const [kind, text] = testAlerts[testAlertIndex++ % testAlerts.length];
+      window.setTimeout(() => pushNotification(kind, text, { force: true }), 150);
+    });
 
     function renderNotificationFeed() {
       notificationFeedElement.replaceChildren(...notificationFeed.map((entry, index) => {
