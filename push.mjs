@@ -141,6 +141,77 @@ function injuryText(name, injury) {
   return `${name} injury report: ${injury.status}${injury.detail ? ` — ${injury.detail}` : ""}`;
 }
 
+// Alerts for one tracked pick from the latest box score, plus the state to compare against next time.
+// Over and Under share the stored threshold (target = floor(line) + 1, so the line is target − 0.5):
+// an Over hits once the stat reaches the target; an Under busts there and wins if the game ends below it.
+// Picks saved before Unders existed have no side and are Overs.
+export function trackerAlerts(tracker, previous, game, allowed = () => true) {
+  const messages = [];
+  const athlete = findAthlete(game, tracker.name);
+  const stats = deriveStats(tracker.sport, tracker.stat, athlete);
+  const current = Number.parseInt(stats[tracker.stat], 10) || 0;
+  const target = Number(tracker.target);
+  const label = statNames[tracker.stat] || tracker.stat;
+  const under = tracker.side === "under";
+  const line = target - 0.5;
+  const hockeyLike = tracker.sport !== "basketball_nba" && tracker.sport !== "basketball_wnba";
+  const fouls = hockeyLike ? 0 : Number.parseInt(stats.PF, 10) || 0;
+  const onCourt = athlete ? (hockeyLike || Boolean(athlete.onCourt)) : true;
+  const injuryEntry = (game.injuries || []).find(item => normalize(item.name) === normalize(tracker.name));
+  const injury = injuryEntry ? { status: injuryEntry.status, detail: injuryEntry.detail } : null;
+  const injuryKey = injury ? `${injury.status}|${injury.detail}` : "";
+  // A fouled-out player can't add to his line, so his Under is already safe.
+  const lockedNow = under && fouls >= 6 && current < target;
+  const next = { current, fouls, onCourt, injuryKey, hit: previous?.hit || false, close: previous?.close || false, done: false };
+  if (under) next.locked = previous?.locked || false;
+  if (previous) {
+    if (current >= target && !next.hit) {
+      if (allowed("score")) {
+        messages.push(under
+          ? { title: "❌ Under busted", body: `${tracker.name} went over ${line} ${label} (${current}).`, tag: `hit-${tracker.key}` }
+          : { title: "🎉 Target hit", body: `${tracker.name} reached ${target} ${label}!`, tag: `hit-${tracker.key}` });
+      }
+    } else if (current < target && !next.close && game.state === "in" && current > previous.current && target - current <= Math.max(1, Math.round(target * 0.1))) {
+      next.close = true;
+      if (allowed("score")) {
+        const spare = target - 1 - current;
+        messages.push(under
+          ? { title: "⚠️ Close to the line", body: `${tracker.name} has ${current} ${label} — ${spare ? `${spare} to spare` : "nothing to spare"} on Under ${line}.`, tag: `close-${tracker.key}` }
+          : { title: "🔥 Close to target", body: `${tracker.name} has ${current}/${target} ${label}.`, tag: `close-${tracker.key}` });
+      }
+    }
+    if (previous.current < target) {
+      if (game.state === "in" && athlete && onCourt !== previous.onCourt && allowed("court")) {
+        messages.push({ title: "Court update", body: onCourt ? `${tracker.name} is on the court.` : `${tracker.name} went to the bench.`, tag: `court-${tracker.key}` });
+      }
+      if (fouls > previous.fouls && allowed("foul")) messages.push({ title: "Foul", body: `${tracker.name} committed a foul (${fouls} PF).`, tag: `foul-${tracker.key}` });
+      if (injury && injuryKey !== previous.injuryKey && allowed("injury")) messages.push({ title: "Injury report", body: injuryText(tracker.name, injury), tag: `inj-${tracker.key}` });
+    }
+    if (lockedNow && !next.locked && game.state === "in" && allowed("score")) {
+      messages.push({ title: "✅ Under locked", body: `${tracker.name} fouled out with ${current} ${label} — Under ${line} is safe.`, tag: `lock-${tracker.key}` });
+    }
+  }
+  next.hit = next.hit || current >= target;
+  if (under) next.locked = next.locked || lockedNow;
+  if (game.state === "post" && previous) {
+    next.done = true;
+    if (allowed("score")) {
+      if (under && !athlete) {
+        // Sportsbooks refund props on players who don't play.
+        messages.push({ title: "↩️ Final — no action", body: `${tracker.name} didn't play, so Under ${line} ${label} is void.`, tag: `final-${tracker.key}` });
+      } else {
+        const hit = under ? current < target : current >= target;
+        messages.push({
+          title: hit ? "✅ Final — pick hit" : "❌ Final — pick missed",
+          body: under ? `${tracker.name} finished with ${current} ${label} (Under ${line}).` : `${tracker.name} finished with ${current} ${label} (target ${target}).`,
+          tag: `final-${tracker.key}`
+        });
+      }
+    }
+  }
+  return { next, messages };
+}
+
 async function checkUser({ userKey, data }, fetchGame) {
   let subs, trackers, followed, settings;
   try {
@@ -177,46 +248,9 @@ async function checkUser({ userKey, data }, fetchGame) {
     if (previous?.done) continue;
     const game = await gameFor(tracker);
     if (!game?.teams) continue;
-    const athlete = findAthlete(game, tracker.name);
-    const stats = deriveStats(tracker.sport, tracker.stat, athlete);
-    const current = Number.parseInt(stats[tracker.stat], 10) || 0;
-    const target = Number(tracker.target);
-    const label = statNames[tracker.stat] || tracker.stat;
-    const hockeyLike = tracker.sport !== "basketball_nba" && tracker.sport !== "basketball_wnba";
-    const fouls = hockeyLike ? 0 : Number.parseInt(stats.PF, 10) || 0;
-    const onCourt = athlete ? (hockeyLike || Boolean(athlete.onCourt)) : true;
-    const injuryEntry = (game.injuries || []).find(item => normalize(item.name) === normalize(tracker.name));
-    const injury = injuryEntry ? { status: injuryEntry.status, detail: injuryEntry.detail } : null;
-    const injuryKey = injury ? `${injury.status}|${injury.detail}` : "";
-    const next = { current, fouls, onCourt, injuryKey, hit: previous?.hit || false, close: previous?.close || false, done: false };
-    if (previous) {
-      if (current >= target && !next.hit) {
-        if (allowed("score")) messages.push({ title: "🎉 Target hit", body: `${tracker.name} reached ${target} ${label}!`, tag: `hit-${tracker.key}` });
-      } else if (current < target && !next.close && game.state === "in" && current > previous.current && target - current <= Math.max(1, Math.round(target * 0.1))) {
-        next.close = true;
-        if (allowed("score")) messages.push({ title: "🔥 Close to target", body: `${tracker.name} has ${current}/${target} ${label}.`, tag: `close-${tracker.key}` });
-      }
-      if (previous.current < target) {
-        if (game.state === "in" && athlete && onCourt !== previous.onCourt && allowed("court")) {
-          messages.push({ title: "Court update", body: onCourt ? `${tracker.name} is on the court.` : `${tracker.name} went to the bench.`, tag: `court-${tracker.key}` });
-        }
-        if (fouls > previous.fouls && allowed("foul")) messages.push({ title: "Foul", body: `${tracker.name} committed a foul (${fouls} PF).`, tag: `foul-${tracker.key}` });
-        if (injury && injuryKey !== previous.injuryKey && allowed("injury")) messages.push({ title: "Injury report", body: injuryText(tracker.name, injury), tag: `inj-${tracker.key}` });
-      }
-    }
-    next.hit = next.hit || current >= target;
-    if (game.state === "post" && previous) {
-      next.done = true;
-      if (allowed("score")) {
-        const hit = current >= target;
-        messages.push({
-          title: hit ? "✅ Final — pick hit" : "❌ Final — pick missed",
-          body: `${tracker.name} finished with ${current} ${label} (target ${target}).`,
-          tag: `final-${tracker.key}`
-        });
-      }
-    }
-    userState.set(id, next);
+    const result = trackerAlerts(tracker, previous, game, allowed);
+    messages.push(...result.messages);
+    userState.set(id, result.next);
   }
 
   const trackedNames = new Set(activeTrackers.map(item => normalize(item.name)));

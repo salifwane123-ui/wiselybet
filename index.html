@@ -1125,6 +1125,9 @@
     .track-form select, .track-form input { width: auto; min-width: 0; padding: 5px 8px; font-size: .78rem; }
     .track-form input { width: 70px; }
     .track-form button { padding: 6px 12px; font-size: .76rem; }
+    .track-meaning { color: #f5d58a; font-size: .72rem; font-weight: 750; white-space: nowrap; }
+    .track-meaning.is-under { color: #8fe3ff; }
+    .track-meaning:empty { display: none; }
     #tracker-dock { position: fixed; right: 16px; bottom: 16px; z-index: 60; width: min(920px, calc(100vw - 32px)); }
     #tracker-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 7px 12px; border: 1px solid rgba(118,224,189,.35); border-radius: 10px; background: #12202b; color: #f0eff7; font-size: .76rem; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
     #tracker-toggle .tracker-dots { display: flex; flex: 0 1 auto; align-items: stretch; min-width: 0; margin-left: auto; overflow: hidden; border: 1px solid rgba(255,255,255,.09); border-radius: 999px; background: rgba(0,0,0,.28); }
@@ -1147,6 +1150,9 @@
     .tracker-dot.level-close { background: #f5c542; }
     .tracker-dot.level-far { background: #ff5a5a; animation: dot-alarm 1s ease-in-out infinite; }
     .tracker-dot.is-final { animation: none; box-shadow: none; opacity: .75; outline: 1px solid rgba(255,255,255,.35); outline-offset: 1px; }
+    /* Under picks get a downward triangle instead of a round dot. */
+    .tracker-dot.is-under { border-radius: 0; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+    .tracker-dot-group .tracker-dot.is-under { width: 9px; height: 8px; }
     #tracker-panel { max-height: 72vh; margin-bottom: 6px; padding: 8px; overflow-y: auto; border: 1px solid #2d3e50; border-radius: 10px; background: #0f1a24; box-shadow: 0 10px 28px rgba(0,0,0,.5); scrollbar-width: thin; }
     .tracker-window-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); align-items: start; gap: 8px; }
     /* The dock grows with the number of tracking windows instead of always spanning 920px. */
@@ -1274,6 +1280,8 @@
     .tracker-court-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #ff3b3b; box-shadow: 0 0 6px #ff3b3b; vertical-align: middle; animation: court-dot-pulse 1.6s ease-in-out infinite; }
     @keyframes court-dot-pulse { 50% { opacity: .45; box-shadow: 0 0 2px #ff3b3b; } }
     .tracker-stat-tag { margin-left: 5px; padding: 0 6px; border-radius: 99px; background: rgba(145,161,179,.18); color: var(--muted); font-size: .6rem; font-weight: 750; }
+    .tracker-side { margin-left: 6px; padding: 1px 7px; border-radius: 99px; background: rgba(61,220,132,.14); color: #7dffb0; font-size: .58rem; font-weight: 850; letter-spacing: .05em; line-height: 1.5; text-transform: uppercase; white-space: nowrap; }
+    .tracker-side.is-under { background: rgba(95,212,255,.16); color: #8fe3ff; }
     .tracker-remove { width: auto; min-height: 0; padding: 1px 7px; border: 1px solid #2d3e50; border-radius: 6px; background: transparent; color: var(--muted); font-size: .62rem; font-weight: 600; line-height: 1.4; }
     .tracker-score { position: relative; display: flex; align-items: baseline; gap: 3px; margin: 3px 0 4px; font-variant-numeric: tabular-nums; }
     .tracker-current { font-size: 1.3rem; font-weight: 850; line-height: 1; }
@@ -1581,6 +1589,10 @@
     html[data-theme="light"] .tracker-report.tone-bad summary, html[data-theme="light"] .tracker-report.tone-bad b { color: #b92b2b; }
     html[data-theme="light"] .tracker-report-mail { color: #5b6658; }
     html[data-theme="light"] .tracker-stat-tag { background: rgba(40,58,22,.1); color: #46523f; }
+    html[data-theme="light"] .tracker-side { background: rgba(31,122,66,.12); color: #1f7a42; }
+    html[data-theme="light"] .tracker-side.is-under { background: rgba(18,96,143,.12); color: #12608f; }
+    html[data-theme="light"] .track-meaning { color: #6b4700; }
+    html[data-theme="light"] .track-meaning.is-under { color: #12608f; }
     html[data-theme="light"] .tracker-remove { border-color: rgba(40,58,22,.25); color: #5b6658; }
     html[data-theme="light"] .tracker-bar { background: rgba(40,58,22,.14); }
     html[data-theme="light"] .tracker-mini strong { color: #1b2418; }
@@ -4610,6 +4622,37 @@
     function sportEmoji(tracker) {
       return tracker.sport === "icehockey_nhl" ? "🏒" : tracker.sport === "baseball_mlb" ? "⚾" : isFootballSport(tracker.sport) ? "🏈" : "🏀";
     }
+    // Over and Under picks share one stored threshold: target = floor(line) + 1, so the book line is target − 0.5.
+    // An Over wins once the stat reaches the target. An Under loses the moment it does, and wins when the game ends
+    // (or he fouls out) below it. Picks saved before Unders existed have no side and are Overs.
+    function trackerSide(tracker) {
+      return tracker?.side === "under" ? "under" : "over";
+    }
+    function isUnderPick(tracker) {
+      return trackerSide(tracker) === "under";
+    }
+    function pickLine(target) {
+      return Number(target) - 0.5;
+    }
+    // "25+" for an Over, "Under 24.5" for an Under.
+    function pickGoal(tracker, target = tracker.target) {
+      return isUnderPick(tracker) ? `Under ${pickLine(target)}` : `${target}+`;
+    }
+    // "26/25 PTS" for an Over, "21 PTS (Under 24.5)" for an Under.
+    function pickScore(tracker, current, target = tracker.target) {
+      const short = trackerStats[tracker.stat]?.short || tracker.stat;
+      return isUnderPick(tracker) ? `${current} ${short} (Under ${pickLine(target)})` : `${current}/${target} ${short}`;
+    }
+    // "won", "lost", "live" or "void". An Under is void when the game ends without him in the box score,
+    // because sportsbooks refund props on players who don't play.
+    function pickOutcome(tracker, snapshot) {
+      const reached = (Number(snapshot?.current) || 0) >= Number(tracker.target);
+      const finished = snapshot?.state === "post" || snapshot?.fouls >= 6;
+      if (!isUnderPick(tracker)) return reached ? "won" : finished ? "lost" : "live";
+      if (reached) return "lost";
+      if (snapshot?.state === "post" && snapshot.found === false) return "void";
+      return finished ? "won" : "live";
+    }
     const trackerSnapshots = new Map();
     const trackerToggle = document.querySelector("#tracker-toggle");
     const trackerPanel = document.querySelector("#tracker-panel");
@@ -4733,7 +4776,7 @@
       const intro = element("p", "parlay-delete-intro", `This parlay contains ${count}. Choose what happens to ${legs.length === 1 ? "it" : "them"}.`);
       const list = element("ul", "parlay-delete-legs");
       for (const tracker of legs.slice(0, 5)) {
-        list.append(element("li", "", `${sportEmoji(tracker)} ${tracker.name} · ${tracker.requestedTarget ?? tracker.target}+ ${trackerStats[tracker.stat]?.short || tracker.stat}`));
+        list.append(element("li", "", `${sportEmoji(tracker)} ${tracker.name} · ${pickGoal(tracker, tracker.requestedTarget ?? tracker.target)} ${trackerStats[tracker.stat]?.short || tracker.stat}`));
       }
       if (legs.length > 5) list.append(element("li", "parlay-delete-more", `+ ${legs.length - 5} more`));
       const option = (className, titleText, detail, onChoose) => {
@@ -4779,7 +4822,7 @@
     }
 
     // Asks where a newly tracked pick belongs. Resolves to a parlay id, "" for a single pick, or null when cancelled.
-    function choosePickPlacement(name, stat, target) {
+    function choosePickPlacement(name, stat, target, side = "over") {
       return new Promise(resolve => {
         document.querySelector("#pick-placement")?.close();
         const dialog = document.createElement("dialog");
@@ -4788,7 +4831,7 @@
         const body = element("div", "pick-placement-body");
         const heading = element("h2", "", "Where should this pick go?");
         heading.id = "pick-placement-title";
-        body.append(heading, element("p", "", `${name} · ${target}+ ${trackerStats[stat].label}`));
+        body.append(heading, element("p", "", `${name} · ${pickGoal({ side }, target)} ${trackerStats[stat].label}`));
         let result = null;
         const finish = value => {
           result = value;
@@ -4931,10 +4974,10 @@
       const map = marketToTrackerStatBySport[tracker.sport] || {};
       return Object.keys(map).find(market => map[market] === tracker.stat) || "";
     }
-    // "Over X.5" settles as a win at X+1, so the requested line is target − 0.5. Prefer that line, then the nearest
-    // easier (lower) line from the book's main or alternate lines. Only move to a harder line when no lower line
-    // exists and it is still priced as a favourite (negative American odds).
-    function chooseBookLine(offers, target) {
+    // "Over X.5" wins and "Under X.5" loses at X+1, so the requested line is target − 0.5 for both. Prefer that line,
+    // then the nearest easier line from the book's main or alternate lines (lower for an Over, higher for an Under).
+    // Only move to a harder line when no easier line exists and it is still priced as a favourite (negative American odds).
+    function chooseBookLine(offers, target, side = "over") {
       const wanted = target - 0.5;
       // Same line in the main and alternate markets: keep the one with a direct betslip link, then the better price.
       const better = (a, b) => (a.direct !== b.direct ? (a.direct ? a : b) : (Number(a.price) >= Number(b.price) ? a : b));
@@ -4947,10 +4990,13 @@
       const exact = lines.find(offer => Math.abs(offer.point - wanted) < 1e-9);
       if (exact) return { offer: exact, kind: "exact" };
       const lower = lines.filter(offer => offer.point < wanted).sort((a, b) => b.point - a.point)[0];
-      if (lower) return { offer: lower, kind: "lower" };
       const higher = lines.filter(offer => offer.point > wanted).sort((a, b) => a.point - b.point)[0];
-      if (higher && Number(higher.price) > 1 && Number(higher.price) < 2) return { offer: higher, kind: "higher" };
-      return { offer: higher || null, kind: "remove" };
+      const under = side === "under";
+      const easier = under ? higher : lower;
+      const harder = under ? lower : higher;
+      if (easier) return { offer: easier, kind: under ? "higher" : "lower" };
+      if (harder && Number(harder.price) > 1 && Number(harder.price) < 2) return { offer: harder, kind: under ? "lower" : "higher" };
+      return { offer: harder || null, kind: "remove" };
     }
     const bookPropsCache = new Map();
     function fetchBookProps(sport, eventId, market, book) {
@@ -5016,10 +5062,11 @@
         if (bookmaker?.title) state.title = bookmaker.title;
         const eventLink = safeLink(bookmaker?.link);
         if (eventLink && !state.eventLink) state.eventLink = eventLink;
+        const side = trackerSide(tracker);
         const offers = [];
         for (const propMarket of bookmaker?.markets || []) {
           for (const outcome of propMarket.outcomes || []) {
-            if ((outcome.description || outcome.name) !== tracker.name || String(outcome.name).toLowerCase() !== "over") continue;
+            if ((outcome.description || outcome.name) !== tracker.name || String(outcome.name).toLowerCase() !== side) continue;
             const point = Number(outcome.point);
             if (!Number.isFinite(point) || point < 0) continue;
             offers.push({
@@ -5036,20 +5083,22 @@
         }
         if (parlay.sportsbook !== book || !trackers.includes(tracker)) return;
         const wanted = tracker.requestedTarget ?? tracker.target;
-        const choice = chooseBookLine(offers, wanted);
+        const choice = chooseBookLine(offers, wanted, side);
         if (choice.kind === "remove") {
           const only = choice.offer
-            ? `Only Over ${choice.offer.point} (${formatAmericanOdds(choice.offer.price)}) is offered, an underdog line.`
+            ? `Only ${side === "under" ? "Under" : "Over"} ${choice.offer.point} (${formatAmericanOdds(choice.offer.price)}) is offered, an underdog line.`
             : `No matching line is offered.`;
           state.legs.set(tracker.key, { missing: `${only} Remove it for a safer parlay.`, suggestRemove: true });
           return;
         }
         // Only a suggestion: the tracked target changes when the user accepts it.
+        // An Under X.5 loses at X+1 and a whole-number Under X is treated as lost at X, so both map to ceil(X).
         const best = choice.offer;
+        const suggestTarget = side === "under" ? Math.ceil(best.point) : Math.floor(best.point) + 1;
         state.legs.set(tracker.key, {
           link: best.link,
           direct: best.direct,
-          suggest: { book, target: Math.max(1, Math.floor(best.point) + 1), point: best.point, price: best.price, kind: choice.kind }
+          suggest: { book, target: Math.max(1, suggestTarget), point: best.point, price: best.price, kind: choice.kind }
         });
       }));
       if (parlayBookState.get(parlay.id) !== state) return;
@@ -5240,21 +5289,22 @@
           const item = element("li", settledMissing || removePending ? "is-missing" : isPending ? "is-pending" : "");
           const verb = suggest?.kind === "higher" ? "Raise" : "Lower";
           let text;
-          if (removePending || settledMissing) text = `⚠ ${tracker.name} ${tracker.target}+ ${short}: ${info.missing}`;
-          else if (isPending) text = `↻ ${tracker.name} ${short}: ${verb} ${tracker.target}+ → ${suggest.target}+ (Over ${suggest.point}, ${formatAmericanOdds(suggest.price)})`;
+          const sideWord = isUnderPick(tracker) ? "Under" : "Over";
+          if (removePending || settledMissing) text = `⚠ ${tracker.name} ${pickGoal(tracker)} ${short}: ${info.missing}`;
+          else if (isPending) text = `↻ ${tracker.name} ${short}: ${verb} ${pickGoal(tracker)} → ${pickGoal(tracker, suggest.target)} (${sideWord} ${suggest.point}, ${formatAmericanOdds(suggest.price)})`;
           else if (matched) {
             const changedFrom = tracker.requestedTarget !== undefined && tracker.bookLine?.book === suggest.book
-              ? ` (${tracker.bookLine.kind === "higher" ? "raised" : "lowered"} from ${tracker.requestedTarget}+, ${formatAmericanOdds(suggest.price)})`
+              ? ` (${tracker.bookLine.kind === "higher" ? "raised" : "lowered"} from ${pickGoal(tracker, tracker.requestedTarget)}, ${formatAmericanOdds(suggest.price)})`
               : "";
-            text = `✓ ${tracker.name} ${tracker.target}+ ${short}${changedFrom}`;
-          } else text = `${tracker.name} ${tracker.target}+ ${short}`;
+            text = `✓ ${tracker.name} ${pickGoal(tracker)} ${short}${changedFrom}`;
+          } else text = `${tracker.name} ${pickGoal(tracker)} ${short}`;
           item.append(element("span", "", text));
           const actions = element("span", "tracker-book-actions");
           const pendingId = isPending ? suggestionId(suggest) : removePending ? removalSuggestionId(parlay.sportsbook) : "";
           if (isPending) {
             const accept = element("button", "tracker-parlay-btn", "Accept");
             accept.type = "button";
-            accept.setAttribute("aria-label", `Accept ${suggest.target}+ for ${tracker.name} ${short}`);
+            accept.setAttribute("aria-label", `Accept ${pickGoal(tracker, suggest.target)} for ${tracker.name} ${short}`);
             accept.addEventListener("click", () => acceptBookSuggestions([[tracker, suggest]]));
             actions.append(accept);
           }
@@ -5268,7 +5318,7 @@
           if (pendingId) {
             const keep = element("button", "tracker-parlay-btn", "Keep");
             keep.type = "button";
-            keep.setAttribute("aria-label", `Keep ${tracker.target}+ for ${tracker.name} ${short}`);
+            keep.setAttribute("aria-label", `Keep ${pickGoal(tracker)} for ${tracker.name} ${short}`);
             keep.addEventListener("click", () => keepTrackedLine(tracker, pendingId));
             actions.append(keep);
             const left = Math.max(0, suggestionTimeoutMs - (Date.now() - suggestionShownAt(tracker, pendingId)));
@@ -5333,38 +5383,72 @@
     function buildParlayReport(parlay, legs) {
       const rows = legs.map(tracker => {
         const snapshot = trackerSnapshots.get(tracker.key) || { current: 0, stats: {} };
-        return { tracker, snapshot, hit: snapshot.current >= tracker.target, margin: snapshot.current - tracker.target };
+        const outcome = pickOutcome(tracker, snapshot);
+        // Over: how far past the target. Under: how many more he could have had and still stayed under.
+        const margin = isUnderPick(tracker) ? tracker.target - 1 - snapshot.current : snapshot.current - tracker.target;
+        return { tracker, snapshot, outcome, hit: outcome === "won", margin };
       });
-      const hits = rows.filter(row => row.hit);
-      const misses = rows.filter(row => !row.hit);
+      const settled = rows.filter(row => row.outcome !== "void");
+      const voided = rows.filter(row => row.outcome === "void");
+      const hits = settled.filter(row => row.hit);
+      const misses = settled.filter(row => !row.hit);
       const won = misses.length === 0;
-      const total = rows.length;
-      const short = row => trackerStats[row.tracker.stat].short;
+      const total = settled.length;
       const game = row => `${row.tracker.away} @ ${row.tracker.home}`;
       const unique = list => [...new Set(list)];
-      const results = rows.map(row => row.hit
-        ? `✅ ${row.tracker.name}: ${row.snapshot.current}/${row.tracker.target} ${short(row)} (${game(row)}) — ${row.margin === 0 ? "hit exactly on the target" : `cleared by ${row.margin}`}`
-        : `❌ ${row.tracker.name}: ${row.snapshot.current}/${row.tracker.target} ${short(row)} (${game(row)}) — ${-row.margin} short`);
+      const results = rows.map(row => {
+        const score = `${row.tracker.name}: ${pickScore(row.tracker, row.snapshot.current)} (${game(row)})`;
+        if (row.outcome === "void") return `➖ ${score} — he didn't play, so most sportsbooks void this pick.`;
+        if (isUnderPick(row.tracker)) {
+          return row.hit
+            ? `✅ ${score} — ${row.margin === 0 ? "stayed under with nothing to spare" : `stayed under with ${row.margin} to spare`}`
+            : `❌ ${score} — went over the line by ${row.snapshot.current - pickLine(row.tracker.target)}`;
+        }
+        return row.hit
+          ? `✅ ${score} — ${row.margin === 0 ? "hit exactly on the target" : `cleared by ${row.margin}`}`
+          : `❌ ${score} — ${-row.margin} short`;
+      });
       const sections = [{ heading: "Final results", items: results }];
+      if (!total) {
+        return {
+          tone: "bad",
+          subject: `WiselyBet — ${parlay.name}: no action`,
+          intro: `None of the players in ${parlay.name} played, so sportsbooks usually void every pick and refund the stake.`,
+          sections
+        };
+      }
+      const voidNote = voided.length
+        ? `${voided.map(row => row.tracker.name).join(", ")} didn't play, so ${voided.length === 1 ? "that pick is" : "those picks are"} usually voided and the parlay is settled on the other picks. Check your sportsbook's rules.`
+        : "";
 
       if (won) {
-        const details = rows.map(row => {
+        const details = settled.map(row => {
           const minutes = Number.parseFloat(row.snapshot.stats?.MIN) || 0;
-          return `${row.tracker.name}: ${row.snapshot.current} ${trackerStats[row.tracker.stat].label.toLowerCase()} against a target of ${row.tracker.target}${minutes ? `, in ${Math.round(minutes)} minutes` : ""}${row.snapshot.fouls ? `, ${row.snapshot.fouls} fouls` : ""}.`;
+          const against = isUnderPick(row.tracker) ? `against an Under ${pickLine(row.tracker.target)} line` : `against a target of ${row.tracker.target}`;
+          return `${row.tracker.name}: ${row.snapshot.current} ${trackerStats[row.tracker.stat].label.toLowerCase()} ${against}${minutes ? `, in ${Math.round(minutes)} minutes` : ""}${row.snapshot.fouls ? `, ${row.snapshot.fouls} fouls` : ""}.`;
         });
         sections.push({ heading: "Pick details", items: details });
         const risks = [];
-        for (const row of rows) {
+        for (const row of settled) {
           const trail = row.snapshot.trail || {};
           const parts = [];
-          if (row.margin <= 1) parts.push(`it cleared the target by only ${row.margin}, so a single missed play would have lost it`);
+          const under = isUnderPick(row.tracker);
+          if (row.margin <= 1) {
+            parts.push(under
+              ? `it stayed under with ${row.margin === 0 ? "nothing" : "only 1"} to spare, so one more play could have lost it`
+              : `it cleared the target by only ${row.margin}, so a single missed play would have lost it`);
+          }
           if (trail.poorAt !== undefined) parts.push(`the tracker flagged a cash-out at ${formatMinutes(trail.poorAt)} left, when he had ${trail.poorScore}`);
-          if (row.snapshot.fouls >= 4) parts.push(`${row.snapshot.fouls} fouls put his minutes at risk`);
-          if (trail.injury || row.snapshot.injury) parts.push(`an injury report (${trail.injury || row.snapshot.injury.status}) was in play`);
-          if (trail.benchedAt !== undefined) parts.push("he spent time on the bench");
+          // Fouls, bench time and injuries cut his output: a risk for an Over, but they helped an Under.
+          if (!under) {
+            if (row.snapshot.fouls >= 4) parts.push(`${row.snapshot.fouls} fouls put his minutes at risk`);
+            if (trail.injury || row.snapshot.injury) parts.push(`an injury report (${trail.injury || row.snapshot.injury.status}) was in play`);
+            if (trail.benchedAt !== undefined) parts.push("he spent time on the bench");
+          }
           if (parts.length) risks.push(`${row.tracker.name}: ${parts.join("; ")}.`);
         }
         if (!risks.length) risks.push("No single pick was in serious danger, but that is not guaranteed next time.");
+        if (voidNote) risks.push(voidNote);
         risks.push(`A parlay needs ${total === 1 ? "its pick" : `every one of its ${total} picks`} to hit. One miss would have lost it all, so results like this are hard to repeat.`);
         risks.push("Official stats can be corrected by the league after the game. Confirm the final box scores with your sportsbook.");
         sections.push({ heading: "Risks despite the win", items: risks });
@@ -5385,6 +5469,7 @@
       const recaps = misses.map(row => ({ row, recap: gameRecap(row.tracker, row.snapshot) }));
       sections.push({ heading: "What happened", items: [
         `${hits.length} of ${total} picks hit and ${misses.length} missed. A parlay needs every pick to hit, so ${parlay.name} lost.`,
+        ...(voidNote ? [voidNote] : []),
         ...recaps.map(({ row, recap }) => recap.happened)
       ] });
       sections.push({ heading: "Why it did not hit 100%", items: recaps.map(({ row, recap }) => `${row.tracker.name}: ${recap.why.join(" ")}`) });
@@ -5429,11 +5514,13 @@
       for (const parlay of parlays) {
         const legs = trackers.filter(item => item.parlay === parlay.id);
         if (!legs.length) continue;
-        // A parlay is decided early once every pick has already reached its target, even if games are still live.
+        // A parlay is decided early once every pick is settled, even if games are still live: an Over that reached
+        // its target, or an Under that went over the line or whose player fouled out.
         const finished = legs.every(item => {
           const snapshot = trackerSnapshots.get(item.key);
           if (!snapshot || snapshot.error) return false;
-          return snapshot.state === "post" || (snapshot.state === "in" && snapshot.current >= item.target);
+          const outcome = pickOutcome(item, snapshot);
+          return snapshot.state === "post" || (snapshot.state === "in" && (isUnderPick(item) ? outcome !== "live" : outcome === "won"));
         });
         const key = legs.map(item => item.key).sort().join("|");
         if (!finished || parlay.report?.key === key) continue;
@@ -5477,17 +5564,15 @@
     }
 
     // A parlay wins only if every leg hits, and loses as soon as one leg can no longer hit.
+    // Void legs (an Under on a player who didn't play) drop out, as they do at sportsbooks.
     function parlayStatus(legs) {
-      const states = legs.map(tracker => {
-        const snapshot = trackerSnapshots.get(tracker.key) || { current: 0 };
-        const hit = snapshot.current >= tracker.target;
-        const missed = !hit && (snapshot.state === "post" || snapshot.fouls >= 6);
-        return { hit, missed };
-      });
-      const hits = states.filter(item => item.hit).length;
-      if (states.some(item => item.missed)) return { tone: "bad", label: "Lost ❌", hits };
-      if (states.length && hits === states.length) return { tone: "hype", label: "Won 🎉", hits };
-      return { tone: "idle", label: "Live", hits };
+      const outcomes = legs.map(tracker => pickOutcome(tracker, trackerSnapshots.get(tracker.key) || { current: 0 }));
+      const hits = outcomes.filter(item => item === "won").length;
+      const total = outcomes.filter(item => item !== "void").length;
+      if (outcomes.includes("lost")) return { tone: "bad", label: "Lost ❌", hits, total };
+      if (total && hits === total) return { tone: "hype", label: "Won 🎉", hits, total };
+      if (outcomes.length && !total) return { tone: "idle", label: "Void", hits, total };
+      return { tone: "idle", label: "Live", hits, total };
     }
 
     // Applause: hundreds of tiny hand-claps (short filtered noise bursts) that swell and fade, under a victory fanfare.
@@ -5595,23 +5680,27 @@
       heading.append(element("span", "tracker-dot-badge", `P${parlays.indexOf(parlay) + 1}`), ` ${parlay.name}`);
       const count = element("p", "parlay-win-count");
       const countNumber = element("strong", "", "0");
-      count.append(countNumber, ` / ${legs.length} picks hit`);
+      // Void legs (an Under on a player who didn't play) are shown but don't count toward the hits.
+      const isVoidLeg = tracker => pickOutcome(tracker, trackerSnapshots.get(tracker.key) || { current: 0 }) === "void";
+      const hitLegs = legs.filter(tracker => !isVoidLeg(tracker));
+      count.append(countNumber, ` / ${hitLegs.length} picks hit`);
       const list = element("ul", "parlay-win-legs");
       legs.forEach((tracker, index) => {
         const snapshot = trackerSnapshots.get(tracker.key) || { current: tracker.target };
+        const voided = isVoidLeg(tracker);
         const item = element("li");
         item.style.animationDelay = `${0.55 + index * 0.12}s`;
         item.append(
-          element("span", "parlay-win-check", "✓"),
+          element("span", "parlay-win-check", voided ? "–" : "✓"),
           element("span", "parlay-win-leg-name", `${sportEmoji(tracker)} ${tracker.name}`),
-          element("span", "parlay-win-leg-stat", `${snapshot.current}/${tracker.target} ${trackerStats[tracker.stat]?.short || tracker.stat}`)
+          element("span", "parlay-win-leg-stat", voided ? "Void · didn't play" : pickScore(tracker, snapshot.current))
         );
         list.append(item);
       });
       const actions = element("div", "parlay-win-actions");
       const share = element("button", "parlay-win-share", "📣 Share");
       share.type = "button";
-      const shareText = `🏆 My parlay "${parlay.name}" just hit — ${legs.length}/${legs.length} picks cashed on WiselyBet!\n${legs.map(tracker => `✓ ${tracker.name} ${tracker.target}+ ${trackerStats[tracker.stat]?.short || tracker.stat}`).join("\n")}`;
+      const shareText = `🏆 My parlay "${parlay.name}" just hit — ${hitLegs.length}/${hitLegs.length} picks cashed on WiselyBet!\n${hitLegs.map(tracker => `✓ ${tracker.name} ${pickGoal(tracker)} ${trackerStats[tracker.stat]?.short || tracker.stat}`).join("\n")}`;
       share.addEventListener("click", async () => {
         try {
           if (navigator.share) await navigator.share({ title: "Parlay hit!", text: shareText });
@@ -5634,9 +5723,9 @@
       let shown = 0;
       const counter = window.setInterval(() => {
         shown += 1;
-        countNumber.textContent = String(Math.min(shown, legs.length));
-        if (shown >= legs.length) window.clearInterval(counter);
-      }, reduceMotion ? 0 : Math.max(90, 600 / legs.length));
+        countNumber.textContent = String(Math.min(shown, hitLegs.length));
+        if (shown >= hitLegs.length) window.clearInterval(counter);
+      }, reduceMotion ? 0 : Math.max(90, 600 / hitLegs.length));
 
       let frame = 0;
       if (!reduceMotion) frame = runConfetti(canvas);
@@ -5871,6 +5960,18 @@
     // Always-on performance read: his actual number, the time left and the bench cover.
     function performanceVerdict(tracker, snapshot, assessment) {
       const short = trackerStats[tracker.stat].short;
+      if (isUnderPick(tracker)) {
+        const line = pickLine(tracker.target);
+        const outcome = pickOutcome(tracker, snapshot);
+        if (outcome === "lost") return { tone: "bad", title: "Over the line", text: `${snapshot.current} ${short} — went over the Under ${line} line.` };
+        if (outcome === "won") return { tone: "hype", title: "Stayed under", text: `${snapshot.current} ${short} — Under ${line} cashed. 🎉` };
+        if (assessment.level === "pending") return { tone: "idle", title: outcome === "void" ? "No action" : "Waiting", text: assessment.text };
+        const message = pickMessage(tracker, snapshot);
+        const cover = snapshot.replacements?.length
+          ? ` Bench cover: ${snapshot.replacements.slice(0, 3).join(", ")} ${snapshot.replacements.length === 1 ? "is" : "are"} ready to take his minutes, which helps the Under.`
+          : "";
+        return { tone: message.tone, title: message.short || "Performance", text: `${snapshot.current} ${short} · Under ${line}. ${message.text}${cover}` };
+      }
       const need = tracker.target - snapshot.current;
       if (need <= 0) return { tone: "hype", title: "Goal reached", text: `${snapshot.current} ${short} — target of ${tracker.target} hit. 🎉` };
       if (assessment.level === "pending") return { tone: "idle", title: "Waiting", text: assessment.text };
@@ -5893,6 +5994,14 @@
       const need = tracker.target - snapshot.current;
       const label = trackerStats[tracker.stat].label.toLowerCase();
       const name = tracker.name.split(" ").slice(-1)[0];
+      if (isUnderPick(tracker)) {
+        const outcome = pickOutcome(tracker, snapshot);
+        const line = pickLine(tracker.target);
+        if (outcome === "lost") return { tone: "bad", short: "Over the line", text: `❌ ${tracker.name} went over — ${snapshot.current} ${label}, past the Under ${line} line.` };
+        if (outcome === "won") return { tone: "hype", text: `🔥 Pick cashed! ${tracker.name} stayed under ${line} ${label}.` };
+        if (outcome === "void") return { tone: "idle", short: "No action", text: `${tracker.name} didn't play, so most sportsbooks void this pick.` };
+        return underRead(tracker, snapshot);
+      }
       if (need <= 0) return { tone: "hype", text: `🔥 Pick cashed! ${tracker.name} hit ${tracker.target} ${label}.` };
       if (tracker.sport === "baseball_mlb") return baseballRead(tracker, snapshot);
       const reasons = [];
@@ -6167,7 +6276,9 @@
       if (message?.text.startsWith("🔥")) queueSound(playCashSound, 1100);
       else queueSound(playScoreSound, 450);
       const tone = message?.tone || "hype";
-      const big = Boolean(message?.text.startsWith("🔥")) || (tracker?.target > 0 && Number.isFinite(current) && current >= tracker.target);
+      const under = isUnderPick(tracker);
+      // Reaching the target cashes an Over but busts an Under, so only an Over turns into the big "cashed" pop.
+      const big = Boolean(message?.text.startsWith("🔥")) || (!under && tracker?.target > 0 && Number.isFinite(current) && current >= tracker.target);
       const pop = element("div", `score-pop${big ? " is-cashed" : ""}`);
       const parlay = parlays.find(item => item.id === tracker?.parlay);
       const windowKey = parlay ? `parlay:${parlay.id}` : tracker ? `singles:${tracker.eventId}` : "";
@@ -6189,7 +6300,7 @@
         bar.append(fill);
         const count = element("span", "score-pop-count");
         const shown = element("b", "", String(before));
-        count.append(shown, ` / ${tracker.target}`);
+        count.append(shown, under ? ` / U ${pickLine(tracker.target)}` : ` / ${tracker.target}`);
         progress.append(bar, count);
         pop.append(progress);
         window.requestAnimationFrame(() => window.requestAnimationFrame(() => { fill.style.width = percent(now); }));
@@ -6246,8 +6357,9 @@
       window.setTimeout(removePop, 10000);
     }
 
-    function trackerKey(name, eventId, stat) {
-      return JSON.stringify([eventId, name, stat]);
+    // Over keys keep their original shape so picks saved before Unders existed still match.
+    function trackerKey(name, eventId, stat, side = "over") {
+      return JSON.stringify(side === "under" ? [eventId, name, stat, "under"] : [eventId, name, stat]);
     }
 
     function syncTrackButtons() {
@@ -6260,29 +6372,36 @@
       }
     }
 
-    // Risk note shown after Start tracking: chance the player reaches the chosen target for the chosen stat.
-    async function trackRiskNote(playerGroup, sport, eventId, stat, target, currentMarket, snapshot) {
+    // Risk note shown after Start tracking: chance the pick cashes for the chosen stat — an Over reaching the target,
+    // or an Under staying below its line.
+    async function trackRiskNote(playerGroup, sport, eventId, stat, target, currentMarket, snapshot, side = "over") {
+      const under = side === "under";
       const first = playerGroup.player.split(" ")[0];
       const label = trackerStats[stat].label.toLowerCase();
+      const line = pickLine(target);
+      const goalText = under ? `staying under ${line}` : `reaching ${target}`;
       const market = Object.entries(marketToTrackerStatBySport[sport] || {}).find(([, value]) => value === stat)?.[0];
       const unknown = reason => (snapshot && snapshot.state === "in" ? null : reason);
+      if (under && snapshot?.state === "post" && snapshot.found === false) {
+        return `⚠️ ${first} didn't play in this game, so most sportsbooks void this pick.`;
+      }
       if (!market) {
-        const note = unknown(`⚠️ There is no betting market for ${label}, so the chance of ${first} reaching ${target} is uncertain.`);
+        const note = unknown(`⚠️ There is no betting market for ${label}, so the chance of ${first} ${goalText} is uncertain.`);
         if (note) return note;
       }
 
       // Each entry is the market's normalized chance of going over that point.
       let points = [];
       let failed = false;
-      const fromSides = (point, over, under) => {
-        if (!over || !under || over.price <= 1 || under.price <= 1) return;
-        const total = 1 / over.price + 1 / under.price;
-        points.push({ point: Number(point), over: (1 / over.price) / total });
+      const fromSides = (point, overOffer, underOffer) => {
+        if (!overOffer || !underOffer || overOffer.price <= 1 || underOffer.price <= 1) return;
+        const total = 1 / overOffer.price + 1 / underOffer.price;
+        points.push({ point: Number(point), over: (1 / overOffer.price) / total });
       };
       if (!market) {
         // No odds: the live game state alone drives the note.
       } else if (market === currentMarket) {
-        for (const line of playerGroup.lines) fromSides(line.point, line.sides.get("over"), line.sides.get("under"));
+        for (const offer of playerGroup.lines) fromSides(offer.point, offer.sides.get("over"), offer.sides.get("under"));
       } else {
         let data;
         try {
@@ -6310,8 +6429,8 @@
       const inGame = snapshot && snapshot.state === "in";
       if (!points.length && !inGame) {
         return failed
-          ? `⚠️ Couldn't load the ${label} odds, so the chance of ${first} reaching ${target} is uncertain.`
-          : `⚠️ No odds for ${first}'s ${label} yet, so the chance of reaching ${target} is uncertain.`;
+          ? `⚠️ Couldn't load the ${label} odds, so the chance of ${first} ${goalText} is uncertain.`
+          : `⚠️ No odds for ${first}'s ${label} yet, so the chance of ${goalText} is uncertain.`;
       }
 
       // Reaching the target means going over target − 0.5. Interpolate between the nearest lines.
@@ -6339,11 +6458,24 @@
         const flip = points.reduce((best, item) => (Math.abs(item.over - 0.5) < Math.abs(best.over - 0.5) ? item : best));
         expectedTotal = Math.max(0.5, flip.point + 0.5);
         chance = Math.max(0.02, Math.min(0.98, chance));
+        // The market's Under chance is whatever the Over doesn't get.
+        if (under) chance = 1 - chance;
       }
 
       // Live game: replace the pre-game chance with one based on his output so far and the time left.
       let situation = "";
-      if (snapshot && (snapshot.state === "in" || snapshot.state === "post") && snapshot.found !== false) {
+      const live = snapshot && (snapshot.state === "in" || snapshot.state === "post") && snapshot.found !== false;
+      if (under && live) {
+        const room = target - 1 - snapshot.current;
+        if (room < 0) return `⚠️ ${first} already has ${snapshot.current} ${label}, over the Under ${line} line — this pick has already lost.`;
+        if (snapshot.state === "post") return "";
+        chance = Math.max(0.01, Math.min(0.99, underChance({ sport, stat, target, side, name: playerGroup.player }, snapshot)));
+        estimated = true;
+        const left = sport === "baseball_mlb" ? inningsLabel(snapshot.remaining) : formatMinutes(snapshot.remaining);
+        situation = ` He has ${snapshot.current} ${trackerStats[stat].short} with ${room ? `${room} to spare` : "nothing to spare"} and ${left} left${snapshot.fouls >= 4 ? ` (${snapshot.fouls} fouls)` : ""}.`;
+        if (snapshot.injury && /^(out|doubtful)/i.test(snapshot.injury.status)) situation += ` Injury report: ${snapshot.injury.status}.`;
+      }
+      if (!under && live) {
         const need = target - snapshot.current;
         const short = trackerStats[stat].short;
         if (need <= 0) return "";
@@ -6380,10 +6512,10 @@
       const percent = Math.round(chance * 100);
       if (percent >= 60) return "";
       const basis = estimated ? "an estimated" : "about";
-      const goal = `${target} ${label}`;
+      const goal = under ? `stay under ${line} ${label}` : `reach ${target} ${label}`;
       const source = situation ? "the game so far gives" : "the market gives";
-      if (percent >= 40) return `⚠️ Uncertain: ${source} ${first} ${basis} ${percent}% to reach ${goal}.${situation || " It's close to a coin flip."}`;
-      return `⚠️ Risky: ${source} ${first} ${basis} ${percent}% to reach ${goal}.${situation || " This pick is unlikely to hit."}`;
+      if (percent >= 40) return `⚠️ Uncertain: ${source} ${first} ${basis} ${percent}% to ${goal}.${situation || " It's close to a coin flip."}`;
+      return `⚠️ Risky: ${source} ${first} ${basis} ${percent}% to ${goal}.${situation || " This pick is unlikely to hit."}`;
     }
 
     function createTrackControls(playerGroup, sport, eventId, market) {
@@ -6409,22 +6541,63 @@
         statSelect.append(option);
       }
       statSelect.value = statMap[market] || (trackerStatsBySport[sport] || ["PTS"])[0];
+      const sideSelect = document.createElement("select");
+      sideSelect.className = "track-side";
+      sideSelect.setAttribute("aria-label", `Over or Under for ${playerGroup.player}`);
+      for (const [value, text] of [["over", "Over"], ["under", "Under"]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = text;
+        sideSelect.append(option);
+      }
       const targetInput = document.createElement("input");
       targetInput.type = "number";
       targetInput.min = "1";
       targetInput.step = "1";
       targetInput.setAttribute("aria-label", `Target for ${playerGroup.player}`);
+      // Over: the number is the target he must reach (25 = 25+, Over 24.5).
+      // Under: the number is the most he can finish with (24 = 24 or fewer, Under 24.5).
       const linePoint = Number(playerGroup.lines[0]?.point);
-      targetInput.value = statMap[market] && Number.isFinite(linePoint)
-        ? String(Math.floor(linePoint) + 1)
-        : "10";
+      const hasLine = Boolean(statMap[market]) && Number.isFinite(linePoint);
+      const defaults = {
+        over: hasLine ? String(Math.floor(linePoint) + 1) : "10",
+        under: hasLine ? String(Math.max(0, Math.ceil(linePoint) - 1)) : "9"
+      };
+      targetInput.value = defaults.over;
+      const meaning = element("span", "track-meaning");
+      meaning.setAttribute("aria-live", "polite");
+      let side = "over";
+      const syncMeaning = () => {
+        const raw = targetInput.value.trim();
+        const value = Math.round(Number(raw));
+        const valid = raw !== "" && Number.isFinite(value) && value >= (side === "under" ? 0 : 1);
+        meaning.textContent = !valid ? "" : side === "under"
+          ? `${value ? `${value} or fewer` : "None"} · Under ${value + 0.5}`
+          : `${value}+ · Over ${value - 0.5}`;
+        meaning.classList.toggle("is-under", side === "under");
+      };
+      sideSelect.addEventListener("change", () => {
+        const next = sideSelect.value === "under" ? "under" : "over";
+        if (next === side) return;
+        // Keep the same line when switching: Over 25 (25+) and Under 24 (24 or fewer) are both the 24.5 line.
+        const value = Number(targetInput.value);
+        if (targetInput.value === defaults[side] || targetInput.value.trim() === "" || !Number.isFinite(value)) targetInput.value = defaults[next];
+        else targetInput.value = String(Math.max(next === "under" ? 0 : 1, Math.round(value) + (next === "under" ? -1 : 1)));
+        side = next;
+        targetInput.min = side === "under" ? "0" : "1";
+        targetInput.setAttribute("aria-label", side === "under" ? `Most allowed for ${playerGroup.player} (Under)` : `Target for ${playerGroup.player}`);
+        syncMeaning();
+      });
+      targetInput.addEventListener("input", syncMeaning);
+      syncMeaning();
       const start = element("button", "", "Start tracking");
       start.type = "button";
       form.append(
         element("span", "", "Track"),
         statSelect,
-        element("span", "", "target"),
+        sideSelect,
         targetInput,
+        meaning,
         start
       );
       button.addEventListener("click", () => {
@@ -6432,19 +6605,23 @@
         if (form.hidden) hint.hidden = true;
       });
       start.addEventListener("click", async () => {
-        const target = Math.round(Number(targetInput.value));
-        if (!Number.isFinite(target) || target < 1) {
+        const raw = targetInput.value.trim();
+        const value = Math.round(Number(raw));
+        const chosenSide = side;
+        if (raw === "" || !Number.isFinite(value) || value < (chosenSide === "under" ? 0 : 1)) {
           targetInput.focus();
           return;
         }
+        // Both sides store the same threshold: the total that cashes an Over and busts an Under.
+        const target = chosenSide === "under" ? value + 1 : value;
         const stat = statSelect.value;
-        const placement = await choosePickPlacement(playerGroup.player, stat, target);
+        const placement = await choosePickPlacement(playerGroup.player, stat, target, chosenSide);
         if (placement === null) return;
-        addTracker(playerGroup.player, sport, eventId, stat, target, placement);
+        addTracker(playerGroup.player, sport, eventId, stat, target, placement, chosenSide);
         form.hidden = true;
         // After tracking starts, warn when the pick is unlikely and let the user undo it.
         hint.hidden = true;
-        const trackerKeyValue = trackerKey(playerGroup.player, eventId, stat);
+        const trackerKeyValue = trackerKey(playerGroup.player, eventId, stat, chosenSide);
         // Pull the live game first so the warning reflects his output so far and the time left.
         let snapshot = null;
         try {
@@ -6454,12 +6631,12 @@
             snapshot = trackerSnapshots.get(trackerKeyValue) || null;
           }
         } catch { /* fall back to the market only */ }
-        const note = await trackRiskNote(playerGroup, sport, eventId, stat, target, market, snapshot);
-        if (!note || !trackers.some(item => item.key === trackerKey(playerGroup.player, eventId, stat))) return;
+        const note = await trackRiskNote(playerGroup, sport, eventId, stat, target, market, snapshot, chosenSide);
+        if (!note || !trackers.some(item => item.key === trackerKeyValue)) return;
         const remove = element("button", "track-hint-remove", "Remove tracking");
         remove.type = "button";
         remove.addEventListener("click", () => {
-          removeTracker(trackerKey(playerGroup.player, eventId, stat));
+          removeTracker(trackerKeyValue);
           hint.hidden = true;
         });
         const keep = element("button", "track-hint-keep", "Keep tracking");
@@ -6472,10 +6649,10 @@
       return { button, form, hint };
     }
 
-    function addTracker(name, sport, eventId, stat, target, parlayId) {
+    function addTracker(name, sport, eventId, stat, target, parlayId, side = "over") {
       const event = currentEvents.find(candidate => candidate.id === eventId);
       if (!event) return;
-      const key = trackerKey(name, eventId, stat);
+      const key = trackerKey(name, eventId, stat, side);
       const existing = trackers.find(item => item.key === key);
       if (existing) {
         existing.target = target;
@@ -6490,6 +6667,7 @@
           eventId,
           stat,
           target,
+          ...(side === "under" ? { side: "under" } : {}),
           home: event.home_team,
           away: event.away_team,
           date: event.commence_time,
@@ -6518,6 +6696,7 @@
         name: tracker.name,
         stat: tracker.stat,
         target: tracker.target,
+        ...(isUnderPick(tracker) ? { side: "under" } : {}),
         final,
         result,
         game: `${tracker.away} @ ${tracker.home}`,
@@ -6545,7 +6724,7 @@
           const row = element("li", `history-${item.result}`);
           row.append(
             element("strong", "", item.result === "win" ? "WIN" : "LOSS"),
-            document.createTextNode(` ${item.name} · ${item.final}/${item.target} ${trackerStats[item.stat]?.short || item.stat}`)
+            document.createTextNode(` ${item.name} · ${pickScore(item, item.final)}`)
           );
           return row;
         }));
@@ -6664,6 +6843,63 @@
       return Math.max(0, Math.min(1, 1 - below));
     }
 
+    // Under picks: how much more he is expected to add. His pace is blended with a prior from the line and, in
+    // basketball, scaled by the share of game time he has actually been on the floor, so bench time helps the Under.
+    function underProjection(tracker, snapshot) {
+      const model = paceModel(tracker);
+      const minutes = Number(snapshot.minutes) || 0;
+      const remaining = Math.max(0, Number(snapshot.remaining) || 0);
+      const rate = ((Number(snapshot.current) || 0) + (tracker.target / model.base) * 8) / (minutes + 8);
+      let share = model.share;
+      if (tracker.sport === "basketball_nba" || tracker.sport === "basketball_wnba") {
+        const regulation = tracker.sport === "basketball_wnba" ? 40 : 48;
+        const elapsed = Math.max(0, regulation - remaining);
+        share = Math.min(1, (minutes + 8 * (model.base / regulation)) / (elapsed + 8));
+      }
+      const injury = snapshot.injury?.status || "";
+      if (snapshot.fouls >= 6 || /^(out|doubtful)/i.test(injury)) return 0;
+      let availability = 1;
+      if (snapshot.fouls >= 5) availability = 0.5;
+      else if (snapshot.fouls === 4) availability = 0.75;
+      if (/day|question/i.test(injury)) availability *= 0.8;
+      availability *= replacementFactor(snapshot);
+      return rate * remaining * share * availability;
+    }
+
+    // Chance he finishes below the Under line (target − 0.5), from what he has now and the time left.
+    function underChance(tracker, snapshot) {
+      const room = tracker.target - 1 - (Number(snapshot.current) || 0);
+      if (room < 0) return 0;
+      if (tracker.sport === "baseball_mlb") return Math.max(0, Math.min(1, 1 - baseballOutlook(tracker, snapshot).p));
+      return 1 - poissonAtLeast(underProjection(tracker, snapshot), room + 1);
+    }
+
+    // Live read for an Under that is still alive. "Consider cashing out" only late in the game, like the Over read.
+    function underRead(tracker, snapshot) {
+      const name = tracker.name.split(" ").slice(-1)[0];
+      const baseball = tracker.sport === "baseball_mlb";
+      const room = tracker.target - 1 - (Number(snapshot.current) || 0);
+      const left = baseball ? inningsLabel(snapshot.remaining) : formatMinutes(snapshot.remaining);
+      // Not in the box score yet: a player who never plays gets the Under voided, not paid.
+      if (snapshot.state === "in" && snapshot.found === false) {
+        return { tone: "idle", level: "close", short: "Hasn't played yet", text: `⏳ ${name} hasn't checked in yet with ${left} left. If he doesn't play at all, most sportsbooks void the Under instead of paying it.` };
+      }
+      const late = baseball ? snapshot.remaining <= 5 : snapshot.remaining <= 12;
+      const p = underChance(tracker, snapshot);
+      const spare = `${room ? `${room} to spare` : "nothing to spare"} with ${left} left (${Math.round(p * 100)}% estimated chance)`;
+      const helps = [];
+      if (snapshot.fouls >= 4) helps.push(`${snapshot.fouls} fouls`);
+      if (snapshot.injury) helps.push(`injury report: ${snapshot.injury.status}`);
+      const helping = helps.length ? ` Working for the Under: ${helps.join(", ")}.` : "";
+      if (p < 0.25 && late) {
+        return { tone: "bad", level: "far", short: "Consider cashing out", text: `⚠️ Running hot — ${spare}. If your sportsbook offers cash out, taking a smaller sure return now is the safer move.${helping}` };
+      }
+      if (p < 0.25) return { tone: "idle", level: "close", short: "Running hot — still early", text: `⏳ Running hot — ${spare}. Too early to call; no need to cash out yet.${helping}` };
+      if (p >= 0.8) return { tone: "hype", level: "close", short: "Cruising under", text: `🧊 ${name} is held in check — ${spare}. Holding is reasonable.${helping}` };
+      if (p >= 0.5) return { tone: "hype", level: "close", short: "On pace to stay under", text: `💪 On pace to stay under — ${spare}. Holding looks fine.${helping}` };
+      return { tone: "idle", level: "close", short: "Tight — watch closely", text: `👀 Tight — ${spare}. Watch it closely.${helping}` };
+    }
+
     function baseballRead(tracker, snapshot) {
       const need = tracker.target - snapshot.current;
       const label = trackerStats[tracker.stat].label.toLowerCase();
@@ -6689,6 +6925,24 @@
     function assessTracker(tracker, snapshot) {
       const need = tracker.target - snapshot.current;
       const short = trackerStats[tracker.stat].short;
+      if (isUnderPick(tracker)) {
+        const outcome = pickOutcome(tracker, snapshot);
+        if (outcome === "lost") return { level: "far", text: `Over the line — ${snapshot.current} ${short} busts the Under ${pickLine(tracker.target)}.` };
+        if (!snapshot.state) return { level: "pending", text: snapshot.error || "Loading live stats…" };
+        if (snapshot.state === "pre") return { level: "pending", text: "Game hasn't started yet." };
+        if (outcome === "void") return { level: "pending", text: "Final — he didn't play, so most sportsbooks void this pick." };
+        if (outcome === "won") {
+          return { level: "hit", text: snapshot.state === "post" ? `Final — stayed under with ${snapshot.current} ${short}! 🎉` : `Fouled out with ${snapshot.current} ${short} — the Under is safe! 🎉` };
+        }
+        const read = underRead(tracker, snapshot);
+        if (tracker.sport === "baseball_mlb") return { level: read.level, text: read.text };
+        const room = tracker.target - 1 - snapshot.current;
+        const injuryText = snapshot.injury
+          ? ` Injury report: ${snapshot.injury.status}${snapshot.injury.detail ? ` (${snapshot.injury.detail})` : ""}.`
+          : "";
+        const fouls = tracker.sport === "icehockey_nhl" || isFootballSport(tracker.sport) ? "" : ` · ${snapshot.fouls} PF`;
+        return { level: read.level, text: `${read.short}. ${room} to spare · ${formatMinutes(snapshot.remaining)} left${fouls}.${injuryText}` };
+      }
       if (need <= 0) return { level: "hit", text: `Target reached — ${snapshot.current} ${short}! 🎉` };
       if (snapshot.error && !snapshot.state) return { level: "pending", text: snapshot.error };
       if (snapshot.state === "pre") return { level: "pending", text: "Game hasn't started yet." };
@@ -6726,6 +6980,7 @@
 
     // End-of-game recap: what happened, why the pick missed, and what to do next time.
     function gameRecap(tracker, snapshot) {
+      if (isUnderPick(tracker)) return underRecap(tracker, snapshot);
       const label = trackerStats[tracker.stat].label.toLowerCase();
       const trail = snapshot.trail || {};
       const current = snapshot.current;
@@ -6806,6 +7061,58 @@
       return { tone: "bad", title: "📋 Game recap — pick missed", happened, why, advice };
     }
 
+    // End-of-game recap for an Under: why it stayed under, or how it got away.
+    function underRecap(tracker, snapshot) {
+      const label = trackerStats[tracker.stat].label.toLowerCase();
+      const trail = snapshot.trail || {};
+      const current = snapshot.current;
+      const line = pickLine(tracker.target);
+      const allowed = tracker.target - 1;
+      const minutes = snapshot.minutes;
+      const model = paceModel(tracker);
+      const baseball = tracker.sport === "baseball_mlb";
+      // Minutes on the floor/ice matter for basketball and hockey skaters; football and goalies play the whole game.
+      const timed = tracker.sport.startsWith("basketball") || (tracker.sport === "icehockey_nhl" && tracker.stat !== "SAV");
+      const at = value => (baseball ? `with ${inningsLabel(value)} left` : `at ${formatMinutes(value)} left`);
+      const played = timed && minutes > 0 ? ` in ${Math.round(minutes)} minutes` : "";
+      const why = [];
+      const advice = [];
+      if (current <= allowed) {
+        const room = allowed - current;
+        const happened = `${tracker.name} finished with ${current} ${label}${played} and stayed under ${line} with ${room ? `${room} to spare` : "nothing to spare"}.`;
+        if (snapshot.fouls >= 6) why.push("He fouled out, which locked in the Under.");
+        else if (timed && minutes > 0 && minutes < model.starter) why.push(`He only played ${Math.round(minutes)} minutes, which kept his numbers down.`);
+        if (trail.poorAt !== undefined) {
+          why.push(`There was a scare: the tracker flagged a cash-out ${at(trail.poorAt)}, when he had ${trail.poorScore}.`);
+          advice.push("Holding paid off this time, but a flagged pick is still a risk. Taking part of the return early is a valid way to lock in profit.");
+        } else if (baseball) {
+          advice.push("Baseball is high-variance, so an Under is never guaranteed. Taking part of the return early is a valid way to lock in profit.");
+        } else {
+          advice.push("He was held in check all game. Unders tend to hit when minutes, the matchup or foul trouble limit a player.");
+        }
+        return { tone: "hype", title: "🎉 Game recap — pick hit", happened, why, advice };
+      }
+
+      const over = current - allowed;
+      const happened = `${tracker.name} finished with ${current} ${label}${played}, ${over} more than the Under ${line} allowed.`;
+      if (trail.bustedAt !== undefined) why.push(`He went over the line ${at(trail.bustedAt)}.`);
+      if (over <= 2) why.push("It was a near miss — one or two fewer plays and the Under would have cashed.");
+      else if (timed && minutes >= model.full) why.push(`He played ${Math.round(minutes)} minutes, a heavy workload that gave him extra chances.`);
+      else if (timed && minutes > 0) why.push(`He produced more than expected: about ${(current / minutes).toFixed(2)} per minute, while staying under ${line} needs less than ${(line / model.full).toFixed(2)} over a full game.`);
+      else why.push("He simply produced more than expected over the game.");
+      if (trail.poorAt !== undefined) {
+        advice.push(`The tracker flagged "Consider cashing out" ${at(trail.poorAt)}, with ${trail.poorScore} ${label}. Cashing out then would have saved part of the stake.`);
+      } else {
+        advice.push("Watch the red verdict during the game. It is your signal to consider cashing out early.");
+      }
+      if (over <= 2) advice.push("Near misses are common. A line one or two higher gives more room for error.");
+      advice.push(baseball
+        ? "Check the lineup, the ballpark and the pitching matchup before taking an Under."
+        : "Unders suffer when a player gets heavy minutes. Check the matchup's pace and the spread first: close games keep starters in longer and can go to overtime.");
+      advice.push("Spread your picks across several players and only wager what you can afford to lose.");
+      return { tone: "bad", title: "📋 Game recap — pick missed", happened, why, advice };
+    }
+
     function updateTracker(tracker, game, error) {
       const previous = trackerSnapshots.get(tracker.key);
       if (!game) {
@@ -6881,15 +7188,18 @@
         injury: injuryEntry ? { status: injuryEntry.status, detail: injuryEntry.detail } : null,
         pendingDelta: previous?.pendingDelta || 0,
         hitNotified: previous?.hitNotified || false,
+        wonNotified: previous?.wonNotified || false,
         recorded: previous?.recorded || false,
         trail: { ...(previous?.trail || {}) }
       };
+      const under = isUnderPick(tracker);
       // Remember notable moments during the game for the end-of-game recap.
       if (snapshot.state === "in" && athlete) {
         const trail = snapshot.trail;
         if (!snapshot.onCourt && trail.benchedAt === undefined) trail.benchedAt = snapshot.remaining;
         if (snapshot.fouls >= 4 && trail.foulTroubleAt === undefined) trail.foulTroubleAt = snapshot.remaining;
         if (snapshot.injury && !trail.injury) trail.injury = snapshot.injury.status;
+        if (under && current >= tracker.target && trail.bustedAt === undefined) trail.bustedAt = snapshot.remaining;
         if (current < tracker.target && pickMessage(tracker, snapshot).short === "Consider cashing out" && trail.poorAt === undefined) {
           trail.poorAt = snapshot.remaining;
           trail.poorScore = current;
@@ -6911,20 +7221,37 @@
           pushNotification("injury", `${tracker.name} injury report: ${snapshot.injury.status}${snapshot.injury.detail ? ` — ${snapshot.injury.detail}` : ""}`);
         }
       }
-      // After the goal is reached, stop the score animation for this player.
+      // After the goal is reached (an Over cashed or an Under busted), stop the score animation for this player.
       const goalAlreadyReached = Boolean(previous) && previous.current >= tracker.target;
-      if (previous && !previous.error && !goalAlreadyReached && current > previous.current) {
+      const popped = Boolean(previous) && !previous.error && !goalAlreadyReached && current > previous.current;
+      if (popped) {
         snapshot.pendingDelta += current - previous.current;
         showScorePop(tracker.name, current - previous.current, tracker.stat, pickMessage(tracker, snapshot), tracker, current);
       }
+      const label = trackerStats[tracker.stat].label.toLowerCase();
+      const outcome = pickOutcome(tracker, snapshot);
       if (current >= tracker.target && !snapshot.hitNotified && previous) {
-        if (tracker.stat !== "PTS") playCashSound();
-        pushNotification("score", `${tracker.name} reached ${tracker.target} ${trackerStats[tracker.stat].label.toLowerCase()}! 🎉`);
+        if (under) {
+          pushNotification("score", `${tracker.name} went over ${pickLine(tracker.target)} ${label} — Under lost. ❌`);
+        } else {
+          if (tracker.stat !== "PTS") playCashSound();
+          pushNotification("score", `${tracker.name} reached ${tracker.target} ${label}! 🎉`);
+        }
       }
       snapshot.hitNotified = snapshot.hitNotified || current >= tracker.target;
+      if (under && outcome === "won" && !snapshot.wonNotified && previous) {
+        // A score pop that just cashed the pick already played the register.
+        if (!popped) playCashSound();
+        pushNotification("score", `${tracker.name} stayed under ${pickLine(tracker.target)} ${label}${snapshot.state === "post" ? "" : " (fouled out)"} — pick cashed! 🎉`);
+      }
+      snapshot.wonNotified = snapshot.wonNotified || (under && outcome === "won");
       // Record the outcome once: a win when the goal is hit, a loss when the game ends short.
+      // An Under is the other way round, and a void Under (he didn't play) is settled without a record.
       if (previous && !snapshot.recorded) {
-        if (current >= tracker.target) {
+        if (under) {
+          if (outcome === "won" || outcome === "lost") recordHistory(tracker, current, outcome === "won" ? "win" : "loss");
+          if (outcome !== "live") snapshot.recorded = true;
+        } else if (current >= tracker.target) {
           recordHistory(tracker, current, "win");
           snapshot.recorded = true;
         } else if (game.state === "post") {
@@ -7006,17 +7333,22 @@
           title.prepend(dot);
         }
         title.append(element("span", "tracker-stat-tag", trackerStats[tracker.stat].short));
+        const under = isUnderPick(tracker);
+        const line = pickLine(tracker.target);
         const remove = element("button", "tracker-remove", "Remove");
         remove.type = "button";
-        remove.setAttribute("aria-label", `Stop tracking ${tracker.name} ${trackerStats[tracker.stat].label}`);
+        remove.setAttribute("aria-label", `Stop tracking ${tracker.name} ${trackerStats[tracker.stat].label}${under ? ` Under ${line}` : ""}`);
         remove.addEventListener("click", () => removeTracker(tracker.key));
         top.append(title, remove);
 
         const score = element("div", "tracker-score");
         score.append(element("span", "tracker-current", String(snapshot.current)));
-        const targetWrap = element("span", "tracker-target", `/ ${tracker.target}`);
-        targetWrap.setAttribute("aria-label", `Target ${trackerStats[tracker.stat].label} for ${tracker.name}: ${tracker.target}`);
-        score.append(targetWrap);
+        // An Under shows its line (he must stay below it); an Over shows the total he must reach.
+        const targetWrap = element("span", "tracker-target", `/ ${under ? line : tracker.target}`);
+        targetWrap.setAttribute("aria-label", under
+          ? `Under line for ${tracker.name}: ${line} ${trackerStats[tracker.stat].label.toLowerCase()}. The pick loses at ${tracker.target}.`
+          : `Target ${trackerStats[tracker.stat].label} for ${tracker.name}: ${tracker.target}`);
+        score.append(targetWrap, element("span", `tracker-side${under ? " is-under" : ""}`, under ? "▼ Under" : "▲ Over"));
         if (bumped) {
           score.append(element("span", "tracker-plus", `+${snapshot.gainValue} ${trackerStats[tracker.stat].short}`));
         }
@@ -7063,7 +7395,7 @@
         const legParlay = parlays.find(item => item.id === tracker.parlay);
         if (legParlay?.sportsbook && tracker.bookLine?.book === legParlay.sportsbook && tracker.requestedTarget !== undefined) {
           card.append(element("span", "tracker-book-note",
-            `${tracker.bookLine.kind === "higher" ? "Raised" : "Lowered"} for ${sportsbookTitle(legParlay.sportsbook)}: ${tracker.requestedTarget}+ → ${tracker.target}+ (Over ${tracker.bookLine.point}${Number(tracker.bookLine.price) > 1 ? ` at ${formatAmericanOdds(tracker.bookLine.price)}` : ""})`));
+            `${tracker.bookLine.kind === "higher" ? "Raised" : "Lowered"} for ${sportsbookTitle(legParlay.sportsbook)}: ${pickGoal(tracker, tracker.requestedTarget)} → ${pickGoal(tracker)} (${under ? "Under" : "Over"} ${tracker.bookLine.point}${Number(tracker.bookLine.price) > 1 ? ` at ${formatAmericanOdds(tracker.bookLine.price)}` : ""})`));
         }
         const legBook = legParlay?.sportsbook ? parlayBookState.get(legParlay.id) : null;
         const legInfo = legBook?.status === "ready" ? legBook.legs.get(tracker.key) : null;
@@ -7107,7 +7439,7 @@
         const title = element("h4", "tracker-parlay-title");
         title.append(element("span", "tracker-dot-badge", `P${parlays.indexOf(parlay) + 1}`), ` ${parlay.name}`);
         const statusLabel = status.tone === "hype" && pendingWinChecks.has(parlay.id) ? "All hit · confirming…" : status.label;
-        const badge = element("span", "tracker-parlay-badge", `${statusLabel} · ${status.hits}/${legs.length} hit`);
+        const badge = element("span", "tracker-parlay-badge", `${statusLabel} · ${status.hits}/${status.total} hit`);
         const rename = element("button", "tracker-parlay-btn", "Rename");
         rename.type = "button";
         rename.title = "Rename parlay";
@@ -7165,7 +7497,7 @@
       } else {
         trackerPanel.replaceChildren(element("p", "tracker-empty", trackers.length
           ? "No picks in this view. Choose another option above."
-          : "Nothing tracked yet. On a player card in Player props (NBA), click 🎯 Track, choose points, rebounds or assists, and set a target."));
+          : "Nothing tracked yet. On a player card in Player props (NBA), click 🎯 Track, choose points, rebounds or assists, pick Over or Under, and set your number."));
       }
       for (const group of trackerPanel.querySelectorAll(".tracker-window")) {
         group.scrollTop = windowScrollPositions.get(group.dataset.windowKey) || 0;
@@ -7202,11 +7534,12 @@
       if (singleDots.length) dotGroups.push({ label: "Singles", badge: "S", legs: singleDots, singles: true });
       trackerDots.replaceChildren(...dotGroups.map(group => {
         const wrap = element("span", `tracker-dot-group${group.singles ? " is-singles" : ""}`);
-        wrap.title = `${group.label}: ${group.legs.map(tracker => `${tracker.name} ${trackerStats[tracker.stat].short}`).join(", ")}`;
+        const dotName = tracker => `${tracker.name} ${isUnderPick(tracker) ? `${pickGoal(tracker)} ` : ""}${trackerStats[tracker.stat].short}`;
+        wrap.title = `${group.label}: ${group.legs.map(dotName).join(", ")}`;
         const row = element("span", "tracker-dot-row");
         for (const tracker of group.legs) {
-          const dot = element("span", `tracker-dot level-${levels.get(tracker.key)}${trackerSnapshots.get(tracker.key)?.state === "post" ? " is-final" : ""}`);
-          dot.title = `${tracker.name} ${trackerStats[tracker.stat].short}${trackerSnapshots.get(tracker.key)?.state === "post" ? " · final" : ""}`;
+          const dot = element("span", `tracker-dot level-${levels.get(tracker.key)}${isUnderPick(tracker) ? " is-under" : ""}${trackerSnapshots.get(tracker.key)?.state === "post" ? " is-final" : ""}`);
+          dot.title = `${dotName(tracker)}${trackerSnapshots.get(tracker.key)?.state === "post" ? " · final" : ""}`;
           row.append(dot);
         }
         wrap.append(element("span", "tracker-dot-badge", group.badge), element("span", "tracker-dot-label", group.label), row);
