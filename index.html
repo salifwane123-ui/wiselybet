@@ -1861,6 +1861,68 @@
     @keyframes parlay-win-shine { to { background-position: -250% 0; } }
     @keyframes parlay-win-leg { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) { .parlay-win, .parlay-win *, .parlay-win.is-leaving { animation: none !important; } }
+
+    /* Layout polish: consistent top bar buttons, no overlapping prop filters, readable prop card headers */
+    .topbar-heading { min-width: 0; }
+    .topbar-heading .eyebrow, .topbar-heading h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (min-width: 561px) {
+      .topbar-actions { gap: 8px; }
+      #refresh, #trial-badge, #tour-button, #news-button { flex: 0 0 auto; box-sizing: border-box; height: 40px; min-height: 0; padding: 0 15px; border-radius: 20px; font-size: .8rem; font-weight: 700; line-height: 1; white-space: nowrap; }
+      #refresh, #tour-button, #news-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+      #bell-button, #settings-button { flex: 0 0 auto; width: 40px; height: 40px; }
+    }
+    /* Tablets and small laptops: title with bell/settings on top, quick actions on their own row */
+    @media (min-width: 561px) and (max-width: 1240px) {
+      .topbar { display: block; min-height: 0; padding-top: 10px; padding-bottom: 10px; }
+      .topbar-heading { padding-right: 104px; }
+      .topbar-actions { flex-wrap: wrap; margin-top: 8px; }
+      #refresh, #trial-badge, #tour-button, #news-button { height: 36px; padding: 0 13px; border-radius: 18px; font-size: .76rem; }
+      .topbar #bell-wrap, .topbar #settings-wrap { display: contents; }
+      .topbar #bell-button, .topbar #settings-button { position: absolute; top: 12px; }
+      .topbar #settings-button { right: 25px; }
+      .topbar #bell-button { right: 73px; }
+      .topbar #bell-panel, .topbar #settings-panel { top: calc(100% + 6px); right: 25px; left: auto; }
+    }
+    .prop-controls { display: flex; flex-wrap: wrap; align-items: flex-end; }
+    .prop-controls .field { flex: 1 1 170px; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+    .prop-controls .field:first-child { flex: 2 1 240px; }
+    .prop-controls select, .prop-controls input { width: 100%; max-width: 100%; min-width: 0; }
+    .prop-controls button { flex: 0 0 auto; width: auto; }
+    .prop-player-header { flex-wrap: wrap; row-gap: 8px; }
+    .prop-player-heading { flex: 1 1 210px; }
+    .market-pick-suggestion { flex-wrap: wrap; row-gap: 4px; }
+    .market-pick-suggestion > span { flex: 1 1 auto; min-width: 0; }
+    .market-pick-suggestion a, .market-pick-suggestion strong { white-space: nowrap; }
+    .market-pick-suggestion strong { margin-left: auto; }
+    @media (min-width: 561px) {
+      .prop-player-actions { flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; margin-left: auto; }
+    }
+    /* Light theme: keep secondary text and links readable on white */
+    html[data-theme="light"] #tour-button, html[data-theme="light"] #news-button { border-color: rgba(77,122,11,.35); background: rgba(120,170,30,.16); color: #2f4d08; }
+    html[data-theme="light"] #tour-button:hover, html[data-theme="light"] #news-button:hover { background: rgba(120,170,30,.28); }
+    html[data-theme="light"] .tour-icon { filter: brightness(.35); }
+    html[data-theme="light"] .field > span, html[data-theme="light"] .prop-results-heading, html[data-theme="light"] .prop-side-meta, html[data-theme="light"] .market-pick-suggestion { color: var(--muted); }
+    html[data-theme="light"] .prop-line-number { color: #3d6208; }
+    html[data-theme="light"] .market-pick-suggestion a { color: #3d6208; text-decoration-color: rgba(61,98,8,.45); }
+    html[data-theme="light"] .market-pick-suggestion a:hover { color: #2f4d08; }
+    html[data-theme="light"] .live-games-panel .muted { color: rgba(237,242,248,.85); }
+    html[data-theme="light"] .sidebar-footer { color: var(--muted); }
+    html[data-theme="light"] .heat-cool { --flame-color: #1f6fa8; }
+    html[data-theme="light"] .heat-smolder { --flame-color: #8a6100; }
+    html[data-theme="light"] .heat-warm { --flame-color: #b4540a; }
+    html[data-theme="light"] .heat-hot { --flame-color: #c4321f; }
+    html[data-theme="light"] .heat-inferno { --flame-color: #b8124a; }
+    @media (max-width: 560px) {
+      .prop-controls .field, .prop-controls .field:first-child, .prop-controls button { flex: 1 1 100%; min-width: 0; }
+      .topbar-heading { display: flex; align-items: center; min-height: 40px; }
+      .topbar #bell-button, .topbar #settings-button { top: 10px; }
+      /* The phone grid flattens the page; keep the disclaimer at the bottom instead of an empty grid cell */
+      .site-footer { grid-row: 6; grid-column: 1; margin: 8px 13px 0; }
+      /* Embedded on the game page the bell needs a real box: the parent iframe is clipped to its bounding rect */
+      html.embed #bell-wrap { display: block; position: fixed; top: 17px; right: 12px; }
+      html.embed #bell-button { position: relative; top: auto; right: auto; }
+      html.embed #bell-panel { top: calc(100% + 8px); right: 0; left: auto; width: calc(100vw - 24px); margin-top: 0; }
+    }
   </style>
 </head>
 <body>
@@ -1900,7 +1962,7 @@
           <div class="feed-status"><span class="live-dot" aria-hidden="true"></span><span id="status" role="status" aria-live="polite">Loading markets…</span></div>
           <button id="refresh" type="button" disabled>↻ Refresh</button>
           <a id="trial-badge" href="/subscribe" hidden></a>
-          <button id="tour-button" type="button" aria-label="Take the tour">❔ Tour</button>
+          <button id="tour-button" type="button" aria-label="Take the tour"><span class="tour-icon" aria-hidden="true">❔</span> Tour</button>
           <button id="news-button" type="button" aria-haspopup="dialog">📰 News</button>
           <div id="bell-wrap">
             <button id="bell-button" type="button" aria-label="Notifications" aria-expanded="false" aria-controls="bell-panel"><span class="bell-glyph" aria-hidden="true">🔔</span><span id="bell-badge" hidden></span></button>
@@ -6457,8 +6519,8 @@
       return key;
     }
 
-    function syncTrackButtons() {
-      for (const button of document.querySelectorAll(".track-toggle")) {
+    function syncTrackButtons(buttons = document.querySelectorAll(".track-toggle")) {
+      for (const button of buttons) {
         const active = trackers.some(item =>
           item.name === button.dataset.playerName && item.eventId === button.dataset.eventId
         );
@@ -6740,7 +6802,9 @@
         hint.replaceChildren(element("span", "", note), element("span", "track-hint-actions"));
         hint.lastChild.append(remove, keep);
         hint.hidden = false;
-      });      syncTrackButtons();
+      });
+      // The new button isn't in the page yet, so set its Track/Tracking state directly.
+      syncTrackButtons([button]);
       return { button, form, hint };
     }
 
@@ -7970,7 +8034,7 @@
         renderMatches(events);
         document.querySelector("#updatedAt").textContent =
           new Date().toLocaleString();
-        statusElement.textContent = `${events.length} event(s)`;
+        statusElement.textContent = `${events.length} ${events.length === 1 ? "game" : "games"}`;
         void loadLiveScores();
       } catch (error) {
         if (requestId !== oddsRequestId || sport !== sportSelect.value) return;
