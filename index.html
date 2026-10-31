@@ -300,6 +300,23 @@
     .sidebar-section { min-height: 0; }
     .sidebar-label { margin: 0 8px 10px; color: #777d96; font-size: .68rem; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
     #sport-navigation { display: grid; gap: 5px; }
+    .soccer-nav-group { min-width: 0; }
+    .soccer-league-panel {
+      position: fixed; z-index: 2000; width: 260px; max-width: calc(100vw - 24px);
+      max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain;
+      padding: 10px; border: 1px solid var(--border); border-radius: 12px;
+      background: var(--surface); box-shadow: 0 12px 36px rgba(0,0,0,.35);
+    }
+    .soccer-league-panel[hidden] { display: none; }
+    .soccer-league-panel h3 { margin: 3px 8px 8px; font-size: .8rem; color: var(--muted); }
+    .soccer-league-choice {
+      display: block; width: 100%; min-height: 44px; padding: 9px 10px;
+      border: 0; border-radius: 8px; background: transparent; color: inherit;
+      text-align: left; font: inherit; font-size: .85rem; cursor: pointer;
+    }
+    .soccer-league-choice:hover, .soccer-league-choice:focus-visible { background: rgba(120,170,30,.15); }
+    .soccer-league-choice[aria-current="true"] { background: rgba(120,170,30,.2); font-weight: 750; }
+    .soccer-nav-toggle[aria-expanded="true"] { outline: 2px solid rgba(120,170,30,.5); outline-offset: -2px; }
     .sport-nav-button, .sidebar-link {
       display: flex;
       width: 100%;
@@ -3080,31 +3097,129 @@
         basketball_wnba: "🏀"
       };
 
-      for (const sport of sports) {
+      const soccerLeagues = sports.filter(sport => isSoccer(sport.key));
+      const chooseSport = sport => {
+        if (sportSelect.value === sport.key) return;
+        sportSelect.value = sport.key;
+        sportSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+      for (const sport of sports.filter(sport => !isSoccer(sport.key))) {
         const button = element("button", "sport-nav-button");
         button.type = "button";
         button.dataset.sport = sport.key;
         button.setAttribute("aria-current", String(sport.key === sportSelect.value));
         button.append(element("span", "sport-nav-icon", isSoccer(sport.key) ? "⚽" : sportIcons[sport.key] || "•"));
         button.append(element("span", "sport-name", sport.title));
-        button.addEventListener("click", () => {
-          if (sportSelect.value === sport.key) return;
-          sportSelect.value = sport.key;
-          updateSportNavigation();
-          loadOdds();
-        });
+        button.addEventListener("click", () => chooseSport(sport));
         sportNavigationElement.append(button);
       }
+      if (!soccerLeagues.length) return;
+      const group = element("div", "soccer-nav-group");
+      const toggle = element("button", "sport-nav-button soccer-nav-toggle");
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-controls", "soccer-league-panel");
+      toggle.append(element("span", "sport-nav-icon", "⚽"), element("span", "sport-name", "Soccer"));
+      const panel = element("div", "soccer-league-panel");
+      panel.id = "soccer-league-panel";
+      panel.hidden = true;
+      panel.setAttribute("role", "group");
+      panel.setAttribute("aria-label", "Soccer leagues");
+      panel.append(element("h3", "", "Soccer leagues"));
+      let pinned = false;
+      let closeTimer;
+      const close = () => {
+        window.clearTimeout(closeTimer);
+        pinned = false;
+        panel.hidden = true;
+        toggle.setAttribute("aria-expanded", "false");
+      };
+      const position = () => {
+        const rect = toggle.getBoundingClientRect();
+        const phone = window.matchMedia("(max-width: 560px)").matches;
+        panel.style.maxHeight = `${Math.max(44, phone ? rect.top - 20 : window.innerHeight - 24)}px`;
+        const width = panel.getBoundingClientRect().width;
+        const height = panel.getBoundingClientRect().height;
+        const left = phone ? window.innerWidth - width - 12 : rect.right + 8;
+        panel.style.left = `${Math.max(12, Math.min(left, window.innerWidth - width - 12))}px`;
+        panel.style.top = `${Math.max(12, Math.min(phone ? rect.top - height - 8 : rect.top, window.innerHeight - height - 12))}px`;
+      };
+      const open = () => {
+        window.clearTimeout(closeTimer);
+        panel.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+        position();
+      };
+      for (const league of soccerLeagues) {
+        const choice = element("button", "soccer-league-choice", soccerSupport.leagues[league.key].title);
+        choice.type = "button";
+        choice.dataset.sport = league.key;
+        choice.addEventListener("click", () => {
+          chooseSport(league);
+          close();
+          toggle.focus();
+        });
+        panel.append(choice);
+      }
+      toggle.addEventListener("click", () => {
+        if (pinned) close();
+        else { pinned = true; open(); }
+      });
+      group.addEventListener("pointerenter", () => {
+        if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) open();
+      });
+      group.addEventListener("pointerleave", () => {
+        if (!pinned && !group.contains(document.activeElement)) closeTimer = window.setTimeout(close, 180);
+      });
+      panel.addEventListener("pointerenter", () => window.clearTimeout(closeTimer));
+      group.addEventListener("focusout", event => {
+        if (!group.contains(event.relatedTarget)) close();
+      });
+      group.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          close();
+          toggle.focus();
+        } else if (event.key === "ArrowDown" && event.target === toggle) {
+          event.preventDefault();
+          open();
+          (panel.querySelector('[aria-current="true"]') || panel.querySelector("button")).focus();
+        }
+      });
+      group.closeLeagues = close;
+      group.positionLeagues = position;
+      group.append(toggle, panel);
+      sportNavigationElement.append(group);
+      updateSportNavigation();
     }
 
     function updateSportNavigation() {
-      for (const button of sportNavigationElement.querySelectorAll(".sport-nav-button")) {
+      for (const button of sportNavigationElement.querySelectorAll(".sport-nav-button:not(.soccer-nav-toggle), .soccer-league-choice")) {
         const active = button.dataset.sport === sportSelect.value;
         button.setAttribute("aria-current", String(active));
-        if (active) button.setAttribute("aria-label", `${button.querySelector(".sport-name").textContent}, selected`);
+        if (active) button.setAttribute("aria-label", `${button.querySelector(".sport-name")?.textContent || button.textContent}, selected`);
         else button.removeAttribute("aria-label");
       }
+      const soccerButton = sportNavigationElement.querySelector(".soccer-nav-toggle");
+      if (soccerButton) {
+        const league = soccerSupport.leagues[sportSelect.value];
+        soccerButton.setAttribute("aria-current", String(Boolean(league)));
+        soccerButton.setAttribute("aria-label", league ? `Soccer, ${league.title} selected. Choose a league` : "Soccer, choose a league");
+        soccerButton.title = league ? `Soccer · ${league.title}` : "Choose a soccer league";
+      }
     }
+    document.addEventListener("click", event => {
+      const group = sportNavigationElement.querySelector(".soccer-nav-group");
+      if (group && !group.contains(event.target)) group.closeLeagues();
+    });
+    window.addEventListener("resize", () => {
+      const group = sportNavigationElement.querySelector(".soccer-nav-group");
+      if (group && !group.querySelector(".soccer-league-panel").hidden) group.positionLeagues();
+    });
+    document.addEventListener("scroll", event => {
+      const group = sportNavigationElement.querySelector(".soccer-nav-group");
+      if (group && !group.querySelector(".soccer-league-panel").contains(event.target)) group.closeLeagues();
+    }, true);
 
     function normalizeTeamName(name) {
       return String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z]/g, "");
