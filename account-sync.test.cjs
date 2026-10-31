@@ -171,6 +171,7 @@ test("Firestore saves merge against the transaction snapshot and replace the dat
   const context = {
     firebaseEnabled: true, firebase: async () => ({ db }), firebaseNames: new Map(),
     pushDataKey: "courtside.push.v1", maxDataBytes: 1_000_000, Buffer,
+    deletedUsers: new Set(), breakDataKey: "courtside.break.v1", breakUntil: () => 0, maxBreakMs: 31 * 86_400_000,
     httpError: (status, message) => Object.assign(new Error(message), { status })
   };
   runInNewContext(authSource.slice(start, end).replace("export ", ""), context);

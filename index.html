@@ -12,6 +12,15 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="theme-color" content="#12150f">
   <meta name="description" content="Live odds, player props and a live pick tracker. Informational only; not betting advice.">
+  <link rel="canonical" href="https://wiselybet.onrender.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="WiselyBet">
+  <meta property="og:title" content="WiselyBet | Live odds, player props and a live pick tracker">
+  <meta property="og:description" content="Compare live odds and player props, then follow your picks and parlays as the games play out. Informational only; not betting advice.">
+  <meta property="og:url" content="https://wiselybet.onrender.com/">
+  <meta property="og:image" content="https://wiselybet.onrender.com/icon-512.png">
+  <meta name="twitter:card" content="summary">
+  <script src="/client-errors.js"></script>
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <title>WiselyBet | Market Board</title>
   <script src="/soccer.js"></script>
@@ -2278,9 +2287,143 @@
       .bp-scope::before { animation: none; }
       .bp-progress, #bp-pause { display: none; }
     }
+    /* Skip link, legal links, settings additions, dialogs, time-check reminder and the break screen */
+    .skip-link { position: fixed; top: 10px; left: 10px; z-index: 400; padding: 10px 16px; border-radius: 10px; background: #c9ef5b; color: #16200a; font-weight: 800; text-decoration: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); transform: translateY(-200%); transition: transform .15s ease-out; }
+    .skip-link:focus { transform: none; outline: 2px solid #fff; outline-offset: 2px; }
+    .footer-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 10px 0 0; }
+    .footer-links a { color: #c9ef5b; }
+    .footer-links button { width: auto; min-height: 0; padding: 0; border: 0; background: none; color: #c9ef5b; font: inherit; font-weight: 400; text-decoration: underline; cursor: pointer; }
+    .footer-links button:hover:not(:disabled) { background: none; color: #e4ff8a; }
+    .footer-copy { color: var(--muted); }
+    /* Scroll room under the footer so the fixed Live tracker bar never covers its last lines */
+    .site-footer { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+    .age-card .age-legal { margin: 2px 0 0; color: #aab3c2; font-size: .76rem; }
+    .age-legal a { color: #c9ef5b; }
+    .settings-links { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; font-size: .74rem; }
+    .settings-links a, .settings-note a { color: #c9ef5b; }
+    .settings-link.is-danger { margin-top: 10px; border-color: rgba(255,107,107,.45); background: rgba(255,107,107,.08); color: #ffb3b3; }
+    .settings-link.is-danger:hover { background: rgba(255,107,107,.18); }
+    .settings-link[hidden] { display: none; }
+    html[data-theme="light"] .footer-links a, html[data-theme="light"] .footer-links button, html[data-theme="light"] .settings-links a, html[data-theme="light"] .settings-note a { color: #3d6208; }
+    html[data-theme="light"] .footer-links button:hover:not(:disabled) { color: #1b2418; }
+    html[data-theme="light"] .settings-link.is-danger { border-color: rgba(190,40,40,.35); background: #fff4f4; color: #a32020; }
+    html[data-theme="light"] .settings-link.is-danger:hover { background: #ffe6e6; }
+    .app-dialog { width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 0; overflow: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 16px; background: #0f1a24; color: #e7f0ea; box-shadow: 0 24px 60px rgba(0,0,0,.6); }
+    .app-dialog::backdrop { background: rgba(4,9,14,.7); backdrop-filter: blur(2px); }
+    .app-dialog[open] { animation: tracker-window-enter .22s cubic-bezier(.2,.9,.3,1) both; }
+    .app-dialog-body { display: grid; gap: 12px; margin: 0; padding: 18px; }
+    .app-dialog-head { display: flex; align-items: center; gap: 10px; }
+    .app-dialog-icon { display: grid; flex: none; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: rgba(201,239,91,.14); color: #c9ef5b; font-size: 17px; }
+    .app-dialog-icon.is-danger { background: rgba(255,107,107,.14); color: #ff9a9a; }
+    .app-dialog-head h2 { margin: 0; font-size: 1.05rem; line-height: 1.25; }
+    .app-dialog-intro, .app-dialog-note { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+    .app-dialog-intro strong, .app-dialog-note strong { color: #e7f0ea; }
+    .app-dialog-note a, .app-dialog-intro a { color: #c9ef5b; }
+    .app-dialog-fields { display: grid; gap: 12px; }
+    .app-dialog-fields[hidden] { display: none; }
+    .app-field { display: grid; gap: 6px; color: #b7c4d1; font-size: .78rem; font-weight: 650; }
+    .app-field select, .app-field input { width: 100%; min-height: 40px; font-weight: 400; }
+    .app-field textarea { width: 100%; min-height: 120px; padding: 9px 12px; border: 1px solid #34485b; border-radius: 9px; background: #0e1722; color: inherit; font: inherit; font-weight: 400; resize: vertical; }
+    .app-field textarea:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .app-field-count { margin: -6px 0 0; color: var(--muted); font-size: .7rem; text-align: right; font-variant-numeric: tabular-nums; }
+    .app-check { display: flex; align-items: flex-start; gap: 9px; color: var(--muted); font-size: .76rem; line-height: 1.45; cursor: pointer; }
+    .app-check input { flex: none; width: 17px; height: 17px; min-height: 0; margin: 1px 0 0; padding: 0; accent-color: #c9ef5b; }
+    .app-choices { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+    .app-choice { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid rgba(201,239,91,.28); border-radius: 12px; background: rgba(201,239,91,.04); cursor: pointer; }
+    .app-choice:has(input:checked) { border-color: #c9ef5b; background: rgba(201,239,91,.13); }
+    .app-choice input { flex: none; width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; accent-color: #c9ef5b; }
+    .app-choice span { display: grid; gap: 1px; }
+    .app-choice strong { font-size: .86rem; }
+    .app-choice small { color: var(--muted); font-size: .72rem; }
+    .app-dialog-error, .app-dialog-success { margin: 0; padding: 8px 12px; border-radius: 10px; font-size: .78rem; line-height: 1.45; }
+    .app-dialog-error { border: 1px solid rgba(255,107,107,.4); background: rgba(255,107,107,.08); color: #ffb3b3; }
+    .app-dialog-success { border: 1px solid rgba(201,239,91,.4); background: rgba(201,239,91,.08); color: #dff3a6; }
+    .app-dialog-error[hidden], .app-dialog-success[hidden], .app-dialog-note[hidden] { display: none; }
+    .app-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+    .app-dialog-actions button { width: auto; min-height: 40px; padding: 8px 16px; border-radius: 10px; font-size: .82rem; }
+    .app-dialog-actions button[hidden] { display: none; }
+    .app-dialog-actions button:disabled { cursor: not-allowed; }
+    .app-dialog-cancel { border: 1px solid #2d3e50; background: transparent; color: var(--muted); font-weight: 700; }
+    .app-dialog-cancel:hover:not(:disabled) { background: transparent; color: #e7f0ea; }
+    .app-dialog-primary { background: #c9ef5b; color: #16200a; font-weight: 800; }
+    .app-dialog-primary:hover:not(:disabled) { background: #dcf78a; }
+    .app-dialog-danger { background: #e5484d; color: #fff; font-weight: 800; }
+    .app-dialog-danger:hover:not(:disabled) { background: #f2555a; }
+    html[data-theme="light"] .app-dialog { border-color: rgba(40,58,22,.15); background: #fff; color: #1b2418; }
+    html[data-theme="light"] .app-dialog-icon { background: rgba(120,170,30,.16); color: #3d6208; }
+    html[data-theme="light"] .app-dialog-icon.is-danger { background: #fff0f0; color: #b42318; }
+    html[data-theme="light"] .app-dialog-intro strong, html[data-theme="light"] .app-dialog-note strong { color: #1b2418; }
+    html[data-theme="light"] .app-dialog-note a, html[data-theme="light"] .app-dialog-intro a { color: #3d6208; }
+    html[data-theme="light"] .app-field { color: #46523f; }
+    html[data-theme="light"] .app-field textarea { border-color: rgba(40,58,22,.25); background: #fff; color: #1b2418; }
+    html[data-theme="light"] .app-choice { border-color: rgba(61,98,8,.28); background: #f6faef; }
+    html[data-theme="light"] .app-choice:has(input:checked) { border-color: #4d7a0b; background: #eaf3d8; }
+    html[data-theme="light"] .app-choice input, html[data-theme="light"] .app-check input { accent-color: #4d7a0b; }
+    html[data-theme="light"] .app-dialog-error { border-color: rgba(190,40,40,.3); background: #fff4f4; color: #a32020; }
+    html[data-theme="light"] .app-dialog-success { border-color: rgba(77,122,11,.35); background: #f2f8e6; color: #2f4d08; }
+    html[data-theme="light"] .app-dialog-cancel { border-color: rgba(40,58,22,.18); }
+    html[data-theme="light"] .app-dialog-cancel:hover:not(:disabled) { color: #1b2418; }
+    html[data-theme="light"] .app-dialog-primary { background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] .app-dialog-primary:hover:not(:disabled) { background: #3d6208; }
+    html[data-theme="light"] .app-dialog-danger { background: #c62828; }
+    html[data-theme="light"] .app-dialog-danger:hover:not(:disabled) { background: #b42318; }
+    /* Time check sits where the notes appear; the notes move below it while it shows. */
+    #session-reminder { position: fixed; top: calc(78px + env(safe-area-inset-top)); right: 16px; z-index: 71; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; width: min(340px, calc(100vw - 32px)); padding: 12px 14px; border: 1px solid rgba(201,239,91,.45); border-radius: 12px; background: #12202b; color: #f0eff7; box-shadow: 0 12px 32px rgba(0,0,0,.45); font-size: .8rem; line-height: 1.45; animation: development-notice-in .25s ease-out both; }
+    #session-reminder[hidden] { display: none; }
+    .reminder-icon { display: grid; grid-row: span 3; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: rgba(201,239,91,.14); font-size: 16px; }
+    #session-reminder strong { font-size: .84rem; }
+    #session-reminder p { margin: 0; color: #c8d3de; }
+    .reminder-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .reminder-actions button { width: auto; min-height: 0; padding: 5px 13px; border: 1px solid rgba(201,239,91,.45); border-radius: 99px; background: rgba(201,239,91,.1); color: #dff3a6; font-size: .76rem; font-weight: 800; line-height: 1.2; }
+    .reminder-actions button:hover:not(:disabled) { border-color: #c9ef5b; background: rgba(201,239,91,.22); color: #f2f7e6; }
+    html.has-session-reminder #toast-stack { top: calc(86px + env(safe-area-inset-top) + var(--session-reminder-h, 0px)); }
+    html[data-theme="light"] #session-reminder { border-color: rgba(77,122,11,.4); background: #fff; color: #1b2418; box-shadow: 0 14px 34px rgba(40,58,22,.2); }
+    html[data-theme="light"] #session-reminder p { color: #46523f; }
+    html[data-theme="light"] .reminder-icon { background: rgba(120,170,30,.16); }
+    html[data-theme="light"] .reminder-actions button { border-color: rgba(77,122,11,.45); background: rgba(120,170,30,.1); color: #2f4d08; }
+    html[data-theme="light"] .reminder-actions button:hover:not(:disabled) { border-color: #4d7a0b; background: rgba(120,170,30,.2); color: #1b2418; }
+    /* Break screen: while a break runs, the page shows nothing else. */
+    html.on-break body > :not(#break-lock) { display: none !important; }
+    #break-lock { display: grid; min-height: 100vh; min-height: 100dvh; place-items: center; padding: 24px 16px; }
+    .break-card { width: min(480px, 100%); padding: 30px 26px 24px; border: 1px solid rgba(201,239,91,.3); border-radius: 18px; background: #121b27; text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+    .break-logo { display: block; width: 56px; height: 56px; margin: 0 auto; border-radius: 14px; }
+    .break-eyebrow { margin: 16px 0 4px; color: #c9ef5b; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    #break-lock h1 { margin: 0 0 10px; font-size: 1.5rem; letter-spacing: -.02em; }
+    .break-text { margin: 0 0 16px; color: #c8d3de; line-height: 1.55; }
+    .break-left { display: inline-block; margin: 0; padding: 6px 16px; border: 1px solid rgba(201,239,91,.35); border-radius: 99px; background: rgba(201,239,91,.08); color: #dff3a6; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .break-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 18px; }
+    .break-actions:empty { display: none; }
+    .break-actions button { width: auto; min-height: 40px; padding: 8px 18px; border-radius: 99px; font-size: .84rem; }
+    .break-actions .break-secondary { border: 1px solid #34485b; background: transparent; color: var(--muted); font-weight: 700; }
+    .break-actions .break-secondary:hover:not(:disabled) { background: transparent; color: #e7f0ea; }
+    .break-actions .break-primary { background: #c9ef5b; color: #16200a; font-weight: 800; }
+    .break-actions .break-primary:hover:not(:disabled) { background: #dcf78a; }
+    .break-help { margin: 20px 0 0; padding-top: 16px; border-top: 1px solid rgba(145,161,179,.16); color: var(--muted); font-size: .8rem; line-height: 1.6; }
+    .break-help a { color: #c9ef5b; }
+    html[data-theme="light"] .break-card { border-color: rgba(77,122,11,.3); background: #fff; color: #1b2418; box-shadow: 0 18px 44px rgba(40,58,22,.16); }
+    html[data-theme="light"] .break-eyebrow, html[data-theme="light"] .break-help a { color: #3d6208; }
+    html[data-theme="light"] .break-text { color: #38442f; }
+    html[data-theme="light"] .break-left { border-color: rgba(77,122,11,.35); background: #f2f8e6; color: #2f4d08; }
+    html[data-theme="light"] .break-actions .break-secondary { border-color: rgba(40,58,22,.22); color: #46523f; }
+    html[data-theme="light"] .break-actions .break-secondary:hover:not(:disabled) { color: #1b2418; }
+    html[data-theme="light"] .break-actions .break-primary { background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] .break-help { border-top-color: rgba(40,58,22,.12); }
+    @media (max-width: 560px) {
+      #session-reminder { top: 64px; right: 10px; left: 10px; width: auto; }
+      html.has-session-reminder #toast-stack { top: calc(72px + var(--session-reminder-h, 0px)); }
+      .break-card { padding: 24px 18px 20px; }
+      /* .app-shell already clears the bottom sports bar; this also clears the tracker bar and the back-to-top button above it */
+      .site-footer { padding-bottom: 84px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .app-dialog[open], #session-reminder { animation: none; }
+      .skip-link { transition: none; }
+    }
+    @media print { .skip-link, .app-dialog, #session-reminder { display: none !important; } }
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#game-list">Skip to the odds</a>
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="/" aria-label="WiselyBet Market Board home">
@@ -2403,6 +2546,14 @@
                   </label>
                 </section>
                 <section>
+                  <h3>Play responsibly</h3>
+                  <label class="settings-row"><span>Time check</span>
+                    <select id="set-reminder"><option value="0">Off</option><option value="30">Every 30 min</option><option value="60">Every hour</option><option value="120">Every 2 hours</option></select>
+                  </label>
+                  <button type="button" id="break-open" class="settings-link">⏸ Take a break…</button>
+                  <p class="settings-note">A time check reminds you how long you've been here. A break pauses WiselyBet and its phone alerts until it ends. <a href="/responsible-gaming">Tips and free help</a></p>
+                </section>
+                <section>
                   <h3>Pick record <span id="history-summary" class="history-summary"></span></h3>
                   <ul id="history-list"></ul>
                   <button type="button" id="history-clear" class="settings-link">Clear record</button>
@@ -2417,6 +2568,12 @@
                   <input type="file" id="data-file" accept="application/json,.json" hidden>
                   <p id="data-message" class="settings-note" role="status"></p>
                   <p class="settings-note">Followed players, trackers, parlays, record and settings are saved to your account and follow you across devices. Pending changes are kept on this device until account sync succeeds. If a sync warning appears, reconnect or sign in again to finish saving.</p>
+                  <button type="button" id="account-delete" class="settings-link is-danger" hidden>Delete my account…</button>
+                </section>
+                <section>
+                  <h3>Help &amp; legal</h3>
+                  <button type="button" id="feedback-open" class="settings-link">✉ Send feedback</button>
+                  <p class="settings-links"><a href="/responsible-gaming">Responsible gaming</a><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a></p>
                 </section>
               </div>
             </div>
@@ -2578,6 +2735,7 @@
       <footer class="site-footer">
         <p><strong>Informational only.</strong> WiselyBet shows market odds and live stats. It is not betting advice and does not guarantee outcomes. Must be of legal betting age in your area (18+ or 21+). Gambling involves risk — only wager what you can afford to lose.</p>
         <p>Need help? Call <a href="tel:18004262537">1-800-GAMBLER</a> or visit <a href="https://www.ncpgambling.org" target="_blank" rel="noopener noreferrer">ncpgambling.org</a>.</p>
+        <nav class="footer-links" aria-label="Legal and help"><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/responsible-gaming">Responsible gaming</a><button type="button" id="footer-feedback">Send feedback</button><span class="footer-copy">© 2026 WiselyBet</span></nav>
       </footer>
     </div>
   </div>
@@ -2607,6 +2765,7 @@
       <h2 id="age-title">Before you continue</h2>
       <p>WiselyBet shows betting-market odds and live stats for information only. It is not betting advice.</p>
       <p>You must be of legal betting age where you live (18+ or 21+). Gambling can be addictive — play responsibly. Help is available at <strong>1-800-GAMBLER</strong>.</p>
+      <p class="age-legal">By continuing you agree to the <a href="/terms">Terms of Use</a> and <a href="/privacy">Privacy Policy</a>.</p>
       <div class="age-actions">
         <button type="button" id="age-yes">I am of legal age — continue</button>
         <a id="age-no" href="https://www.ncpgambling.org" rel="noopener noreferrer">Leave</a>
@@ -2639,7 +2798,7 @@
 
       function canShowNotice() {
         return document.visibilityState === "visible" &&
-          !document.querySelector("#age-gate:not([hidden]), #tour-overlay:not([hidden]), #news-overlay:not([hidden]), #bell-panel:not([hidden]), #settings-panel:not([hidden]), #pick-placement[open]");
+          !document.querySelector("#age-gate:not([hidden]), #tour-overlay:not([hidden]), #news-overlay:not([hidden]), #bell-panel:not([hidden]), #settings-panel:not([hidden]), #pick-placement[open], .app-dialog[open], #session-reminder:not([hidden])");
       }
 
       function hideNotice() {
@@ -2825,6 +2984,88 @@
     })();
   </script>
   <script>
+    // Break lock: while a break taken in Settings → Play responsibly runs, the page shows only the break screen.
+    // window.stop() ends page loading right here, so none of the app's scripts below run during a break.
+    (function () {
+      var until = 0;
+      try { until = Number(JSON.parse(localStorage.getItem("courtside.break.v1") || "null").until) || 0; } catch (error) { until = 0; }
+      if (!(until > Date.now())) return;
+      var root = document.documentElement;
+      root.classList.add("on-break");
+      if (new URLSearchParams(location.search).has("embed")) {
+        root.classList.add("embed");
+        window.stop();
+        return;
+      }
+      try {
+        if ((JSON.parse(localStorage.getItem("courtside.settings.v1") || "{}") || {}).theme === "light") root.dataset.theme = "light";
+      } catch (error) { /* keep the dark theme */ }
+      window.stop();
+
+      function timeLeft(ms) {
+        var minutes = Math.ceil(ms / 60000);
+        if (minutes <= 1) return "Less than a minute left";
+        var days = Math.floor(minutes / 1440);
+        var hours = Math.floor((minutes % 1440) / 60);
+        var rest = minutes % 60;
+        if (days) return days + (days === 1 ? " day" : " days") + (hours ? " " + hours + " hr" : "") + " left";
+        if (hours) return hours + " hr" + (rest ? " " + rest + " min" : "") + " left";
+        return rest + " min left";
+      }
+      var signedIn = Boolean(window.wiselyUser);
+      var ends = new Date(until).toLocaleString([], { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+      var lock = document.createElement("main");
+      lock.id = "break-lock";
+      lock.innerHTML =
+        '<section class="break-card" aria-labelledby="break-lock-title">' +
+          '<img class="break-logo" src="/icon-192.png" alt="" width="56" height="56">' +
+          '<p class="break-eyebrow">WiselyBet is paused</p>' +
+          '<h1 id="break-lock-title">You\'re taking a break</h1>' +
+          '<p class="break-text"></p>' +
+          '<p class="break-left" role="timer"></p>' +
+          '<div class="break-actions"></div>' +
+          '<p class="break-help">Want to talk to someone? Call <a href="tel:18004262537">1-800-GAMBLER</a>, free and confidential, 24/7. ' +
+          '<a href="/responsible-gaming">More help and tips</a></p>' +
+        '</section>';
+      lock.querySelector(".break-text").textContent = "You paused WiselyBet " + (signedIn ? "on all your devices" : "on this device") +
+        " until " + ends + ". Phone alerts are paused too. The break can't be ended early.";
+      var left = lock.querySelector(".break-left");
+      var actions = lock.querySelector(".break-actions");
+      if (signedIn) {
+        var signOut = document.createElement("button");
+        signOut.type = "button";
+        signOut.className = "break-secondary";
+        signOut.textContent = "Sign out";
+        signOut.addEventListener("click", function () {
+          signOut.disabled = true;
+          fetch("/api/auth/logout", { method: "POST" }).catch(function () {}).then(function () { location.replace("/login"); });
+        });
+        actions.appendChild(signOut);
+      }
+      var timer = 0;
+      var over = false;
+      function update() {
+        var remaining = until - Date.now();
+        if (remaining > 0) { left.textContent = timeLeft(remaining); return; }
+        if (over) return;
+        over = true;
+        clearInterval(timer);
+        left.textContent = "Your break is over";
+        var open = document.createElement("button");
+        open.type = "button";
+        open.className = "break-primary";
+        open.textContent = "Open WiselyBet";
+        open.addEventListener("click", function () { location.reload(); });
+        actions.insertBefore(open, actions.firstChild);
+      }
+      update();
+      timer = setInterval(update, 15000);
+      document.addEventListener("visibilitychange", update);
+      document.body.appendChild(lock);
+      document.title = "Taking a break | WiselyBet";
+    })();
+  </script>
+  <script>
     const embedMode = new URLSearchParams(location.search).has("embed");
     if (embedMode) document.documentElement.classList.add("embed");
 
@@ -2886,7 +3127,8 @@
       parlaySide: "all",
       parlayBook: "",
       parlayState: "",
-      parlayLegs: 8
+      parlayLegs: 8,
+      reminder: 60
     };
     function readSettings() {
       try {
@@ -10066,6 +10308,7 @@
       }
       document.querySelector("#set-odds").value = settings.oddsFormat;
       document.querySelector("#set-theme").value = settings.theme;
+      document.querySelector("#set-reminder").value = [0, 30, 60, 120].includes(Number(settings.reminder)) ? String(Number(settings.reminder)) : "60";
     }
     function applyVolume() {
       if (masterOutput) masterOutput.gain.value = effectiveVolume();
@@ -10110,6 +10353,7 @@
       }
       document.querySelector("#set-odds").addEventListener("change", e => changeSetting(() => { settings.oddsFormat = e.target.value; }, true));
       document.querySelector("#set-theme").addEventListener("change", e => changeSetting(() => { settings.theme = e.target.value; }));
+      document.querySelector("#set-reminder").addEventListener("change", e => changeSetting(() => { settings.reminder = Number(e.target.value); }));
       document.querySelector("#set-test-sound").addEventListener("click", () => {
         prepareAudio();
         applyVolume();
@@ -10803,6 +11047,345 @@
       }
     })();
   </script>
+  <aside id="session-reminder" role="status" aria-labelledby="session-reminder-title" hidden>
+    <span class="reminder-icon" aria-hidden="true">⏱</span>
+    <strong id="session-reminder-title">Time check</strong>
+    <p id="session-reminder-text"></p>
+    <div class="reminder-actions">
+      <button type="button" id="session-keep">Keep going</button>
+      <button type="button" id="session-break">Take a break</button>
+    </div>
+  </aside>
+  <dialog id="break-dialog" class="app-dialog" aria-labelledby="break-dialog-title">
+    <form id="break-form" class="app-dialog-body">
+      <div class="app-dialog-head">
+        <span class="app-dialog-icon" aria-hidden="true">⏸</span>
+        <h2 id="break-dialog-title">Take a break</h2>
+      </div>
+      <p class="app-dialog-intro">Pause WiselyBet <span id="break-scope">on all your devices</span>. Until the break ends, the app shows only a break screen and phone alerts stop. <strong>A break can't be ended early.</strong></p>
+      <fieldset class="app-choices">
+        <legend class="visually-hidden">Break length</legend>
+        <label class="app-choice"><input type="radio" name="break-length" value="1" checked><span><strong>24 hours</strong><small>A day off</small></span></label>
+        <label class="app-choice"><input type="radio" name="break-length" value="7"><span><strong>7 days</strong><small>A week to reset</small></span></label>
+        <label class="app-choice"><input type="radio" name="break-length" value="30"><span><strong>30 days</strong><small>A longer pause</small></span></label>
+      </fieldset>
+      <p class="app-dialog-note" id="break-ends"></p>
+      <p class="app-dialog-note">Need longer, or support with gambling? See <a href="/responsible-gaming">Responsible gaming</a> for self-exclusion tools and free, confidential help.</p>
+      <p class="app-dialog-error" id="break-error" role="alert" hidden></p>
+      <div class="app-dialog-actions">
+        <button type="button" class="app-dialog-cancel" data-close>Cancel</button>
+        <button type="submit" class="app-dialog-primary" id="break-confirm">Start my break</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="feedback-dialog" class="app-dialog" aria-labelledby="feedback-title">
+    <form id="feedback-form" class="app-dialog-body" novalidate>
+      <div class="app-dialog-head">
+        <span class="app-dialog-icon" aria-hidden="true">✉</span>
+        <h2 id="feedback-title">Send feedback</h2>
+      </div>
+      <p class="app-dialog-intro">Tell us what works, what doesn't, or what you'd like to see. We read every message.</p>
+      <div class="app-dialog-fields" id="feedback-fields">
+        <label class="app-field"><span>Topic</span>
+          <select id="feedback-topic">
+            <option value="idea">Idea or request</option>
+            <option value="bug">Something isn't working</option>
+            <option value="data">Odds or stats look wrong</option>
+            <option value="account">Account or plan</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label class="app-field"><span>Message</span>
+          <textarea id="feedback-message" rows="5" maxlength="2000" aria-describedby="feedback-count" placeholder="What happened, or what would make WiselyBet better?"></textarea>
+        </label>
+        <p class="app-field-count" id="feedback-count"></p>
+        <label class="app-check"><input type="checkbox" id="feedback-details"><span>Include technical details (page, screen size, theme, time zone and browser) to help us fix problems.</span></label>
+      </div>
+      <p class="app-dialog-note" id="feedback-guest" hidden>Please <a href="/login">sign in</a> to send feedback so we can reply to you.</p>
+      <p class="app-dialog-error" id="feedback-error" role="alert" hidden></p>
+      <p class="app-dialog-success" id="feedback-done" role="status" hidden>Thanks! Your feedback was sent.</p>
+      <div class="app-dialog-actions">
+        <button type="button" class="app-dialog-cancel" id="feedback-cancel" data-close>Cancel</button>
+        <button type="submit" class="app-dialog-primary" id="feedback-send" disabled>Send feedback</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="delete-dialog" class="app-dialog" aria-labelledby="delete-title">
+    <form id="delete-form" class="app-dialog-body" novalidate>
+      <div class="app-dialog-head">
+        <span class="app-dialog-icon is-danger" aria-hidden="true">⚠</span>
+        <h2 id="delete-title">Delete your account?</h2>
+      </div>
+      <p class="app-dialog-intro">This permanently deletes your WiselyBet account and everything saved to it: followed players, trackers, parlays, your pick record, settings and phone alerts. <strong>It can't be undone.</strong></p>
+      <p class="app-dialog-note">Want a copy first? Use <strong>⬇ Export</strong> in Settings → Your data before you delete.</p>
+      <label class="app-field"><span>Type DELETE to confirm</span>
+        <input id="delete-confirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </label>
+      <p class="app-dialog-error" id="delete-error" role="alert" hidden></p>
+      <div class="app-dialog-actions">
+        <button type="button" class="app-dialog-cancel" data-close>Keep my account</button>
+        <button type="submit" class="app-dialog-danger" id="delete-submit" disabled>Delete my account</button>
+      </div>
+    </form>
+  </dialog>
+  <script>
+    // Responsible play and account care: the time check, Take a break, feedback and account deletion.
+    (() => {
+      if (new URLSearchParams(location.search).has("embed")) return;
+      const breakKey = "courtside.break.v1";
+      const sessionKey = "wiselybet.session.v1";
+      const signedIn = Boolean(window.wiselyUser);
+      const root = document.documentElement;
+      const readJson = key => {
+        try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
+      };
+
+      // A finished break is cleared so it stops following the account around.
+      const savedBreak = readJson(breakKey);
+      if (savedBreak && !(Number(savedBreak.until) > Date.now())) {
+        try { localStorage.removeItem(breakKey); } catch { /* ignore */ }
+      }
+      // A break started in another tab closes this one too.
+      window.addEventListener("storage", event => {
+        if (event.key !== breakKey || !event.newValue) return;
+        try { if (Number(JSON.parse(event.newValue).until) > Date.now()) location.reload(); } catch { /* ignore */ }
+      });
+
+      let opener = null;
+      function openDialog(dialog, focusTarget) {
+        opener = document.activeElement;
+        const panel = document.querySelector("#settings-panel");
+        if (panel && !panel.hidden) document.querySelector("#settings-close")?.click();
+        if (!dialog.open) dialog.showModal();
+        focusTarget?.focus();
+      }
+      for (const dialog of document.querySelectorAll(".app-dialog")) {
+        // Only a press that starts and ends on the backdrop closes it, so selecting text can't lose a draft.
+        let pressedBackdrop = false;
+        dialog.addEventListener("pointerdown", event => { pressedBackdrop = event.target === dialog; });
+        dialog.addEventListener("click", event => {
+          if ((event.target === dialog && pressedBackdrop) || event.target.closest("[data-close]")) dialog.close();
+        });
+        dialog.addEventListener("close", () => {
+          const back = opener?.isConnected && opener.getClientRects().length ? opener : document.querySelector("#settings-button");
+          back?.focus({ preventScroll: true });
+          opener = null;
+        });
+      }
+
+      // Time check: counts the time the board is open on this device and reminds at the chosen interval.
+      // Being away for 30 minutes or more starts a new session.
+      function sessionTick(state, now, minutes) {
+        const valid = Boolean(state) && Number.isFinite(state.start) && Number.isFinite(state.last) &&
+          state.start <= now && now - state.last < 30 * 60_000;
+        const next = valid ? { start: state.start, last: now, shownAt: Number(state.shownAt) || 0 } : { start: now, last: now, shownAt: 0 };
+        const due = minutes > 0 && now - Math.max(next.start, next.shownAt) >= minutes * 60_000;
+        return { state: next, due };
+      }
+      function playedFor(ms) {
+        const minutes = Math.max(1, Math.round(ms / 60_000));
+        const hours = Math.floor(minutes / 60);
+        const rest = minutes % 60;
+        if (!hours) return `${minutes} min`;
+        return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
+      }
+      const reminder = document.querySelector("#session-reminder");
+      const reminderText = document.querySelector("#session-reminder-text");
+      function reminderMinutes() {
+        const value = Number((readJson("courtside.settings.v1") || {}).reminder);
+        return [0, 30, 60, 120].includes(value) ? value : 60;
+      }
+      const overlayOpen = () => Boolean(document.querySelector("#age-gate:not([hidden]), #tour-overlay:not([hidden]), #news-overlay:not([hidden]), #bell-panel:not([hidden]), #settings-panel:not([hidden]), dialog[open]"));
+      function placeReminder() {
+        if (!reminder.hidden) root.style.setProperty("--session-reminder-h", `${reminder.offsetHeight}px`);
+      }
+      function showReminder(elapsed) {
+        reminderText.textContent = `You've been on WiselyBet for ${playedFor(elapsed)}. Regular breaks help you stay in control.`;
+        reminder.hidden = false;
+        root.classList.add("has-session-reminder");
+        placeReminder();
+      }
+      function hideReminder() {
+        reminder.hidden = true;
+        root.classList.remove("has-session-reminder");
+      }
+      function tick() {
+        if (document.visibilityState !== "visible") return;
+        const now = Date.now();
+        const { state, due } = sessionTick(readJson(sessionKey), now, reminderMinutes());
+        if (due && (!reminder.hidden || !overlayOpen())) {
+          state.shownAt = now;
+          showReminder(now - state.start);
+        }
+        try { localStorage.setItem(sessionKey, JSON.stringify(state)); } catch { /* no time check without storage */ }
+      }
+      document.querySelector("#session-keep").addEventListener("click", hideReminder);
+      document.querySelector("#session-break").addEventListener("click", () => {
+        hideReminder();
+        openBreak();
+      });
+      window.addEventListener("resize", placeReminder);
+      document.addEventListener("visibilitychange", tick);
+      setInterval(tick, 30_000);
+      tick();
+
+      // Take a break: saved like any other setting, so the account carries it to every device.
+      const breakForm = document.querySelector("#break-form");
+      const breakEnds = document.querySelector("#break-ends");
+      const breakError = document.querySelector("#break-error");
+      const breakConfirm = document.querySelector("#break-confirm");
+      document.querySelector("#break-scope").textContent = signedIn ? "on all your devices" : "in this browser";
+      const breakDays = () => Number(breakForm.elements["break-length"].value) || 1;
+      const formatEnd = time => new Date(time).toLocaleString([], { weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+      function showBreakEnd() {
+        breakEnds.textContent = `Your break would end on ${formatEnd(Date.now() + breakDays() * 86_400_000)}.`;
+      }
+      function openBreak() {
+        breakError.hidden = true;
+        showBreakEnd();
+        openDialog(document.querySelector("#break-dialog"), breakForm.querySelector("input:checked"));
+      }
+      breakForm.addEventListener("change", showBreakEnd);
+      breakForm.addEventListener("submit", async event => {
+        event.preventDefault();
+        const startedAt = Date.now();
+        const value = JSON.stringify({ until: startedAt + breakDays() * 86_400_000, startedAt });
+        breakConfirm.disabled = true;
+        breakConfirm.textContent = "Starting…";
+        try {
+          localStorage.setItem(breakKey, value);
+        } catch {
+          breakError.textContent = "Your break couldn't be saved in this browser. Allow site storage and try again.";
+          breakError.hidden = false;
+          breakConfirm.disabled = false;
+          breakConfirm.textContent = "Start my break";
+          return;
+        }
+        // Save it to the account now so other devices pick it up on their next load.
+        if (signedIn) {
+          try {
+            await fetch("/api/user-data", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: { [breakKey]: value } }) });
+          } catch { /* account sync retries it */ }
+        }
+        location.reload();
+      });
+      document.querySelector("#break-open").addEventListener("click", openBreak);
+
+      // Feedback goes to the team by email; guests are asked to sign in first.
+      const feedbackDialog = document.querySelector("#feedback-dialog");
+      const feedbackFields = document.querySelector("#feedback-fields");
+      const feedbackMessage = document.querySelector("#feedback-message");
+      const feedbackCount = document.querySelector("#feedback-count");
+      const feedbackSend = document.querySelector("#feedback-send");
+      const feedbackCancel = document.querySelector("#feedback-cancel");
+      const feedbackError = document.querySelector("#feedback-error");
+      const feedbackDone = document.querySelector("#feedback-done");
+      let feedbackBusy = false;
+      function countFeedback() {
+        const short = feedbackMessage.value.trim().length < 10;
+        feedbackCount.textContent = `${feedbackMessage.value.length} / 2000${short ? " · at least 10 characters" : ""}`;
+        feedbackSend.disabled = short || feedbackBusy;
+      }
+      function openFeedback() {
+        feedbackError.hidden = true;
+        feedbackDone.hidden = true;
+        feedbackFields.hidden = !signedIn;
+        feedbackSend.hidden = !signedIn;
+        document.querySelector("#feedback-guest").hidden = signedIn;
+        feedbackCancel.textContent = signedIn ? "Cancel" : "Close";
+        countFeedback();
+        openDialog(feedbackDialog, signedIn ? feedbackMessage : feedbackCancel);
+      }
+      feedbackMessage.addEventListener("input", countFeedback);
+      document.querySelector("#feedback-form").addEventListener("submit", async event => {
+        event.preventDefault();
+        if (!signedIn || feedbackBusy || feedbackMessage.value.trim().length < 10) return;
+        const body = { topic: document.querySelector("#feedback-topic").value, message: feedbackMessage.value.trim() };
+        if (document.querySelector("#feedback-details").checked) {
+          body.details = {
+            page: location.pathname + location.hash,
+            screen: `${window.innerWidth}x${window.innerHeight}`,
+            theme: root.dataset.theme || "dark",
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+          };
+        }
+        feedbackBusy = true;
+        feedbackError.hidden = true;
+        feedbackSend.textContent = "Sending…";
+        countFeedback();
+        let problem = "";
+        try {
+          const reply = await fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          if (!reply.ok) problem = (await reply.json().catch(() => ({}))).error || "Your feedback couldn't be sent. Please try again.";
+        } catch {
+          problem = "Your feedback couldn't be sent. Check your connection and try again.";
+        }
+        feedbackBusy = false;
+        feedbackSend.textContent = "Send feedback";
+        if (problem) {
+          feedbackError.textContent = problem;
+          feedbackError.hidden = false;
+          countFeedback();
+          return;
+        }
+        feedbackMessage.value = "";
+        countFeedback();
+        feedbackFields.hidden = true;
+        feedbackSend.hidden = true;
+        feedbackDone.hidden = false;
+        feedbackCancel.textContent = "Close";
+        feedbackCancel.focus();
+      });
+      document.querySelector("#feedback-open").addEventListener("click", openFeedback);
+      document.querySelector("#footer-feedback").addEventListener("click", openFeedback);
+
+      // Account deletion: removes the account on the server, then everything this browser kept for it.
+      const deleteOpen = document.querySelector("#account-delete");
+      const deleteInput = document.querySelector("#delete-confirm");
+      const deleteSubmit = document.querySelector("#delete-submit");
+      const deleteError = document.querySelector("#delete-error");
+      let deleting = false;
+      const deleteConfirmed = () => deleteInput.value.trim().toUpperCase() === "DELETE";
+      deleteOpen.hidden = !signedIn;
+      deleteOpen.addEventListener("click", () => {
+        deleteInput.value = "";
+        deleteSubmit.disabled = true;
+        deleteError.hidden = true;
+        openDialog(document.querySelector("#delete-dialog"), deleteInput);
+      });
+      deleteInput.addEventListener("input", () => { deleteSubmit.disabled = deleting || !deleteConfirmed(); });
+      document.querySelector("#delete-form").addEventListener("submit", async event => {
+        event.preventDefault();
+        if (deleting || !deleteConfirmed()) return;
+        deleting = true;
+        deleteSubmit.disabled = true;
+        deleteSubmit.textContent = "Deleting…";
+        deleteError.hidden = true;
+        let problem = "";
+        try {
+          const reply = await fetch("/api/account/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: "DELETE" }) });
+          if (!reply.ok) problem = (await reply.json().catch(() => ({}))).error || "Your account couldn't be deleted. Please try again.";
+        } catch {
+          problem = "Your account couldn't be deleted. Check your connection and try again.";
+        }
+        if (problem) {
+          deleting = false;
+          deleteError.textContent = problem;
+          deleteError.hidden = false;
+          deleteSubmit.textContent = "Delete my account";
+          deleteSubmit.disabled = !deleteConfirmed();
+          return;
+        }
+        try { localStorage.clear(); } catch { /* ignore */ }
+        try {
+          const registration = await Promise.race([navigator.serviceWorker?.getRegistration(), new Promise(resolve => setTimeout(resolve, 2000))]);
+          const subscription = await registration?.pushManager?.getSubscription();
+          await subscription?.unsubscribe();
+        } catch { /* the server already dropped this phone's alerts */ }
+        location.replace("/login?deleted=1");
+      });
+    })();
+  </script>
   <script>
     // Phone helpers: keep the sticky tabs under the app bar and offer a back-to-top button.
     (function () {
@@ -10815,6 +11398,27 @@
       if (!top) return;
       window.addEventListener("scroll", function () { top.classList.toggle("show", window.scrollY > 700); }, { passive: true });
       top.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+    })();
+    // On phones Settings hangs from the sticky app bar, under the fixed Live tracker bar: end it above that bar so its last items stay reachable.
+    (function () {
+      var phone = window.matchMedia("(max-width: 560px)");
+      var panel = document.querySelector("#settings-panel");
+      var toggle = document.querySelector("#tracker-toggle");
+      if (!panel) return;
+      function fit() {
+        if (panel.hidden || !phone.matches) {
+          if (panel.style.maxHeight) panel.style.maxHeight = "";
+          return;
+        }
+        var floor = toggle && toggle.getClientRects().length ? toggle.getBoundingClientRect().top : window.innerHeight;
+        // Layout position, not getBoundingClientRect(): the opening animation scales the panel.
+        var parent = panel.offsetParent;
+        var top = parent ? parent.getBoundingClientRect().top + parent.clientTop + panel.offsetTop : panel.getBoundingClientRect().top;
+        panel.style.maxHeight = Math.max(200, Math.floor(floor - top - 8)) + "px";
+      }
+      if (window.MutationObserver) new MutationObserver(fit).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+      window.addEventListener("resize", fit);
+      window.addEventListener("scroll", fit, { passive: true });
     })();
   </script>
 </body>
