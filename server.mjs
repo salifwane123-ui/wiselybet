@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { displayName, firebaseEnabled, firebaseSignIn, firebaseWebConfig, getSessionUser, getSubscription, getUserData, logIn, logOut, pushDataKey, queueEmail, reportActive, signUp, subscribe, updateUserData } from "./auth.mjs";
 import { randomBytes } from "node:crypto";
 import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
-import { bestParlayMarkets, buildBestParlay, injuredPlayers, parlayBooks, parlayRules, propsTtlMs, selectSlate } from "./best-parlay.mjs";
+import { bestParlayMarkets, buildBestParlay, combineBestParlays, injuredPlayers, parlayBooks, parlayRules, propsTtlMs, selectSlate } from "./best-parlay.mjs";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -527,7 +527,7 @@ async function parlayEventOdds(sport, event, book, premium, now) {
   return entry;
 }
 
-async function buildParlayResponse(sport, book, premium) {
+async function buildParlayResponse(sport, book, premium, { maxGames = parlayRules.maxGames, includeScore = false } = {}) {
   const injuriesTask = cached(`parlay-injuries:${sport}`, 10 * 60_000, () => fetchPlayerInjuries(sport)).then(injuredPlayers, () => null);
   const now = Date.now();
   const events = await fetchOddsApi(`sports/${encodeURIComponent(sport)}/events`, {});
@@ -543,7 +543,7 @@ async function buildParlayResponse(sport, book, premium) {
   };
 
   // Games past their listed start: ESPN says which are in progress, which haven't tipped off yet and which are over.
-  const started = selectSlate(events, now).events.filter(event => event.live);
+  const started = selectSlate(events, now, maxGames).events.filter(event => event.live);
   const boxScores = await Promise.all(started.map(event =>
     cached(`parlay-live:${sport}:${event.id}`, 30_000, () => parlayLiveGame(sport, event)).catch(() => null)));
   const liveGames = new Map();
@@ -581,7 +581,7 @@ async function buildParlayResponse(sport, book, premium) {
   if (liveEvents.length) {
     try {
       liveResult = buildBestParlay({
-        events: liveEvents, oddsByEvent: await price(liveEvents), book, markets, injured: injured || new Set(), sport, liveGames
+        events: liveEvents, oddsByEvent: await price(liveEvents), book, markets, injured: injured || new Set(), sport, liveGames, includeScore
       });
     } catch (error) {
       console.error("Live best parlay failed:", error.message);
@@ -599,11 +599,11 @@ async function buildParlayResponse(sport, book, premium) {
 
   // Otherwise the upcoming games, including any running late, priced before tip-off.
   const upcoming = events.filter(event => Date.parse(event?.commence_time) > now || waiting.has(event?.id));
-  const slate = selectSlate(upcoming, now, parlayRules.maxGames, waiting);
+  const slate = selectSlate(upcoming, now, maxGames, waiting);
   let result = null;
   try {
     result = buildBestParlay({
-      events: slate.events, oddsByEvent: await price(slate.events), book, markets, injured: injured || new Set()
+      events: slate.events, oddsByEvent: await price(slate.events), book, markets, injured: injured || new Set(), sport, includeScore
     });
   } catch (error) {
     if (!liveResult?.legs.length) throw error;
@@ -627,8 +627,11 @@ async function parlayLiveGame(sport, event) {
   return null;
 }
 
-async function bestParlayFor(sport, book, premium) {
-  const key = `best-parlay:${sport}|${book}|${premium ? "full" : "guest"}`;
+async function bestParlayFor(sport, book, premium, options = {}) {
+  const maxGames = Number.isInteger(options.maxGames) ? options.maxGames : parlayRules.maxGames;
+  const includeScore = options.includeScore === true;
+  const extraKey = maxGames === parlayRules.maxGames && !includeScore ? "" : `|${maxGames}|${includeScore ? "ranked" : "plain"}`;
+  const key = `best-parlay:${sport}|${book}|${premium ? "full" : "guest"}${extraKey}`;
   const lastGood = () => {
     const saved = parlayLastGood.get(key);
     // A live parlay's clock and score age quickly, so it is only reused for a few minutes.
@@ -645,7 +648,7 @@ async function bestParlayFor(sport, book, premium) {
     throw error;
   }
   try {
-    const value = await cached(key, 60_000, () => buildParlayResponse(sport, book, premium));
+    const value = await cached(key, 60_000, () => buildParlayResponse(sport, book, premium, { maxGames, includeScore }));
     parlayLastGood.set(key, value);
     return value;
   } catch (error) {
@@ -653,6 +656,72 @@ async function bestParlayFor(sport, book, premium) {
     const saved = lastGood();
     if (saved) return saved;
     const failure = new Error("We couldn't build a parlay right now. Please try again in a minute.");
+    failure.status = 503;
+    throw failure;
+  }
+}
+
+async function bestParlayForAllSports(book, premium) {
+  const key = `best-parlay:all|${book}|${premium ? "full" : "guest"}`;
+  const lastGood = () => {
+    const saved = parlayLastGood.get(key);
+    return saved && Date.now() - Date.parse(saved.generatedAt) < parlayStaleMs ? { ...saved, stale: true } : null;
+  };
+  const fresh = cachedValue(key);
+  if (fresh) return fresh;
+  try {
+    const results = [];
+    const unavailable = [];
+    for (const sport of Object.keys(bestParlayMarkets)) {
+      try {
+        results.push(await bestParlayFor(sport, book, premium, { maxGames: 2, includeScore: true }));
+      } catch (error) {
+        unavailable.push(sport);
+        console.error(`All-sports parlay skipped ${sport}:`, error.message);
+      }
+    }
+    if (!results.length) throw new Error("Cross-sport player props are temporarily unavailable.");
+
+    const merged = combineBestParlays(results);
+    const liveResults = results.map(result => result.live).filter(Boolean);
+    const live = liveResults.length ? {
+      games: liveResults.reduce((sum, item) => sum + (item.games || 0), 0),
+      bookGames: liveResults.reduce((sum, item) => sum + (item.bookGames || 0), 0),
+      legs: merged.legs.filter(leg => leg.live).length,
+      checked: liveResults.reduce((sum, item) => sum + (item.checked || 0), 0),
+      skipped: liveResults.reduce((all, item) => {
+        for (const [reason, count] of Object.entries(item.skipped || {})) all[reason] = (all[reason] || 0) + count;
+        return all;
+      }, {}),
+      unknown: liveResults.reduce((sum, item) => sum + (item.unknown || 0), 0)
+    } : null;
+    const liveLegs = merged.legs.filter(leg => leg.live).length;
+    const value = {
+      sport: "all",
+      book,
+      scope: liveLegs === merged.legs.length && liveLegs ? "live" : liveLegs ? "mixed" : results.some(result => result.scope === "next") ? "next" : "soon",
+      markets: [...new Set(results.flatMap(result => result.markets || []))],
+      games: results.reduce((sum, result) => sum + (result.games || 0), 0),
+      bookGames: results.reduce((sum, result) => sum + (result.bookGames || 0), 0),
+      legs: merged.legs,
+      alternates: merged.alternates,
+      injuryCheck: unavailable.length === 0 && results.every(result => result.injuryCheck),
+      injuredSkipped: results.reduce((sum, result) => sum + (result.injuredSkipped || 0), 0),
+      pricesAt: results.map(result => result.pricesAt).filter(Boolean).sort()[0] || "",
+      generatedAt: new Date().toISOString(),
+      limited: !premium,
+      live,
+      sportsIncluded: results.map(result => result.sport),
+      sportsUnavailable: unavailable
+    };
+    const saved = await cached(key, 60_000, async () => value);
+    parlayLastGood.set(key, saved);
+    return saved;
+  } catch (error) {
+    console.error("All-sports parlay failed:", error.message);
+    const saved = lastGood();
+    if (saved) return saved;
+    const failure = new Error("We couldn't build cross-sport picks right now. Please try again in a minute.");
     failure.status = 503;
     throw failure;
   }
@@ -1061,12 +1130,16 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/api/best-parlay") {
       const sport = url.searchParams.get("sport") || "";
       const book = url.searchParams.get("book") || "";
-      if (!Object.hasOwn(bestParlayMarkets, sport)) {
-        await sendJson(response, 400, { error: "Best parlays are not available for this sport." });
-        return;
-      }
       if (!parlayBooks.has(book)) {
         await sendJson(response, 400, { error: "Choose a supported sportsbook." });
+        return;
+      }
+      if (sport === "all") {
+        await sendJson(response, 200, await bestParlayForAllSports(book, premium));
+        return;
+      }
+      if (!Object.hasOwn(bestParlayMarkets, sport)) {
+        await sendJson(response, 400, { error: "Best parlays are not available for this sport." });
         return;
       }
       await sendJson(response, 200, await bestParlayFor(sport, book, premium));
