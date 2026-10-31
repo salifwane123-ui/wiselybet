@@ -15,6 +15,7 @@ function setup({ hover = true, phone = false, selected = "basketball_nba", leagu
     replaceChildren(...nodes) { this.children = nodes; }
     setAttribute(name, value) { this.attributes[name] = value; }
     removeAttribute(name) { delete this.attributes[name]; }
+    get classList() { return { contains: name => this.className.split(" ").includes(name) }; }
     addEventListener(name, callback) { this.listeners[name] = callback; }
     contains(node) { return this === node || this.children.some(child => child.contains(node)); }
     focus() { document.activeElement = this; }
@@ -53,6 +54,11 @@ test("seven soccer leagues share one Soccer button while NBA remains separate", 
   assert.equal(app.panel.querySelectorAll("button").length, 7);
   assert.equal(app.panel.hidden, true);
   assert.equal(app.toggle.attributes["aria-controls"], "soccer-league-panel");
+  const choices = app.panel.querySelectorAll("button");
+  assert.equal(choices[0].dataset.code, "EPL");
+  assert.equal(choices[0].dataset.region, "England");
+  assert.equal(choices[0].attributes["aria-label"], "Premier League, England");
+  assert.equal(choices[0].querySelector(".soccer-choice-check").attributes["aria-hidden"], "true");
 });
 
 test("click opens, league choice selects and closes, and a second click dismisses", () => {

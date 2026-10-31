@@ -302,21 +302,37 @@
     #sport-navigation { display: grid; gap: 5px; }
     .soccer-nav-group { min-width: 0; }
     .soccer-league-panel {
-      position: fixed; z-index: 2000; width: 260px; max-width: calc(100vw - 24px);
+      position: fixed; z-index: 2000; width: 310px; max-width: calc(100vw - 24px);
       max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain;
-      padding: 10px; border: 1px solid var(--border); border-radius: 12px;
-      background: var(--surface); box-shadow: 0 12px 36px rgba(0,0,0,.35);
+      padding: 10px; border: 1px solid var(--border); border-radius: 18px;
+      background: var(--surface); color: #edf2e8; box-shadow: 0 18px 56px rgba(0,0,0,.32), 0 2px 8px rgba(0,0,0,.16);
     }
     .soccer-league-panel[hidden] { display: none; }
-    .soccer-league-panel h3 { margin: 3px 8px 8px; font-size: .8rem; color: var(--muted); }
+    .soccer-league-panel h3 { margin: 0 2px 8px; padding: 10px 10px 14px; border-bottom: 1px solid var(--border); font-size: .9rem; font-weight: 750; letter-spacing: -.015em; }
+    .soccer-league-panel h3::after { content: "Choose your competition"; display: block; margin-top: 4px; color: var(--muted); font-size: .72rem; font-weight: 400; letter-spacing: 0; }
     .soccer-league-choice {
-      display: block; width: 100%; min-height: 44px; padding: 9px 10px;
-      border: 0; border-radius: 8px; background: transparent; color: inherit;
-      text-align: left; font: inherit; font-size: .85rem; cursor: pointer;
+      position: relative; display: block; width: 100%; min-height: 58px; padding: 10px 32px 10px 60px;
+      border: 1px solid transparent; border-radius: 11px; background: transparent; color: inherit;
+      text-align: left; font: inherit; font-size: .82rem; font-weight: 650; cursor: pointer;
+      transition: background .15s, border-color .15s;
     }
-    .soccer-league-choice:hover, .soccer-league-choice:focus-visible { background: rgba(120,170,30,.15); }
-    .soccer-league-choice[aria-current="true"] { background: rgba(120,170,30,.2); font-weight: 750; }
-    .soccer-nav-toggle[aria-expanded="true"] { outline: 2px solid rgba(120,170,30,.5); outline-offset: -2px; }
+    .soccer-league-choice + .soccer-league-choice { margin-top: 3px; }
+    .soccer-league-choice::before { content: attr(data-code); position: absolute; top: 12px; left: 10px; display: grid; place-items: center; width: 36px; height: 34px; border: 1px solid var(--border); border-radius: 10px; background: rgba(150,170,130,.08); color: #b7ce98; font-size: .65rem; letter-spacing: .04em; font-weight: 800; }
+    .soccer-league-choice::after { content: attr(data-region); display: block; margin-top: 3px; color: var(--muted); font-size: .69rem; font-weight: 400; }
+    .soccer-league-choice:hover, .soccer-league-choice:focus-visible { background: rgba(120,170,30,.1); border-color: rgba(120,170,30,.22); }
+    .soccer-league-choice:focus-visible { outline: 2px solid #89af4c; outline-offset: -2px; }
+    .soccer-league-choice[aria-current="true"] { background: rgba(120,170,30,.14); border-color: rgba(120,170,30,.35); box-shadow: inset 3px 0 #89af4c; }
+    .soccer-league-choice[aria-current="true"]::before { background: rgba(120,170,30,.2); color: #d5edb1; }
+    .soccer-choice-check { position: absolute; right: 12px; top: 19px; display: none; color: #b6d887; font-size: .85rem; }
+    .soccer-league-choice[aria-current="true"] .soccer-choice-check { display: inline; }
+    .soccer-nav-toggle::after { content: ""; margin-left: auto; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); transition: transform .15s; }
+    .soccer-nav-toggle[aria-expanded="true"]::after { transform: rotate(225deg); }
+    html[data-theme="light"] .soccer-league-panel { background: #fff; color: #26331f; box-shadow: 0 18px 48px rgba(35,50,25,.16); }
+    html[data-theme="light"] .soccer-league-choice::before, html[data-theme="light"] .soccer-choice-check { color: #46651e; }
+    html[data-theme="light"] .soccer-league-choice[aria-current="true"]::before { color: #365415; }
+    @media (max-width: 850px) { .soccer-nav-toggle::after { display: none; } }
+    @media (max-width: 560px) { .soccer-league-panel { width: min(360px, calc(100vw - 24px)); } }
+    @media (prefers-reduced-motion: reduce) { .soccer-league-choice, .soccer-nav-toggle::after { transition: none; } }
     .sport-nav-button, .sidebar-link {
       display: flex;
       width: 100%;
@@ -3129,6 +3145,12 @@
       panel.setAttribute("role", "group");
       panel.setAttribute("aria-label", "Soccer leagues");
       panel.append(element("h3", "", "Soccer leagues"));
+      const leagueDetails = {
+        soccer_epl: ["EPL", "England"], soccer_spain_la_liga: ["LIGA", "Spain"],
+        soccer_uefa_champs_league: ["UCL", "Europe"], soccer_usa_mls: ["MLS", "United States & Canada"],
+        soccer_italy_serie_a: ["ITA", "Italy"], soccer_germany_bundesliga: ["GER", "Germany"],
+        soccer_france_ligue_one: ["FRA", "France"]
+      };
       let pinned = false;
       let closeTimer;
       const close = () => {
@@ -3157,6 +3179,11 @@
         const choice = element("button", "soccer-league-choice", soccerSupport.leagues[league.key].title);
         choice.type = "button";
         choice.dataset.sport = league.key;
+        [choice.dataset.code, choice.dataset.region] = leagueDetails[league.key];
+        choice.setAttribute("aria-label", `${soccerSupport.leagues[league.key].title}, ${choice.dataset.region}`);
+        const check = element("span", "soccer-choice-check", "✓");
+        check.setAttribute("aria-hidden", "true");
+        choice.append(check);
         choice.addEventListener("click", () => {
           chooseSport(league);
           close();
@@ -3200,7 +3227,9 @@
       for (const button of sportNavigationElement.querySelectorAll(".sport-nav-button:not(.soccer-nav-toggle), .soccer-league-choice")) {
         const active = button.dataset.sport === sportSelect.value;
         button.setAttribute("aria-current", String(active));
-        if (active) button.setAttribute("aria-label", `${button.querySelector(".sport-name")?.textContent || button.textContent}, selected`);
+        if (button.classList.contains("soccer-league-choice")) {
+          button.setAttribute("aria-label", `${soccerSupport.leagues[button.dataset.sport].title}, ${button.dataset.region}${active ? ", selected" : ""}`);
+        } else if (active) button.setAttribute("aria-label", `${button.querySelector(".sport-name")?.textContent || button.textContent}, selected`);
         else button.removeAttribute("aria-label");
       }
       const soccerButton = sportNavigationElement.querySelector(".soccer-nav-toggle");
