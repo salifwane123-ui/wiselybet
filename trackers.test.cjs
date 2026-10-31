@@ -36,6 +36,7 @@ const code = [
 ].join("\n");
 const trackerSnapshots = new Map();
 const storage = new Map();
+let selectedParlayLegCount = 2;
 let clock = Date.parse("2025-01-15T00:00:00Z");
 class FakeDate extends Date {
   static now() { return clock; }
@@ -51,7 +52,7 @@ const context = {
   trackers: [],
   parlays: [],
   parlayBookState: new Map(),
-  bestParlayOddsCap: 2,
+  parlayLegTarget: () => selectedParlayLegCount,
   currentEvents: [{ id: "e1", home_team: "Boston Celtics", away_team: "New York Knicks", commence_time: "2025-01-15T00:30:00Z" }],
   localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
   Date: FakeDate,
@@ -588,10 +589,13 @@ test("a player taken out of the best parlay stays out for his game, and an alter
   const hours = count => count * 60 * 60_000;
   const names = ({ legs, removed }) => plain([legs.map(leg => leg.player), removed.map(leg => leg.player)]);
   const pricedBrunson = { ...brunson, price: 1.3 };
-  const pricedTatum = { ...tatum, price: 1.3 };
-  const pricedHart = { ...hart, price: 1.3 };
-  const data = { legs: [pricedBrunson, pricedTatum], alternates: [pricedHart] };
+  const pricedTatum = { ...tatum, price: 1.4 };
+  const pricedHart = { ...hart, price: 1.5 };
+  const data = { legs: [pricedTatum, pricedBrunson], alternates: [pricedHart] };
   assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson", "Jayson Tatum"], []]);
+  selectedParlayLegCount = 1;
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson"], []]);
+  selectedParlayLegCount = 2;
   assert.deepEqual(names(page.bestParlayLegsFor({ legs: [pricedBrunson] })), [["Jalen Brunson"], []]);
 
   // His game already started, so he stays out for 12 hours from now. Every market of his goes, in every tab.

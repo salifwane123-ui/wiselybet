@@ -2033,7 +2033,7 @@
     .bp-sport-select { max-width: 135px; }
     .bp-side-select { max-width: 110px; }
     .bp-book-select { max-width: 175px; }
-    .bp-cap-label { padding: 5px 7px; border: 1px solid rgba(201,239,91,.25); border-radius: 6px; color: #d9f58a; font-size: .68rem; font-weight: 800; white-space: nowrap; }
+    .bp-rank-label { padding: 5px 7px; border: 1px solid rgba(201,239,91,.25); border-radius: 6px; color: #d9f58a; font-size: .68rem; font-weight: 800; white-space: nowrap; }
     .best-parlay.is-unset .bp-book-select, .bp-state-select.is-needed { border-color: #c9ef5b; box-shadow: 0 0 0 3px rgba(201,239,91,.14); }
     .bp-ticker { display: grid; grid-area: ticker; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; padding: 9px 8px 10px 12px; border-top: 1px solid rgba(225,233,229,.08); }
     .bp-viewport { display: grid; min-width: 0; overflow: hidden; touch-action: pan-y; }
@@ -2272,7 +2272,8 @@
               <select id="bp-side-select" class="bp-select bp-side-select" aria-label="Player prop side"></select>
               <select id="bp-book" class="bp-select bp-book-select" aria-label="Your sportsbook"><option value="">Your sportsbook…</option></select>
               <select id="bp-state" class="bp-select bp-state-select" aria-label="Your state" hidden></select>
-              <span class="bp-cap-label" title="Combined American odds cannot exceed +100. No minimum odds or fixed leg count.">Max +100</span>
+              <span class="bp-rank-label" title="Eligible picks are ordered by the shortest price available at your sportsbook.">Shortest odds first</span>
+              <select id="bp-legs" class="bp-select" aria-label="Number of legs"></select>
             </div>
           </div>
           <div class="bp-ticker">
@@ -2834,6 +2835,7 @@
       parlaySide: "all",
       parlayBook: "",
       parlayState: "",
+      parlayLegs: 8
     };
     function readSettings() {
       try {
@@ -2887,6 +2889,7 @@
     const bpSideSelect = document.querySelector("#bp-side-select");
     const bpBookSelect = document.querySelector("#bp-book");
     const bpStateSelect = document.querySelector("#bp-state");
+    const bpLegsSelect = document.querySelector("#bp-legs");
     const bpSportLabel = document.querySelector("#bp-sport");
     const bpScopeLabel = document.querySelector("#bp-scope");
     const bpSubText = document.querySelector("#bp-sub");
@@ -3434,9 +3437,9 @@
       return body;
     }
 
-    // Best parlay bar: strongest player-prop legs that keep the total at or below +100 at the user's sportsbook.
+    // Best parlay bar: player-prop legs ordered by their shortest available price at the user's sportsbook.
     // The server picks the legs (/api/best-parlay); this code shows them, builds the betslip link and tracks them.
-    const bestParlayOddsCap = 2;
+    const parlayLegCounts = [2, 3, 4, 5, 6, 7, 8];
     const bestParlayRefreshMs = 3 * 60_000;
     // Live legs carry the game clock and box score, so they refresh about every minute.
     const bestParlayLiveRefreshMs = 55_000;
@@ -3464,6 +3467,10 @@
     }
     function bestParlayBook() {
       return sportsbookTitles.has(settings.parlayBook) ? settings.parlayBook : "";
+    }
+    function parlayLegTarget() {
+      const count = Math.round(Number(settings.parlayLegs));
+      return Number.isFinite(count) ? Math.min(8, Math.max(2, count)) : 8;
     }
     function teamNickname(name, sport) {
       const full = String(name || "").trim();
@@ -3550,18 +3557,12 @@
     function bestParlayPool(data) {
       return data ? [...data.legs, ...(Array.isArray(data.alternates) ? data.alternates : [])] : [];
     }
-    function bestParlayLegsFor(data) {
+    function bestParlayLegsFor(data, target = parlayLegTarget()) {
       const pool = bestParlayPool(data);
       const removed = pool.filter(isBestParlayRemoved);
-      const legs = [];
-      let totalOdds = 1;
-      for (const leg of pool.filter(item => !isBestParlayRemoved(item))) {
-        const price = Number(leg.price);
-        if (!Number.isFinite(price) || price <= 1 || totalOdds * price > bestParlayOddsCap + 1e-9) continue;
-        legs.push(leg);
-        totalOdds *= price;
-      }
-      return { legs, removed };
+      const candidates = pool.filter(item => !isBestParlayRemoved(item) && Number.isFinite(Number(item.price)) && Number(item.price) > 1);
+      candidates.sort((a, b) => Number(a.price) - Number(b.price) || (b.probability || 0) - (a.probability || 0) || a.player.localeCompare(b.player));
+      return { legs: candidates.slice(0, target), removed };
     }
     function bestParlayLegText(leg, sport) {
       const side = leg.side === "under" ? "Under" : "Over";
@@ -3641,10 +3642,12 @@
         );
       }
       if (bpBookSelect.options.length < 2) bpBookSelect.append(...sportsbooks.map(book => new Option(book.title, book.key)));
+      if (!bpLegsSelect.options.length) bpLegsSelect.append(...parlayLegCounts.map(count => new Option(`${count} legs`, String(count))));
       fillStateOptions(bpStateSelect);
       bpSportSelect.value = bestParlaySport();
       bpSideSelect.value = bestParlaySide();
       bpBookSelect.value = bestParlayBook();
+      bpLegsSelect.value = String(parlayLegTarget());
     }
 
     async function loadBestParlay() {
@@ -3784,7 +3787,6 @@
         if (data.sportsUnavailable?.length) return bestParlayMessage("Some sports are unavailable.", "Showing cross-sport picks again when their odds feeds recover.");
         return bestParlayMessage("No picks pass our checks right now.", "We check upcoming and live player props across the supported sports again soon.");
       }
-      if (bestParlayPool(data).length) return bestParlayMessage("No picks fit the +100 cap.", "Available sportsbook prices do not form a parlay at or below +100.");
       if (data.live?.games) {
         const games = countText(data.live.games, "game");
         if (!data.live.bookGames) return bestParlayMessage(`${title} isn't pricing live player props for the ${games} on now.`, "Try another sportsbook, or check back at the next tip-off.");
@@ -3865,7 +3867,7 @@
         : sport === "all" && data.scope === "mixed"
           ? "Cross-sport picks combine live reads and upcoming-game prices"
           : sport === "all"
-            ? "Cross-sport player props ranked by market prices and available live signals"
+            ? "Cross-sport player props ordered by shortest available sportsbook prices"
         : data.scope === "live"
           ? `Live picks from ${countText(data.games, "game")} in progress, checked against each player's box score`
           : data.live?.games
@@ -3922,6 +3924,7 @@
     }
 
     function renderBestParlayStats(legs, data, removedCount = 0) {
+      const target = parlayLegTarget();
       const odds = legs.reduce((product, leg) => product * leg.price, 1);
       const chance = legs.reduce((product, leg) => product * leg.probability, 1);
       const stat = (className, label, value, title = "") => {
@@ -3932,13 +3935,15 @@
         item.append(element("dt", "", label), detail);
         return item;
       };
-      const count = String(legs.length);
+      const count = document.createDocumentFragment();
+      count.append(String(legs.length));
+      if (legs.length < target) count.append(element("small", "", ` of ${target}`));
       const short = removedCount
         ? `Only ${countText(legs.length, "leg")} left after you removed ${countText(removedCount, "player")}`
-        : `Variable leg count; no lower total-odds limit`;
+        : `Selected up to ${target} shortest-priced legs from the available candidates`;
       const items = [
-        stat("bp-stat-legs", "Legs", count, short),
-        stat("bp-stat-odds", "Odds", formatAmericanOdds(odds), `Parlay odds at ${sportsbookTitle(data.book)}; maximum +100 before any boosts`),
+        stat("bp-stat-legs", "Legs", count, legs.length < target ? short : `Up to ${target} legs, ordered by shortest ${sportsbookTitle(data.book)} price`),
+        stat("bp-stat-odds", "Odds", formatAmericanOdds(odds), `Combined odds at ${sportsbookTitle(data.book)} for the selected legs`),
         stat("bp-stat-pays", "$10 pays", formatPayout(10 * odds), "Total return on a $10 stake, including the stake"),
         stat("bp-stat-chance", "Hit chance", formatParlayChance(chance), `About 1 in ${Math.max(1, Math.round(1 / chance)).toLocaleString("en-US")}. Every leg must hit.`)
       ];
@@ -4016,11 +4021,11 @@
         note(`Choose your state so ${title} links open your state's ${title} site.`, true);
       }
       if (window.wiselyPremium) note(`Opening the betslip, or a single leg, also adds those picks to your tracker as a ${title} parlay, so you can follow them live.`);
-      note("Legs are added only while this sportsbook's quoted prices keep the combined total at or below +100. There is no minimum total odds or fixed leg count.");
-      note("The sportsbook betslip is the final check; it may reject a leg combination or correlated picks.", true);
+      note(`The suggestion uses up to ${parlayLegTarget()} eligible legs, ordered by the shortest price at ${title}. The combined parlay odds are not capped.`);
+      note("Check the sportsbook betslip before placing the bet; it may reject combinations or correlated picks.", true);
       if (sport === "all") {
         const represented = [...new Set(legs.map(leg => (leg.sport || "").split("_").pop().toUpperCase()).filter(Boolean))];
-        note(`Cross-sport ranking uses no-vig market prices across ${represented.join(", ") || "supported leagues"}; live legs also use current box-score pace, minutes, fouls and game context.`);
+        note(`Cross-sport candidates use market consensus across ${represented.join(", ") || "supported leagues"}, then order by shortest sportsbook price; live legs also use current box-score pace, minutes, fouls and game context.`);
         note("Pregame historical form, expected minutes and historical foul rates are unavailable in the current feeds, so they are not used in the ranking.", true);
         if (data.scope === "mixed") note("This suggestion combines live picks and upcoming-game prices.");
         if (data.sportsUnavailable?.length) {
@@ -4482,6 +4487,11 @@
     }
 
     if (bestParlayElement) {
+      bpLegsSelect.addEventListener("change", () => {
+        settings.parlayLegs = Number(bpLegsSelect.value);
+        saveSettings();
+        renderBestParlay();
+      });
       bpSportSelect.addEventListener("change", () => {
         settings.parlaySport = bpSportSelect.value;
         saveSettings();
@@ -10026,7 +10036,7 @@
         applyTheme();
         applyVolume();
         if (settings.parlayBook !== previous.parlayBook || settings.parlaySport !== previous.parlaySport || settings.parlaySide !== previous.parlaySide) void loadBestParlay();
-        else if (["parlayState", "oddsFormat"].some(key => settings[key] !== previous[key])) renderBestParlay();
+        else if (["parlayState", "parlayLegs", "oddsFormat"].some(key => settings[key] !== previous[key])) renderBestParlay();
         if (settings.parlayState !== previous.parlayState) renderTrackers();
       } else if (event.key === historyKey) {
         renderHistory();

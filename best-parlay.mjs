@@ -467,11 +467,20 @@ function playerLines(market) {
 const overChance = (over, under) => (1 / over) / (1 / over + 1 / under);
 
 // A book's main line for a player is its Over/Under pair priced closest to even.
-function mainLine(lines) {
+function mainLine(lines, sideFilter = "all", rankBy = "strength") {
   let best = null;
   for (const [point, pair] of lines) {
     if (!pair.over || !pair.under) continue;
     const balance = Math.abs(overChance(pair.over.price, pair.under.price) - 0.5);
+    if (rankBy === "price") {
+      const outcomes = sideFilter === "all" ? [pair.over, pair.under] : [pair[sideFilter]];
+      const price = Math.min(...outcomes.filter(Boolean).map(outcome => outcome.price));
+      if (!Number.isFinite(price)) continue;
+      if (!best || price < best.price - 1e-9 || (Math.abs(price - best.price) <= 1e-9 && point < best.point)) {
+        best = { point, ...pair, balance, price };
+      }
+      continue;
+    }
     if (!best || balance < best.balance - 1e-9 || (Math.abs(balance - best.balance) <= 1e-9 && point < best.point)) {
       best = { point, over: pair.over, under: pair.under, balance };
     }
@@ -491,7 +500,7 @@ const round4 = value => Math.round(value * 10_000) / 10_000;
 // the book's own line can stand alone, each leg carries the player's live read, and players in form rank higher.
 export function buildBestParlay({
   events = [], oddsByEvent = new Map(), book, markets = [], injured = new Set(), maxLegs = parlayRules.maxLegs,
-  alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null, includeScore = false, sideFilter = "all"
+  alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null, includeScore = false, sideFilter = "all", rankBy = "strength"
 }) {
   const games = [];
   const skipped = new Set();
@@ -524,7 +533,7 @@ export function buildBestParlay({
         if (bookMarket && quoteIsFresh(bookMarket, bookmaker, fetchedAt, staleLimit)) quotes.push(playerLines(bookMarket));
       }
       for (const [key, { player, lines }] of playerLines(targetMarket)) {
-        const main = mainLine(lines);
+        const main = mainLine(lines, sideFilter, rankBy);
         if (!main) continue;
         if (injured.has(key)) {
           skipped.add(key);
@@ -555,6 +564,9 @@ export function buildBestParlay({
             }
             livePassed.add(key);
           }
+          const score = rankBy === "price"
+            ? -price
+            : probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
           const leg = {
             player,
             market,
@@ -573,7 +585,7 @@ export function buildBestParlay({
             marketLink: httpsLink(targetMarket.link),
             eventLink: httpsLink(target.link),
             ...(live ? { read: live.read } : {}),
-            score: probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0)
+            score
           };
           const seen = best.get(key);
           if (!seen || byStrength(leg, seen) < 0) best.set(key, leg);
