@@ -2466,7 +2466,7 @@
               <select id="bp-side-select" class="bp-select bp-side-select" aria-label="Player prop side"></select>
               <select id="bp-book" class="bp-select bp-book-select" aria-label="Your sportsbook"><option value="">Your sportsbook…</option></select>
               <select id="bp-state" class="bp-select bp-state-select" aria-label="Your state" hidden></select>
-              <span class="bp-rank-label" title="Eligible picks are ordered by the shortest price available at your sportsbook.">Shortest odds first</span>
+              <span class="bp-rank-label" title="Each pick uses the lowest eligible stat line available at your sportsbook.">Lowest line first</span>
               <select id="bp-legs" class="bp-select" aria-label="Number of legs"></select>
             </div>
           </div>
@@ -3841,7 +3841,7 @@
       return body;
     }
 
-    // Best parlay bar: player-prop legs ordered by their shortest available price at the user's sportsbook.
+    // Best parlay bar: player-prop legs use each player's lowest available stat line at the user's sportsbook.
     // The server picks the legs (/api/best-parlay); this code shows them, builds the betslip link and tracks them.
     const parlayLegCounts = [2, 3, 4, 5, 6, 7, 8];
     const bestParlayRefreshMs = 3 * 60_000;
@@ -3965,7 +3965,6 @@
       const pool = bestParlayPool(data);
       const removed = pool.filter(isBestParlayRemoved);
       const candidates = pool.filter(item => !isBestParlayRemoved(item) && Number.isFinite(Number(item.price)) && Number(item.price) > 1);
-      candidates.sort((a, b) => Number(a.price) - Number(b.price) || (b.probability || 0) - (a.probability || 0) || a.player.localeCompare(b.player));
       return { legs: candidates.slice(0, target), removed };
     }
     function bestParlayLegText(leg, sport) {
@@ -4271,7 +4270,7 @@
         : sport === "all" && data.scope === "mixed"
           ? "Cross-sport picks combine live reads and upcoming-game prices"
           : sport === "all"
-            ? "Cross-sport player props ordered by shortest available sportsbook prices"
+            ? "Cross-sport props use the lowest available line for each pick"
         : data.scope === "live"
           ? `Live picks from ${countText(data.games, "game")} in progress, checked against each player's box score`
           : data.live?.games
@@ -4425,11 +4424,11 @@
         note(`Choose your state so ${title} links open your state's ${title} site.`, true);
       }
       if (window.wiselyPremium) note(`Opening the betslip, or a single leg, also adds those picks to your tracker as a ${title} parlay, so you can follow them live.`);
-      note(`The suggestion uses up to ${parlayLegTarget()} eligible legs, ordered by the shortest price at ${title}. The combined parlay odds are not capped.`);
+      note(`The suggestion uses up to ${parlayLegTarget()} eligible legs, choosing each pick's lowest available line at ${title}. Candidates are ordered by market and available live strength signals.`);
       note("Check the sportsbook betslip before placing the bet; it may reject combinations or correlated picks.", true);
       if (sport === "all") {
         const represented = [...new Set(legs.map(leg => (leg.sport || "").split("_").pop().toUpperCase()).filter(Boolean))];
-        note(`Cross-sport candidates use market consensus across ${represented.join(", ") || "supported leagues"}, then order by shortest sportsbook price; live legs also use current box-score pace, minutes, fouls and game context.`);
+        note(`Cross-sport candidates use market consensus across ${represented.join(", ") || "supported leagues"} and each pick's lowest sportsbook line; live legs also use current box-score pace, minutes, fouls and game context.`);
         note("Pregame historical form, expected minutes and historical foul rates are unavailable in the current feeds, so they are not used in the ranking.", true);
         if (data.scope === "mixed") note("This suggestion combines live picks and upcoming-game prices.");
         if (data.sportsUnavailable?.length) {

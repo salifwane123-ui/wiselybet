@@ -592,9 +592,9 @@ test("a player taken out of the best parlay stays out for his game, and an alter
   const pricedTatum = { ...tatum, price: 1.4 };
   const pricedHart = { ...hart, price: 1.5 };
   const data = { legs: [pricedTatum, pricedBrunson], alternates: [pricedHart] };
-  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson", "Jayson Tatum"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum", "Jalen Brunson"], []]);
   selectedParlayLegCount = 1;
-  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum"], []]);
   selectedParlayLegCount = 2;
   assert.deepEqual(names(page.bestParlayLegsFor({ legs: [pricedBrunson] })), [["Jalen Brunson"], []]);
 
@@ -619,7 +619,7 @@ test("a player taken out of the best parlay stays out for his game, and an alter
   assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum", "Josh Hart"], ["Jalen Brunson"]]);
   clock += hours(13);
   page.syncBestParlayRemoved();
-  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson", "Jayson Tatum"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum", "Jalen Brunson"], []]);
   assert.deepEqual(names(page.bestParlayLegsFor({ legs: [later] })), [[], ["Josh Hart"]]);
 
   // Restoring brings him back and returns how many came back.

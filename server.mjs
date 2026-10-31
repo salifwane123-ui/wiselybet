@@ -650,7 +650,7 @@ async function bestParlayFor(sport, book, premium, options = {}) {
   const maxGames = Number.isInteger(options.maxGames) ? options.maxGames : parlayRules.maxGames;
   const includeScore = options.includeScore === true;
   const sideFilter = options.sideFilter === "over" || options.sideFilter === "under" ? options.sideFilter : "all";
-  const rankBy = options.rankBy === "price" ? "price" : "strength";
+  const rankBy = options.rankBy === "lowest-line" ? "lowest-line" : "strength";
   const extraKey = maxGames === parlayRules.maxGames && !includeScore && sideFilter === "all" && rankBy === "strength" ? "" : `|${maxGames}|${includeScore ? "ranked" : "plain"}|${sideFilter}|${rankBy}`;
   const key = `best-parlay:${sport}|${book}|${premium ? "full" : "guest"}${extraKey}`;
   const lastGood = () => {
@@ -1292,14 +1292,14 @@ const server = createServer(async (request, response) => {
         return;
       }
       if (sport === "all") {
-        await sendJson(response, 200, await bestParlayForAllSports(book, premium, sideFilter, "price"));
+        await sendJson(response, 200, await bestParlayForAllSports(book, premium, sideFilter, "lowest-line"));
         return;
       }
       if (!Object.hasOwn(bestParlayMarkets, sport)) {
         await sendJson(response, 400, { error: "Best parlays are not available for this sport." });
         return;
       }
-      await sendJson(response, 200, await bestParlayFor(sport, book, premium, { sideFilter, rankBy: "price" }));
+      await sendJson(response, 200, await bestParlayFor(sport, book, premium, { sideFilter, rankBy: "lowest-line" }));
       return;
     }
 

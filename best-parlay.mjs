@@ -466,19 +466,16 @@ function playerLines(market) {
 
 const overChance = (over, under) => (1 / over) / (1 / over + 1 / under);
 
-// A book's main line for a player is its Over/Under pair priced closest to even.
+// Select the book's most balanced line, or the lowest offered point when requested.
 function mainLine(lines, sideFilter = "all", rankBy = "strength") {
   let best = null;
   for (const [point, pair] of lines) {
     if (!pair.over || !pair.under) continue;
     const balance = Math.abs(overChance(pair.over.price, pair.under.price) - 0.5);
-    if (rankBy === "price") {
-      const outcomes = sideFilter === "all" ? [pair.over, pair.under] : [pair[sideFilter]];
-      const price = Math.min(...outcomes.filter(Boolean).map(outcome => outcome.price));
-      if (!Number.isFinite(price)) continue;
-      if (!best || price < best.price - 1e-9 || (Math.abs(price - best.price) <= 1e-9 && point < best.point)) {
-        best = { point, ...pair, balance, price };
-      }
+    if (rankBy === "lowest-line") {
+      const offeredSides = sideFilter === "all" ? [pair.over, pair.under] : [pair[sideFilter]];
+      if (!offeredSides.some(Boolean)) continue;
+      if (!best || point < best.point - 1e-9) best = { point, ...pair, balance };
       continue;
     }
     if (!best || balance < best.balance - 1e-9 || (Math.abs(balance - best.balance) <= 1e-9 && point < best.point)) {
@@ -564,9 +561,7 @@ export function buildBestParlay({
             }
             livePassed.add(key);
           }
-          const score = rankBy === "price"
-            ? -price
-            : probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
+          const score = probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
           const leg = {
             player,
             market,
