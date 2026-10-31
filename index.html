@@ -2029,6 +2029,7 @@
     .bp-select { width: auto; max-width: 100%; height: 30px; min-height: 0; padding: 0 4px 0 8px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: #121611; color: #e7f7b0; font-size: .74rem; font-weight: 700; color-scheme: dark; cursor: pointer; }
     .bp-select:hover { border-color: rgba(201,239,91,.6); }
     .bp-select[hidden] { display: none; }
+    .bp-sport-select { max-width: 135px; }
     .bp-book-select { max-width: 175px; }
     .best-parlay.is-unset .bp-book-select, .bp-state-select.is-needed { border-color: #c9ef5b; box-shadow: 0 0 0 3px rgba(201,239,91,.14); }
     .bp-ticker { display: grid; grid-area: ticker; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; padding: 9px 8px 10px 12px; border-top: 1px solid rgba(225,233,229,.08); }
@@ -2264,6 +2265,7 @@
               </div>
             </div>
             <div class="bp-pickers">
+              <select id="bp-sport-select" class="bp-select bp-sport-select" aria-label="Sport for parlay"></select>
               <select id="bp-book" class="bp-select bp-book-select" aria-label="Your sportsbook"><option value="">Your sportsbook…</option></select>
               <select id="bp-state" class="bp-select bp-state-select" aria-label="Your state" hidden></select>
               <select id="bp-legs" class="bp-select" aria-label="Number of legs"></select>
@@ -2824,6 +2826,7 @@
       alerts: { court: true, foul: true, injury: true, score: true },
       oddsFormat: "american",
       theme: "dark",
+      parlaySport: "all",
       parlayBook: "",
       parlayState: "",
       parlayLegs: 8
@@ -2876,6 +2879,7 @@
     const bpCounter = document.querySelector("#bp-counter");
     const bpProgressBar = document.querySelector("#bp-progress-bar");
     const bpPauseButton = document.querySelector("#bp-pause");
+    const bpSportSelect = document.querySelector("#bp-sport-select");
     const bpBookSelect = document.querySelector("#bp-book");
     const bpStateSelect = document.querySelector("#bp-state");
     const bpLegsSelect = document.querySelector("#bp-legs");
@@ -3441,7 +3445,11 @@
     };
     const twoWordNicknames = ["Red Sox", "White Sox", "Blue Jays", "Red Wings", "Golden Knights", "Maple Leafs", "Trail Blazers", "Blue Jackets"];
     function bestParlaySport() {
-      return "all";
+      return settings.parlaySport === "all" || supportedSports.includes(settings.parlaySport) ? settings.parlaySport : "all";
+    }
+    function parlaySportTitle(sport) {
+      if (sport === "all") return "All sports";
+      return (playerPropSports[sport]?.title || sport).replace(/ player prop odds$/i, "");
     }
     function bestParlayBook() {
       return sportsbookTitles.has(settings.parlayBook) ? settings.parlayBook : "";
@@ -3603,8 +3611,15 @@
 
     // The book and state lists are declared further down, so the pickers fill on first render.
     function fillBestParlayPickers() {
+      if (bpSportSelect.options.length < supportedSports.length + 1) {
+        bpSportSelect.replaceChildren(
+          new Option("All sports", "all"),
+          ...supportedSports.map(sport => new Option(parlaySportTitle(sport), sport))
+        );
+      }
       if (bpBookSelect.options.length < 2) bpBookSelect.append(...sportsbooks.map(book => new Option(book.title, book.key)));
       fillStateOptions(bpStateSelect);
+      bpSportSelect.value = bestParlaySport();
       bpBookSelect.value = bestParlayBook();
       bpLegsSelect.value = String(parlayLegTarget());
     }
@@ -3813,7 +3828,7 @@
       const data = state.data?.sport === sport && state.data.book === book ? state.data : null;
       const { legs, removed } = bestParlayLegsFor(data, parlayLegTarget());
       dropStaleRemovedToast(data);
-      bpSportLabel.textContent = sport === "all" ? "All sports" : sport.split("_").pop().toUpperCase();
+      bpSportLabel.textContent = parlaySportTitle(sport);
       bpStateSelect.hidden = !stateSportsbooks.has(book);
       bestParlayElement.classList.toggle("is-unset", !book);
       bestParlayElement.classList.toggle("has-legs", legs.length > 0);
@@ -4445,6 +4460,11 @@
     if (bestParlayElement) {
       bpLegsSelect.append(...parlayLegCounts.map(count => new Option(`${count} legs`, String(count))));
       bpLegsSelect.value = String(parlayLegTarget());
+      bpSportSelect.addEventListener("change", () => {
+        settings.parlaySport = bpSportSelect.value;
+        saveSettings();
+        void loadBestParlay();
+      });
       bpBookSelect.addEventListener("change", () => {
         settings.parlayBook = bpBookSelect.value;
         saveSettings();
@@ -9937,7 +9957,7 @@
         settings = readSettings();
         applyTheme();
         applyVolume();
-        if (settings.parlayBook !== previous.parlayBook) void loadBestParlay();
+        if (settings.parlayBook !== previous.parlayBook || settings.parlaySport !== previous.parlaySport) void loadBestParlay();
         else if (["parlayState", "parlayLegs", "oddsFormat"].some(key => settings[key] !== previous[key])) renderBestParlay();
         if (settings.parlayState !== previous.parlayState) renderTrackers();
       } else if (event.key === historyKey) {
