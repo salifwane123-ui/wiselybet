@@ -1,4 +1,4 @@
-// The "Best parlay" at the top of the board: the strongest player-prop Overs at one sportsbook. While games are
+// The "Best parlay" at the top of the board: the strongest player-prop Overs and Unders at one sportsbook. While games are
 // in progress it is built from them alone, using each player's live box score; otherwise from the next few hours.
 // Pure functions only; server.mjs fetches, caches and guards the API quota.
 
@@ -106,7 +106,7 @@ export function injuredPlayers(report) {
   return names;
 }
 
-// ---- Live reads: what a player's box score says about his Over while the game is on ----
+// ---- Live reads: what a player's box score says about his pick while the game is on ----
 
 const liveClockShapes = {
   basketball_nba: { periods: 4, length: 12, prefix: "Q" },
@@ -245,6 +245,12 @@ function timeLeftText(read) {
 
 function paceNote(read, line, pace, so) {
   const done = `${read.current} ${read.stat} ${so}`;
+  if (read.side === "under") return {
+    tone: pace === "on" ? "good" : "neutral",
+    text: `${done} — ${pace === "early" ? "early, his pace is still settling" : pace === "open"
+      ? `must stay below ${line} with ${timeLeftText(read)} left`
+      : `on pace to stay below ${line}, heading for about ${Math.round(read.projected)}`}`
+  };
   if (pace === "hot") return { tone: "good", text: `${done} — ahead of pace, heading for about ${Math.round(read.projected)} (line ${line})` };
   if (pace === "on") return { tone: "good", text: `${done} — on pace for about ${Math.round(read.projected)} (line ${line})` };
   if (pace === "early") return { tone: "neutral", text: `${done} — early, his pace is still settling` };
@@ -264,6 +270,7 @@ function scoreNote(read, hoops) {
 // Basketball: his scoring rate blended with the line's, over the minutes he is likely to get. Players in foul
 // trouble, on limited minutes, in a blowout or behind the pace the line needs are left out.
 function basketballRead({ sport, market, line, game, clock, found, stats, read }) {
+  const under = read.side === "under";
   const shape = hoopsShapes[sport];
   const clockShape = liveClockShapes[sport];
   const total = clockShape.periods * clockShape.length;
@@ -295,8 +302,8 @@ function basketballRead({ sport, market, line, game, clock, found, stats, read }
   // One foul from trouble, he is likely to sit for part of what is left.
   const projected = read.current + rate * clock.left * share * (oneAway ? 0.85 : 1);
   const ratio = projected / line;
-  if (early ? ratio < 0.8 : ratio < 1) return { skip: "behind" };
-  const pace = early ? "early" : ratio >= 1.12 ? "hot" : "on";
+  if (under ? (early ? ratio > 1.2 : ratio >= 1) : (early ? ratio < 0.8 : ratio < 1)) return { skip: "behind" };
+  const pace = early ? "early" : !under && ratio >= 1.12 ? "hot" : "on";
   let bonus = early ? 0 : clamp((ratio - 1) * 0.2, -0.04, 0.05);
   bonus += fouls === 0 ? 0.012 : fouls === 1 ? 0.008 : fouls === 2 ? 0.003 : -0.006;
   bonus += clamp((share - 0.55) * 0.06, -0.012, 0.015);
@@ -331,12 +338,16 @@ function basketballRead({ sport, market, line, game, clock, found, stats, read }
   else if (heavy) notes.push({ tone: "neutral", text: `${bench} ${other}bench ${many} have played, but he is getting most of the minutes` });
   else notes.push({ tone: "warn", text: `${bench} ${other}bench ${many} have played — more competition for minutes` });
   notes.push(scoreNote(read, true));
-  return { read: { ...result, notes }, bonus: round4(bonus) };
+  return {
+    read: { ...result, notes: under ? notes.map((note, index) => index ? { ...note, tone: "neutral" } : note) : notes },
+    bonus: round4(under ? -bonus : bonus)
+  };
 }
 
 // Other sports: his total so far blended with the line over the share of the game left (for a pitcher, over the
 // innings a starter usually has left in a six-inning outing).
 function gameRead({ sport, market, line, clock, found, stats, read }) {
+  const under = read.side === "under";
   const gap = Math.abs(read.teamScore - read.opponentScore);
   if (sport.startsWith("americanfootball") && gap >= 24 && clock.progress >= 0.75) return { skip: "blowout" };
   let early = clock.progress < 0.125;
@@ -357,29 +368,32 @@ function gameRead({ sport, market, line, clock, found, stats, read }) {
   const counting = line < 2;
   const projected = read.current + rate * rest;
   const ratio = projected / line;
-  if (!counting && (early ? ratio < 0.8 : ratio < 1)) return { skip: "behind" };
-  const pace = counting ? "open" : early ? "early" : ratio >= 1.12 ? "hot" : "on";
+  if (!counting && (under ? (early ? ratio > 1.2 : ratio >= 1) : (early ? ratio < 0.8 : ratio < 1))) return { skip: "behind" };
+  const pace = counting ? "open" : early ? "early" : !under && ratio >= 1.12 ? "hot" : "on";
   const result = { ...read, projected: round1(projected), pace };
   const notes = [paceNote(result, line, pace, "so far")];
   const toi = stats.text("TOI");
   if (/^\d+:\d{2}$/.test(toi)) notes.push({ tone: "neutral", text: `${toi} time on ice` });
   if (market === "pitcher_strikeouts") notes.push({ tone: "good", text: `Still on the mound after ${stats.text("Pitching IP") || "0"} innings` });
   notes.push(scoreNote(read, false));
-  return { read: { ...result, notes }, bonus: pace === "hot" || pace === "on" ? round4(clamp((ratio - 1) * 0.2, -0.04, 0.05)) : 0 };
+  return {
+    read: { ...result, notes: under ? notes.map((note, index) => index ? { ...note, tone: "neutral" } : note) : notes },
+    bonus: pace === "hot" || pace === "on" ? round4(clamp((under ? 1 - ratio : ratio - 1) * 0.2, -0.04, 0.05)) : 0
+  };
 }
 
-// A live read for one Over: his numbers so far, the clock, the score, what stands in his way, and a small
+// A live read for one pick: his numbers so far, the clock, the score, what stands in his way, and a small
 // ranking bonus for players in form. Returns { skip: reason } when the leg should be left out.
-export function liveRead({ sport, market, line, player, game }) {
+export function liveRead({ sport, market, line, player, game, side = "over" }) {
   const clock = liveClock(sport, game);
-  if (!clock || !Number.isFinite(line) || line <= 0) return { skip: "unverified" };
+  if (!clock || !Number.isFinite(line) || line <= 0 || !["over", "under"].includes(side)) return { skip: "unverified" };
   const found = findLivePlayer(game, player);
   if (!found) return { skip: "unverified" };
   const stats = statReader(found.athlete.stats);
   const current = liveStatValue(sport, market, stats);
   if (current === null) return { skip: "unverified" };
   const need = Math.floor(line) + 1 - current;
-  if (need <= 0) return { skip: "decided" };
+  if (side === "under" ? current >= line : need <= 0) return { skip: "decided" };
   if (clock.late) return { skip: "late" };
   const read = {
     clock: clock.label,
@@ -392,6 +406,7 @@ export function liveRead({ sport, market, line, player, game }) {
     teamScore: Number.parseInt(found.team.score, 10) || 0,
     opponentScore: Number.parseInt(found.opponent?.score, 10) || 0,
     stat: liveStatNames[market] || "",
+    side,
     current,
     need
   };
@@ -446,8 +461,8 @@ function mainLine(lines) {
 const byStrength = (a, b) => b.score - a.score || b.books - a.books || a.player.localeCompare(b.player);
 const round4 = value => Math.round(value * 10_000) / 10_000;
 
-// Each leg is the book's own main-line Over for a player the market leans towards: the hit chance is the average
-// no-vig Over chance of every book quoting that same line (at least two), and the book's price must not be far
+// Each leg is the book's own main-line Over or Under: the hit chance is the average
+// no-vig chance for that side of every book quoting that same line (at least two), and the book's price must not be far
 // below fair. Injured players are left out, a player appears once, and legs are spread across games: every game's
 // best leg first, strongest first, then every game's second-best leg, and so on. The order carries on past
 // `maxLegs` into `alternates`, the next-best legs that stand in for any the user removes.
@@ -499,42 +514,46 @@ export function buildBestParlay({
           if (pair?.over && pair?.under) chances.push(overChance(pair.over.price, pair.under.price));
         }
         if (chances.length < minBooks) continue;
-        const probability = chances.reduce((sum, value) => sum + value, 0) / chances.length;
-        const price = main.over.price;
-        const edge = price * probability - 1;
-        if (probability < parlayRules.minProbability || price < parlayRules.minPrice || price > parlayRules.maxPrice ||
-            edge < parlayRules.minEdge) continue;
-        let live = null;
-        if (inPlay) {
-          liveChecked.add(key);
-          live = liveRead({ sport, market, line: main.point, player, game: liveGame });
-          if (live.skip) {
-            if (!liveReasons.has(key)) liveReasons.set(key, live.skip);
-            continue;
+        const averageOver = chances.reduce((sum, value) => sum + value, 0) / chances.length;
+        for (const side of ["over", "under"]) {
+          const probability = side === "under" ? 1 - averageOver : averageOver;
+          const price = main[side].price;
+          const edge = price * probability - 1;
+          if (probability < parlayRules.minProbability || price < parlayRules.minPrice || price > parlayRules.maxPrice ||
+              edge < parlayRules.minEdge) continue;
+          let live = null;
+          if (inPlay) {
+            liveChecked.add(key);
+            live = liveRead({ sport, market, line: main.point, player, game: liveGame, side });
+            if (live.skip) {
+              if (!liveReasons.has(key)) liveReasons.set(key, live.skip);
+              continue;
+            }
+            livePassed.add(key);
           }
-          livePassed.add(key);
+          const leg = {
+            player,
+            market,
+            side,
+            line: main.point,
+            price,
+            probability: round4(probability),
+            books: chances.length,
+            edge: round4(edge),
+            eventId: event.id,
+            home: event.home_team || "",
+            away: event.away_team || "",
+            start: event.commence_time || "",
+            live: Boolean(event.live),
+            link: httpsLink(main[side].link),
+            marketLink: httpsLink(targetMarket.link),
+            eventLink: httpsLink(target.link),
+            ...(live ? { read: live.read } : {}),
+            score: probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0)
+          };
+          const seen = best.get(key);
+          if (!seen || byStrength(leg, seen) < 0) best.set(key, leg);
         }
-        const leg = {
-          player,
-          market,
-          line: main.point,
-          price,
-          probability: round4(probability),
-          books: chances.length,
-          edge: round4(edge),
-          eventId: event.id,
-          home: event.home_team || "",
-          away: event.away_team || "",
-          start: event.commence_time || "",
-          live: Boolean(event.live),
-          link: httpsLink(main.over.link),
-          marketLink: httpsLink(targetMarket.link),
-          eventLink: httpsLink(target.link),
-          ...(live ? { read: live.read } : {}),
-          score: probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0)
-        };
-        const seen = best.get(key);
-        if (!seen || byStrength(leg, seen) < 0) best.set(key, leg);
       }
     }
     if (offered) bookGames += 1;

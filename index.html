@@ -3481,7 +3481,7 @@
       return Boolean(leg.live) || Date.parse(leg.start) <= Date.now();
     }
     function bestParlayLegKey(leg) {
-      return `${leg.eventId}|${leg.player}|${leg.market}`;
+      return `${leg.eventId}|${leg.player}|${leg.market}|${leg.side === "under" ? "under" : "over"}`;
     }
     // Players the user took out of the best parlay stay out for the rest of that game, in every tab:
     // "event id|player" -> when to forget it, 12 hours after the start (or after the removal, once the game is on).
@@ -3538,7 +3538,7 @@
       return { legs: pool.filter(leg => !isBestParlayRemoved(leg)).slice(0, target), removed: pool.filter(isBestParlayRemoved) };
     }
     function bestParlayLegText(leg, sport) {
-      return `${leg.player} Over ${leg.line} ${propMarketPhrase(sport, leg.market)}`;
+      return `${leg.player} ${leg.side === "under" ? "Under" : "Over"} ${leg.line} ${propMarketPhrase(sport, leg.market)}`;
     }
     function countText(count, one, many = `${one}s`) {
       return `${count} ${count === 1 ? one : many}`;
@@ -3577,7 +3577,9 @@
     function createLiveNow(read, leg) {
       const now = element("div", "bp-now");
       const stat = element("span", "", `${read.current} ${read.stat}`.trim());
-      stat.title = `${read.current} so far · needs ${read.need} more to go over ${leg.line}`;
+      stat.title = leg.side === "under"
+        ? `${read.current} so far · must finish below ${leg.line}`
+        : `${read.current} so far · needs ${read.need} more to go over ${leg.line}`;
       now.append(stat);
       if (liveReadIsHoops(read)) {
         const oneAway = read.fouls >= 3 && read.fouls === read.foulLimit - 1;
@@ -3591,7 +3593,7 @@
         played.title = `${countText(minutes, "minute")} played of ${Math.round(read.elapsed)} so far${read.starter ? " · starter" : " · off the bench"}`;
         now.append(fouls, played);
       } else {
-        now.append(element("span", "", `needs ${read.need}`));
+        now.append(element("span", "", leg.side === "under" ? `below ${leg.line}` : `needs ${read.need}`));
       }
       return now;
     }
@@ -3648,7 +3650,7 @@
       badge.setAttribute("aria-hidden", "true");
       const main = element("div", "bp-leg-main");
       const title = element("div", "bp-leg-title");
-      title.append(element("strong", "bp-player", leg.player), element("span", "bp-pick", `Over ${leg.line} ${propMarketPhrase(sport, leg.market)}`));
+      title.append(element("strong", "bp-player", leg.player), element("span", "bp-pick", `${leg.side === "under" ? "Under" : "Over"} ${leg.line} ${propMarketPhrase(sport, leg.market)}`));
       const meta = element("div", "bp-meta");
       const matchup = `${teamNickname(leg.away, sport)} @ ${teamNickname(leg.home, sport)}`;
       meta.title = `${leg.away} @ ${leg.home}`;
@@ -3805,7 +3807,7 @@
       bestParlayElement.classList.toggle("is-single", legs.length === 1);
       bpScopeLabel.hidden = !(data?.scope === "live" && legs.length);
       bpSubText.textContent = !legs.length
-        ? "Top player props from the games on now, priced at your sportsbook"
+        ? "Top Over and Under player props from the games on now, priced at your sportsbook"
         : data.scope === "live"
           ? `Live picks from ${countText(data.games, "game")} in progress, checked against each player's box score`
           : data.live?.games
@@ -4075,7 +4077,7 @@
       const stats = marketToTrackerStatBySport[sport] || {};
       return legs.flatMap(leg => {
         const stat = stats[leg.market];
-        return stat && leg.eventId ? [{ leg, stat, identity: trackerKey(leg.player, leg.eventId, stat, "over") }] : [];
+        return stat && leg.eventId ? [{ leg, stat, identity: trackerKey(leg.player, leg.eventId, stat, leg.side === "under" ? "under" : "over") }] : [];
       });
     }
 
@@ -4145,7 +4147,7 @@
       const added = [];
       for (const { leg, stat, identity } of picks) {
         if (held.has(identity)) continue;
-        const tracker = addTracker(leg.player, sport, leg.eventId, stat, Math.floor(Number(leg.line)) + 1, parlay.id, "over",
+        const tracker = addTracker(leg.player, sport, leg.eventId, stat, Math.floor(Number(leg.line)) + 1, parlay.id, leg.side === "under" ? "under" : "over",
           { id: leg.eventId, home_team: leg.home, away_team: leg.away, commence_time: leg.start });
         if (!tracker) continue;
         // Its price at this book now, for the payout when the parlay hits.

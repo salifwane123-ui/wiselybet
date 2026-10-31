@@ -31,7 +31,8 @@ const code = [
   slice("    // Copies of a pick in several parlays pop for the same play", "    // Sparks and confetti flying out"),
   slice("    // Opening a pick or the whole parlay at the sportsbook also tracks it", "    // A short note that the picks are in the tracker, with Undo."),
   slice("    function normalizeName(", "    function normalizeSignalName("),
-  slice("    // Players the user took out of the best parlay", "    function bestParlayLegText(")
+  slice("    // Players the user took out of the best parlay", "    function bestParlayLegText("),
+  slice("    function bestParlayLegText(", "    // The book and state lists are declared")
 ].join("\n");
 const trackerSnapshots = new Map();
 const storage = new Map();
@@ -67,6 +68,11 @@ const context = {
   isFootballSport: sport => sport === "americanfootball_nfl" || sport === "americanfootball_ncaaf",
   marketToTrackerStatBySport: { basketball_nba: { player_points: "PTS", player_rebounds: "REB", player_assists: "AST" } },
   sportsbookTitle: key => ({ draftkings: "DraftKings", fanduel: "FanDuel" })[key] || key,
+  propMarketPhrase: () => "points",
+  element: (tag, className, text = "") => ({
+    tag, className, textContent: text, children: [],
+    append(...children) { this.children.push(...children); }
+  }),
   setParlaySportsbook: (parlay, book) => { parlay.sportsbook = book; }
 };
 const page = runInNewContext(`${code}
@@ -74,7 +80,7 @@ const page = runInNewContext(`${code}
    pickIdentity, pickSlot, pickCopyIn, addTracker, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
    playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
    forgetBestParlayRemoved, syncBestParlayRemoved, trackerClock, suggestionsSettled, bookSuggestionPending, removalSuggestionPending,
-   disableParlaySuggestions });`, context);
+   disableParlaySuggestions, bestParlayLegText, createLiveNow });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -553,6 +559,25 @@ test("picks opened at the sportsbook keep their price there for the payout", () 
   assert.equal(page.parlayWinOdds(parlay, [priced]), 1.87);
   // A leg without a price means no payout figure, rather than a wrong one.
   assert.equal(page.parlayWinOdds(parlay, [priced, unpriced]), null);
+});
+
+test("best-parlay Under picks keep their side, price and distinct tracker identity", () => {
+  noParlays();
+  const under = { ...brunson, side: "under", price: 1.91 };
+  const picks = page.bestParlayPicks([brunson, under], "basketball_nba");
+  assert.notEqual(picks[0].identity, picks[1].identity);
+  const { parlay } = openAtBook([under, tatum], true);
+  const tracked = context.trackers.find(tracker => tracker.name === brunson.player);
+  assert.equal(tracked.side, "under");
+  assert.equal(tracked.target, 25);
+  assert.equal(tracked.odds.price, 1.91);
+  assert.equal(openAtBook([under, tatum], true).parlay, parlay);
+  assert.equal(context.trackers.length, 2);
+  assert.equal(page.bestParlayLegText(under, "basketball_nba"), "Jalen Brunson Under 24.5 points");
+  assert.equal(page.bestParlayLegText(brunson, "basketball_nba"), "Jalen Brunson Over 24.5 points");
+  const now = page.createLiveNow({ current: 12, stat: "PTS", need: 13 }, under);
+  assert.match(now.children[0].title, /must finish below 24.5/);
+  assert.equal(now.children[1].textContent, "below 24.5");
 });
 
 test("a player taken out of the best parlay stays out for his game, and an alternate fills his spot", () => {
