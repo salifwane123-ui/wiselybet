@@ -534,80 +534,93 @@ export function buildBestParlay({
     const fetchedAt = Number(entry.fetchedAt);
     const inPlay = Boolean(liveGames && event.live);
     const liveGame = inPlay ? liveGames.get(event.id) || null : null;
+    if (rankBy === "live-positive" && (!inPlay || liveGame?.state !== "in")) continue;
     const staleLimit = inPlay ? parlayRules.liveStaleQuote : parlayRules.staleQuote;
     const minBooks = inPlay || rankBy === "lowest-line" ? parlayRules.minLiveBooks : parlayRules.minBooks;
+    const eligibleQuote = (quotedMarket, bookmaker) => {
+      if (!quoteIsFresh(quotedMarket, bookmaker, fetchedAt, staleLimit)) return false;
+      if (rankBy !== "live-positive") return true;
+      const updated = Date.parse(quotedMarket?.last_update || bookmaker?.last_update || "");
+      return Number.isFinite(fetchedAt) && Number.isFinite(updated) &&
+        updated >= Date.parse(event.commence_time) && updated <= fetchedAt;
+    };
     const best = new Map();
     let offered = false;
     for (const market of markets) {
-      const marketKeys = rankBy === "lowest-line" ? [market, `${market}_alternate`] : [market];
+      const marketKeys = ["lowest-line", "live-positive"].includes(rankBy) ? [market, `${market}_alternate`] : [market];
       const targetMarkets = (target.markets || []).filter(item => marketKeys.includes(item?.key));
       if (!targetMarkets.length) continue;
       offered = true;
-      const freshTargetMarkets = targetMarkets.filter(item => quoteIsFresh(item, target, fetchedAt, staleLimit));
+      const freshTargetMarkets = targetMarkets.filter(item => eligibleQuote(item, target));
       if (!freshTargetMarkets.length) continue;
       const marketLinkMarket = freshTargetMarkets.find(item => item.key === market) || freshTargetMarkets[0];
       const quotes = [];
       for (const bookmaker of bookmakers) {
         const bookMarkets = (bookmaker?.markets || []).filter(item => marketKeys.includes(item?.key) &&
-          quoteIsFresh(item, bookmaker, fetchedAt, staleLimit));
+          eligibleQuote(item, bookmaker));
         if (bookMarkets.length) quotes.push(playerLinesAcrossMarkets(bookMarkets));
       }
       for (const [key, { player, lines }] of playerLinesAcrossMarkets(freshTargetMarkets)) {
-        const main = mainLine(lines, sideFilter, rankBy);
-        if (!main) continue;
-        if (injured.has(key)) {
-          skipped.add(key);
-          continue;
-        }
-        const chances = [];
-        for (const bookLines of quotes) {
-          const pair = bookLines.get(key)?.lines.get(main.point);
-          if (pair?.over && pair?.under) chances.push(overChance(pair.over.price, pair.under.price));
-        }
-        if (chances.length < minBooks) continue;
-        const overProbability = chances.reduce((sum, value) => sum + value, 0) / chances.length;
-        for (const side of sides) {
-          const outcome = main[side];
-          if (!outcome) continue;
-          const probability = side === "over" ? overProbability : 1 - overProbability;
-          const price = outcome.price;
-          const edge = price * probability - 1;
-            if (rankBy !== "lowest-line" && (probability < parlayRules.minProbability || price < parlayRules.minPrice ||
-              price > parlayRules.maxPrice || edge < parlayRules.minEdge)) continue;
-          let live = null;
-          if (inPlay) {
-            liveChecked.add(key);
-            live = liveRead({ sport, market, line: main.point, player, game: liveGame, side });
-            if (live.skip) {
-              if (!liveReasons.has(key)) liveReasons.set(key, live.skip);
-              continue;
-            }
-            livePassed.add(key);
+        const selectedLines = rankBy === "live-positive"
+          ? [...lines].filter(([, pair]) => pair.over && pair.under).map(([point, pair]) => ({ point, ...pair }))
+          : [mainLine(lines, sideFilter, rankBy)];
+        for (const main of selectedLines) {
+          if (!main) continue;
+          if (injured.has(key)) {
+            skipped.add(key);
+            continue;
           }
-          const score = probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
-          const leg = {
-            player,
-            market,
-            line: main.point,
-            side,
-            alternate: Boolean(outcome.alternate),
-            price,
-            probability: round4(probability),
-            books: chances.length,
-            edge: round4(edge),
-            eventId: event.id,
-            home: event.home_team || "",
-            away: event.away_team || "",
-            start: event.commence_time || "",
-            live: Boolean(event.live),
-            link: httpsLink(outcome.link),
-            marketLink: httpsLink(marketLinkMarket.link),
-            eventLink: httpsLink(target.link),
-            ...(live ? { read: live.read } : {}),
-            score
-          };
-          const seen = best.get(key);
-          if (!seen || byStrength(leg, seen) < 0) best.set(key, leg);
+          const chances = [];
+          for (const bookLines of quotes) {
+            const pair = bookLines.get(key)?.lines.get(main.point);
+            if (pair?.over && pair?.under) chances.push(overChance(pair.over.price, pair.under.price));
+          }
+          if (chances.length < minBooks) continue;
+          const overProbability = chances.reduce((sum, value) => sum + value, 0) / chances.length;
+          for (const side of sides) {
+            const outcome = main[side];
+            if (!outcome) continue;
+            const probability = side === "over" ? overProbability : 1 - overProbability;
+            const price = outcome.price;
+            const edge = price * probability - 1;
+            if (rankBy === "live-positive" && (!Number.isFinite(price) || price < 2 || !Number.isFinite(probability))) continue;
+            if (!["lowest-line", "live-positive"].includes(rankBy) && (probability < parlayRules.minProbability || price < parlayRules.minPrice ||
+              price > parlayRules.maxPrice || edge < parlayRules.minEdge)) continue;
+            let live = null;
+            if (inPlay) {
+              liveChecked.add(key);
+              live = liveRead({ sport, market, line: main.point, player, game: liveGame, side });
+              if (live.skip) {
+                if (!liveReasons.has(key)) liveReasons.set(key, live.skip);
+                continue;
+              }
+              livePassed.add(key);
+            }
+            const score = rankBy === "live-positive" ? probability : probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
+            const leg = {
+              player,
+              market,
+              line: main.point,
+              side,
+              alternate: Boolean(outcome.alternate),
+              price,
+              probability: round4(probability),
+              books: chances.length,
+              edge: round4(edge),
+              eventId: event.id,
+              home: event.home_team || "",
+              away: event.away_team || "",
+              start: event.commence_time || "",
+              live: Boolean(event.live),
+              link: httpsLink(outcome.link),
+              marketLink: httpsLink(marketLinkMarket.link),
+              eventLink: httpsLink(target.link),
+              ...(live ? { read: live.read } : {}),
+              score
+            };
+            const seen = best.get(key);
+            if (!seen || byStrength(leg, seen) < 0) best.set(key, leg);
+          }
         }
       }
     }
@@ -620,8 +633,9 @@ export function buildBestParlay({
   const ranked = [];
   const used = new Set();
   const wanted = maxLegs + Math.max(0, alternateLegs);
+  const rankedGames = rankBy === "live-positive" ? [games.flat().sort(byStrength)] : games;
   for (let round = 0; ranked.length < wanted; round += 1) {
-    const picks = games.map(list => list[round]).filter(Boolean);
+    const picks = rankedGames.map(list => list[round]).filter(Boolean);
     if (!picks.length) break;
     for (const leg of picks.sort(byStrength)) {
       const key = normalizePlayerName(leg.player);

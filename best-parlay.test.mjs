@@ -339,6 +339,63 @@ const hoopsGame = (period, clock, teams, periodLabel = `${clock} - ${period}`) =
 const nbaRead = (game, player, line = 25.5, market = "player_points") =>
   liveRead({ sport: "basketball_nba", market, line, player, game });
 
+test("live-positive suggestions require verified live games and selected-book +100 odds including alternate lines", () => {
+  const players = ["Alpha Player", "Bravo Player", "Charlie Player", "Delta Player"];
+  const box = hoopsGame(2, "0.0", [side("HOME", 50, players.map(name => hooper(name, { MIN: 20, PTS: 15 }))), side("AWAY", 45, [])], "Halftime");
+  const quotes = eventOdds({
+    draftkings: {
+      player_points: [[players[0], 25.5, 1.99, 1.85], [players[1], 25.5, 2, 1.9],
+        [players[2], 25.5, 2.2, 1.8], [players[3], 25.5, 3, 1.4]],
+      player_points_alternate: [[players[0], 26.5, 2.05, 1.85], [players[2], 26.5, 2.5, 1.6]]
+    },
+    fanduel: { player_points: [[players[0], 25.5, 2.2, 1.8]] }
+  });
+  const options = { sport: "basketball_nba", rankBy: "live-positive", sideFilter: "over", includeScore: true, maxLegs: 2,
+    liveGames: new Map([["live", box], ["final", { ...box, state: "post" }], ["future", box]]) };
+  const result = build([game("live", now - hour, true), game("final", now - hour, true),
+    game("future", now + hour, false), game("unknown", now - hour, true)],
+    { live: quotes, final: quotes, future: quotes, unknown: quotes }, options);
+  const all = [...result.legs, ...result.alternates];
+  assert.equal(all.length, 4);
+  assert.ok(all.every(leg => leg.eventId === "live" && leg.live && leg.read && leg.price >= 2));
+  assert.equal(all.find(leg => leg.player === players[0]).line, 26.5);
+  assert.equal(all.find(leg => leg.player === players[0]).alternate, true);
+  assert.equal(all.find(leg => leg.player === players[1]).price, 2, "+100 qualifies");
+  assert.deepEqual(all.map(leg => leg.probability), [...all.map(leg => leg.probability)].sort((a, b) => b - a));
+  assert.equal(new Set(all.map(leg => leg.player)).size, 4);
+});
+
+test("live-positive ranking is global rather than spreading weaker picks across games, and supports Unders", () => {
+  const box = names => hoopsGame(2, "0.0", [side("HOME", 50, names.map(name => hooper(name, { MIN: 20, PTS: 4 }))), side("AWAY", 45, [])], "Halftime");
+  const events = [game("a", now - hour, true), game("b", now - hour, true)];
+  const odds = {
+    a: eventOdds({ draftkings: { player_points: [["Alpha Player", 25.5, 1.85, 2], ["Bravo Player", 25.5, 1.8, 2.05]] } }),
+    b: eventOdds({ draftkings: { player_points: [["Charlie Player", 25.5, 1.2, 5]] } })
+  };
+  const result = build(events, odds, { sport: "basketball_nba", rankBy: "live-positive", sideFilter: "under", maxLegs: 2,
+    liveGames: new Map([["a", box(["Alpha Player", "Bravo Player"])], ["b", box(["Charlie Player"])]]) });
+  assert.deepEqual(result.legs.map(leg => leg.eventId), ["a", "a"]);
+  assert.ok(result.legs.every(leg => leg.side === "under" && leg.price >= 2));
+  assert.equal(result.alternates[0].price, 5);
+});
+
+test("live-positive rejects stale, pregame and unverified quote timestamps", () => {
+  const event = game("live", now - 3 * minute, true);
+  const liveGames = new Map([["live", hoopsGame(1, "9:00", [side("HOME", 8, [
+    hooper("Alpha Player", { MIN: 3, PTS: 4 })
+  ]), side("AWAY", 6, [])])]]);
+  const options = { sport: "basketball_nba", rankBy: "live-positive", liveGames, sideFilter: "over" };
+  const odds = updated => eventOdds({ draftkings: { player_points: [["Alpha Player", 25.5, 2, 1.9]] } }, updated);
+  assert.equal(build([event], { live: odds(now) }, options).legs.length, 1);
+  for (const updated of [now - 7 * minute, now - 4 * minute, now + minute]) {
+    assert.equal(build([event], { live: odds(updated) }, options).legs.length, 0);
+  }
+  const missing = odds(now);
+  delete missing.bookmakers[0].last_update;
+  delete missing.bookmakers[0].markets[0].last_update;
+  assert.equal(build([event], { live: missing }, options).legs.length, 0);
+});
+
 test("live Unders favor below-line pace and reject crossed lines, pushes and above-line pace", () => {
   const read = (points, line = 25.5) => liveRead({
     sport: "basketball_nba", market: "player_points", side: "under", line, player: "Jalen Brunson",

@@ -4035,7 +4035,10 @@
     function bestParlayLegsFor(data, target = parlayLegTarget()) {
       const pool = bestParlayPool(data);
       const removed = pool.filter(isBestParlayRemoved);
-      const candidates = pool.filter(item => !isBestParlayRemoved(item) && Number.isFinite(Number(item.price)) && Number(item.price) > 1);
+      const livePositive = data?.rankBy === "live-positive";
+      const candidates = pool.filter(item => !isBestParlayRemoved(item) && Number.isFinite(Number(item.price)) &&
+        (livePositive ? Number(item.price) >= 2 && item.live === true && Boolean(liveLegRead(item)) : Number(item.price) > 1));
+      if (livePositive && candidates.length < 2) return { legs: [], removed };
       return { legs: candidates.slice(0, target), removed };
     }
     function bestParlayOutcomeText(leg, sport) {
@@ -4190,7 +4193,8 @@
         state.error = "";
       } catch (error) {
         if (request !== state.request) return;
-        // A failed refresh keeps the parlay already on screen.
+        // A failed live refresh must not keep unverified in-play suggestions on screen.
+        state.data = null;
         state.error = error.message || "We couldn't build a parlay right now.";
       }
       state.loading = false;
@@ -4202,7 +4206,7 @@
       const state = bestParlayState;
       if (state.loading || document.hidden || !bestParlaySport() || !bestParlayBook()) return;
       // Live picks, or games that have started, change by the minute.
-      const live = state.data?.live || bestParlayPool(state.data).some(legStarted);
+      const live = state.data?.rankBy === "live-positive" || state.data?.live || bestParlayPool(state.data).some(legStarted);
       if (Date.now() - state.loadedAt > (live ? bestParlayLiveRefreshMs : bestParlayRefreshMs)) void loadBestParlay();
     }
 
@@ -4299,6 +4303,10 @@
         }
         return bestParlayMessage("Couldn't load the parlay.", bestParlayState.error || "Please try again in a minute.", true);
       }
+      if (data.rankBy === "live-positive") {
+        return bestParlayMessage("Not enough qualifying live picks.",
+          `Suggestions need at least two verified live picks at +100 or higher from ${title}. Upcoming games are excluded. We will check again automatically.`);
+      }
       if (data.sport === "all" && !data.legs?.length) {
         if (data.sportsUnavailable?.length) return bestParlayMessage("Some sports are unavailable.", "Showing cross-sport picks again when their odds feeds recover.");
         return bestParlayMessage("No picks pass our checks right now.", "We check upcoming and live player props across the supported sports again soon.");
@@ -4316,9 +4324,11 @@
       return bestParlayMessage("No legs pass our checks right now.", `Each leg needs a ${title} price, the same line at 2+ sportsbooks and a 50%+ hit chance. Check back soon.`);
     }
 
-    function bestParlayAllRemovedSlide(removed) {
+    function bestParlayAllRemovedSlide(removed, livePositive = false) {
       const one = removed.length === 1;
-      const slide = bestParlayMessage(one ? "You removed the only pick." : `You removed all ${removed.length} picks.`, "New picks show up as the games and prices change.");
+      const slide = livePositive
+        ? bestParlayMessage("Not enough qualifying live picks.", "At least two +100 or higher live picks are needed. Restore removed players or wait for new qualifying picks.")
+        : bestParlayMessage(one ? "You removed the only pick." : `You removed all ${removed.length} picks.`, "New picks show up as the games and prices change.");
       const button = element("button", "bp-retry", one ? "Bring it back" : "Bring them back");
       button.type = "button";
       button.title = `Bring back ${removed.map(leg => leg.player).join(", ")}`;
@@ -4378,17 +4388,7 @@
       bestParlayElement.classList.toggle("is-single", legs.length === 1);
       bpScopeLabel.textContent = data?.scope === "mixed" ? "Mixed" : "Live";
       bpScopeLabel.hidden = !(["live", "mixed"].includes(data?.scope) && legs.length);
-      bpSubText.textContent = !legs.length
-        ? "Top Over and Under player props across supported sports, priced at your sportsbook"
-        : sport === "all" && data.scope === "mixed"
-          ? "Cross-sport picks combine live reads and upcoming-game prices"
-          : sport === "all"
-            ? "Cross-sport props use the lowest available line for each pick"
-        : data.scope === "live"
-          ? `Live picks from ${countText(data.games, "game")} in progress, checked against each player's box score`
-          : data.live?.games
-            ? "Pre-game picks for the next games, priced at your sportsbook"
-            : "Pre-game picks priced at your sportsbook · live picks start at tip-off";
+      bpSubText.textContent = "Live games only · +100 or higher at your sportsbook · highest market-implied chance first";
       window.clearTimeout(state.leaveTimer);
       state.shown = legs.length ? { legs, data } : null;
       if (!legs.length) {
@@ -4396,7 +4396,7 @@
         bpViewport.replaceChildren(!sport
           ? bestParlayMessage("Select at least one sport", "Suggestions are paused. Enable a sport above to resume.")
           : removed.length
-          ? bestParlayAllRemovedSlide(removed)
+          ? bestParlayAllRemovedSlide(removed, data?.rankBy === "live-positive")
           : book
             ? bestParlayEmptySlide(data, book)
             : bestParlayMessage("Choose your sportsbook", "and we'll build the best player-prop parlay from the games on now at its odds, ready to open in your betslip."));
