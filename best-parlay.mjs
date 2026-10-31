@@ -491,13 +491,14 @@ const round4 = value => Math.round(value * 10_000) / 10_000;
 // the book's own line can stand alone, each leg carries the player's live read, and players in form rank higher.
 export function buildBestParlay({
   events = [], oddsByEvent = new Map(), book, markets = [], injured = new Set(), maxLegs = parlayRules.maxLegs,
-  alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null, includeScore = false
+  alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null, includeScore = false, sideFilter = "all"
 }) {
   const games = [];
   const skipped = new Set();
   const liveChecked = new Set();
   const livePassed = new Set();
   const liveReasons = new Map();
+  const sides = sideFilter === "over" || sideFilter === "under" ? [sideFilter] : ["over", "under"];
   let bookGames = 0;
   let pricesAt = Infinity;
   for (const event of events) {
@@ -536,7 +537,7 @@ export function buildBestParlay({
         }
         if (chances.length < minBooks) continue;
         const overProbability = chances.reduce((sum, value) => sum + value, 0) / chances.length;
-        for (const side of ["over", "under"]) {
+        for (const side of sides) {
           const outcome = main[side];
           if (!outcome) continue;
           const probability = side === "over" ? overProbability : 1 - overProbability;
