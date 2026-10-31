@@ -11,6 +11,7 @@ Live site: https://wiselybet.onrender.com
 - **Odds board**: games and bookmaker odds for basketball, hockey, baseball, football and seven soccer leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1, MLS and the Champions League) from The Odds API, with live scores and injury reports from ESPN.
 - **Player props**: Over and Under tracking, form signals (good-form and warning icons) and followed players.
 - **Trackers and parlays**: live progress for every pick, parlays that can share players, and a celebration when a parlay hits.
+- Tracking window headers show a **LIVE** badge whenever at least one pick has a verified game in progress, including when the window is collapsed. Its tooltip and accessible label identify the live-pick count; finished, scheduled and unavailable feeds do not count.
 - **Best parlay bar**: choose a sport (or all sports at once), Over, Under or both, your sportsbook and 2 to 8 legs. Picks are ordered by the shortest price at that sportsbook, and live legs show time left, fouls and a minutes outlook. Remove any player, then open the slip at the sportsbook; the picks are tracked automatically.
 - **Live game page**: a court view that acts out live basketball plays, and live match centers for soccer.
 - **Accounts and sync**: settings, trackers and parlays follow the user across devices. New accounts get a free trial, and the subscription checkout is a demo.

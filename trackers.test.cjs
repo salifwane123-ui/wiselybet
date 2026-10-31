@@ -89,6 +89,44 @@ const page = runInNewContext(`${code}
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
+test("tracking window LIVE badge counts verified in-progress picks and disappears when none are live", () => {
+  const source = slice("    function appendTrackerWindowLiveBadge(", "    function renderTrackers(");
+  const snapshots = new Map([
+    ["live1", { state: "in" }], ["live2", { state: "in" }],
+    ["final", { state: "post" }], ["pre", { state: "pre" }],
+    ["failed", { state: "in", error: "Feed unavailable" }]
+  ]);
+  const app = {
+    trackerSnapshots: snapshots,
+    element: (tag, className, textContent) => ({
+      tag, className, textContent, attributes: {},
+      setAttribute(key, value) { this.attributes[key] = value; }
+    })
+  };
+  runInNewContext(source, app);
+  const summary = () => ({ children: [], append(node) { this.children.push(node); } });
+  for (const [picks, count] of [
+    [[{ key: "live1" }, { key: "final" }], 1],
+    [[{ key: "live1" }, { key: "live2" }], 2],
+    [[{ key: "final" }, { key: "pre" }, { key: "missing" }, { key: "failed" }, { key: "live1", demo: true }], 0],
+    [[], 0]
+  ]) {
+    const header = summary();
+    app.appendTrackerWindowLiveBadge(header, picks);
+    assert.equal(header.children.length, count ? 1 : 0);
+    if (count) {
+      assert.equal(header.children[0].textContent, "LIVE");
+      assert.match(header.children[0].attributes["aria-label"], new RegExp(`^${count} `));
+    }
+  }
+  const header = summary();
+  snapshots.set("live1", { state: "post" });
+  app.appendTrackerWindowLiveBadge(header, [{ key: "live1" }]);
+  assert.equal(header.children.length, 0);
+  assert.ok(html.includes("appendTrackerWindowLiveBadge(head, legs);"));
+  assert.ok(html.includes("appendTrackerWindowLiveBadge(summary, singles.filter(item => item.eventId === tracker.eventId));"));
+});
+
 test("on-court indicator sits before the player name and retains its live visibility rules", () => {
   const source = slice('        if (snapshot.state === "in" && snapshot.found && snapshot.onCourt && !isSoccer(tracker.sport)) {', "        head.append(gameRow, top);");
   for (const [sport, snapshot, visible] of [

@@ -1250,6 +1250,10 @@
       .tracker-header-slide .tracker-header-text { width: auto; max-width: 100%; }
     }
     .tracker-window-summary .tracker-parlay-badge { flex: 0 0 auto; margin: 0; }
+    .tracker-window-live { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; padding: 2px 7px; border: 1px solid rgba(255,77,77,.4); border-radius: 999px; background: #382020; color: #ffb0b0; font-size: .6rem; font-weight: 850; white-space: nowrap; }
+    .tracker-window-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #ff4d4d; animation: tracker-clock-pulse 1.4s ease-in-out infinite; }
+    html[data-theme="light"] .tracker-window-live { background: #fff0f0; color: #a82121; border-color: #e5aaaa; }
+    @media (prefers-reduced-motion: reduce) { .tracker-window-live::before { animation: none; } }
     .tracker-window-tools { display: flex; justify-content: flex-end; gap: 8px; padding: 0 0 8px; }
     .tracker-window-tools .tracker-parlay-btn { min-height: 30px; padding: 4px 9px; }
     .tracker-window-tools { flex-wrap: wrap; align-items: center; }
@@ -9909,6 +9913,19 @@
       trackerPanel.querySelectorAll(".tracker-header-slide").forEach(measureTrackerHeader);
     });
 
+    function appendTrackerWindowLiveBadge(summary, picks) {
+      const count = picks.filter(pick => {
+        const snapshot = trackerSnapshots.get(pick.key);
+        return !pick.demo && snapshot?.state === "in" && !snapshot.error;
+      }).length;
+      if (!count) return;
+      const badge = element("span", "tracker-window-live", "LIVE");
+      const label = `${count} ${count === 1 ? "pick has a game" : "picks have games"} in progress`;
+      badge.title = label;
+      badge.setAttribute("aria-label", label);
+      summary.append(badge);
+    }
+
     function renderTrackers() {
       // Keep animating while the user is editing a target: remember the field and restore it after the redraw.
       const focused = document.activeElement;
@@ -10106,6 +10123,7 @@
         del.setAttribute("aria-label", `Delete ${parlay.name}`);
         del.addEventListener("click", () => confirmDeleteParlay(parlay));
         head.append(title, badge);
+        appendTrackerWindowLiveBadge(head, legs);
         const tools = element("div", "tracker-window-tools");
         const bookTools = createParlayBookTools(parlay, legs);
         tools.append(...bookTools.controls, rename, del);
@@ -10137,6 +10155,7 @@
         const group = createTrackerWindow(`singles:${tracker.eventId}`, "tracker-game", `${tracker.away} at ${tracker.home} single picks`);
         const summary = element("summary", "tracker-window-summary");
         summary.append(element("h4", "tracker-game-title", `Single picks · ${sportEmoji(tracker)} ${tracker.away} @ ${tracker.home}`));
+        appendTrackerWindowLiveBadge(summary, singles.filter(item => item.eventId === tracker.eventId));
         group.append(summary, element("div", "tracker-window-events"));
         group.append(...singles.filter(item => item.eventId === tracker.eventId).map(item => cards[trackers.indexOf(item)]));
         groupedCards.push(group);
