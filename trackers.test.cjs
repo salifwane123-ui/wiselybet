@@ -27,7 +27,8 @@ const code = [
   slice("    // Adds a pick to a parlay, or as a single pick", "    const historyKey = "),
   slice("    const historyKey = ", "    function historyRecord()"),
   slice("    function paceModel(tracker) {", "    function baseballRead("),
-  slice("    // Copies of a pick in several parlays pop for the same play", "    // Sparks and confetti flying out")
+  slice("    // Copies of a pick in several parlays pop for the same play", "    // Sparks and confetti flying out"),
+  slice("    // Opening a pick or the whole parlay at the sportsbook also tracks it", "    // A short note that the picks are in the tracker, with Undo.")
 ].join("\n");
 const trackerSnapshots = new Map();
 const storage = new Map();
@@ -60,12 +61,15 @@ const context = {
   playScoreSound: function score() {},
   pollTrackers: async () => {},
   trackerStats: { PTS: { label: "Points", short: "PTS" }, REB: { label: "Rebounds", short: "REB" } },
-  isFootballSport: sport => sport === "americanfootball_nfl" || sport === "americanfootball_ncaaf"
+  isFootballSport: sport => sport === "americanfootball_nfl" || sport === "americanfootball_ncaaf",
+  marketToTrackerStatBySport: { basketball_nba: { player_points: "PTS", player_rebounds: "REB", player_assists: "AST" } },
+  sportsbookTitle: key => ({ draftkings: "DraftKings", fanduel: "FanDuel" })[key] || key,
+  setParlaySportsbook: (parlay, book) => { parlay.sportsbook = book; }
 };
 const page = runInNewContext(`${code}
 ({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead,
    pickIdentity, pickSlot, pickCopyIn, addTracker, assignParlay, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
-   playOnce });`, context);
+   playOnce, bestParlayPicks, trackBestParlayPicks });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -390,4 +394,92 @@ test("the server forgets a pick's alert state once its game window has passed", 
   ]);
   forgetFinishedPicks(userState, now);
   assert.deepEqual([...userState.keys()], ["t:live", "f:followed"]);
+});
+
+const bestLeg = (player, market, line) =>
+  ({ player, market, line, eventId: "e1", home: "Boston Celtics", away: "New York Knicks", start: "2025-01-15T00:30:00Z" });
+const brunson = bestLeg("Jalen Brunson", "player_points", 24.5);
+const tatum = bestLeg("Jayson Tatum", "player_rebounds", 8.5);
+const hart = bestLeg("Josh Hart", "player_assists", 6.5);
+const draftkings = { sport: "basketball_nba", book: "draftkings" };
+const openAtBook = (legs, whole, data = draftkings) => page.trackBestParlayPicks(legs, data, whole);
+const ticketLegs = parlay => plain(context.trackers.filter(item => item.parlay === parlay.id).map(item => [item.name, item.stat, item.target]));
+const clockTime = () => new Date(clock).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const noParlays = () => {
+  context.parlays = [];
+  context.trackers = [];
+  trackerSnapshots.clear();
+};
+
+test("opening the betslip tracks the parlay once, set to that sportsbook", () => {
+  noParlays();
+  const first = openAtBook([brunson, tatum], true);
+  assert.equal(first.created, true);
+  assert.equal(first.added.length, 2);
+  assert.deepEqual(plain(first.parlay), { id: first.parlay.id, name: "Best parlay · DraftKings", sportsbook: "draftkings", ticketAt: clock });
+  assert.deepEqual(ticketLegs(first.parlay), [["Jalen Brunson", "PTS", 25], ["Jayson Tatum", "REB", 9]]);
+
+  // Opening it again changes nothing, even after a line moved.
+  const again = openAtBook([{ ...brunson, line: 25.5 }, tatum], true);
+  assert.equal(again.parlay, first.parlay);
+  assert.equal(again.created, false);
+  assert.equal(again.added.length, 0);
+  assert.equal(context.parlays.length, 1);
+  assert.deepEqual(ticketLegs(first.parlay), [["Jalen Brunson", "PTS", 25], ["Jayson Tatum", "REB", 9]]);
+
+  // Legs the tracker can't follow are skipped, so a parlay of only those isn't tracked.
+  assert.equal(openAtBook([bestLeg("Jalen Brunson", "player_threes", 2.5)], true), null);
+  assert.equal(openAtBook([brunson], true, { sport: "soccer_epl", book: "draftkings" }), null);
+  assert.equal(openAtBook([brunson], true, { sport: "basketball_nba", book: "" }), null);
+  assert.equal(context.parlays.length, 1);
+});
+
+test("legs opened one by one build one ticket, and the betslip completes it", () => {
+  noParlays();
+  const ticket = openAtBook([brunson], false).parlay;
+  clock += 10 * 60_000;
+  const joined = openAtBook([tatum], false);
+  assert.equal(joined.parlay, ticket);
+  assert.equal(joined.created, false);
+  assert.equal(joined.added.length, 1);
+  assert.equal(ticket.ticketAt, clock);
+  assert.equal(openAtBook([tatum], false).added.length, 0);
+
+  clock += 10 * 60_000;
+  const whole = openAtBook([brunson, tatum, hart], true);
+  assert.equal(whole.parlay, ticket);
+  assert.deepEqual(plain(whole.added), [context.trackers[2].key]);
+  assert.deepEqual(ticketLegs(ticket).map(([name]) => name), ["Jalen Brunson", "Jayson Tatum", "Josh Hart"]);
+  assert.equal(context.parlays.length, 1);
+});
+
+test("another betslip, a later leg or another sportsbook starts a new ticket", () => {
+  noParlays();
+  const first = openAtBook([brunson, tatum], true).parlay;
+  // The open ticket has a leg this betslip leaves out, so it's another bet.
+  const second = openAtBook([tatum, hart], true).parlay;
+  assert.notEqual(second, first);
+  assert.equal(second.name, `Best parlay · DraftKings · ${clockTime()}`);
+  const third = openAtBook([brunson, hart], true).parlay;
+  assert.equal(third.name, "Best parlay · DraftKings #2");
+
+  // Within half an hour a single leg joins the newest ticket.
+  clock += 29 * 60_000;
+  assert.equal(openAtBook([tatum], false).parlay, third);
+  assert.equal(ticketLegs(third).length, 3);
+
+  // After that, a leg already in a parlay at this book stays put, and a new leg starts a ticket.
+  clock += 30 * 60_000;
+  const kept = openAtBook([hart], false);
+  assert.equal(kept.parlay, third);
+  assert.equal(kept.added.length, 0);
+  const fresh = openAtBook([bestLeg("Mikal Bridges", "player_points", 15.5)], false);
+  assert.equal(fresh.created, true);
+  assert.equal(fresh.parlay.name, `Best parlay · DraftKings · ${clockTime()}`);
+
+  const fanduel = openAtBook([brunson, tatum], true, { sport: "basketball_nba", book: "fanduel" });
+  assert.equal(fanduel.created, true);
+  assert.deepEqual([fanduel.parlay.name, fanduel.parlay.sportsbook], ["Best parlay · FanDuel", "fanduel"]);
+  assert.equal(context.parlays.length, 5);
+  assert.equal(page.bestParlayPicks([brunson, hart], "basketball_nba").map(pick => pick.stat).join(","), "PTS,AST");
 });
