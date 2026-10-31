@@ -6652,11 +6652,20 @@
     const removalSuggestionId = book => `${book}:remove`;
     // Once a pick's suggestion is accepted, kept or times out, that pick never gets another suggestion in this parlay
     // (even if the book moves its line or a different sportsbook is chosen). Moving it to another parlay starts fresh.
+    // A parlay opened at the sportsbook never gets suggestions again, for any of its picks.
     function suggestionsSettled(tracker) {
-      return Boolean(tracker.parlay) && tracker.suggestionsSettled === tracker.parlay;
+      if (!tracker.parlay) return false;
+      return tracker.suggestionsSettled === tracker.parlay || Boolean(parlays.find(item => item.id === tracker.parlay)?.suggestionsOff);
     }
     function settleSuggestions(tracker) {
       if (tracker.parlay) tracker.suggestionsSettled = tracker.parlay;
+    }
+    function disableParlaySuggestions(parlayId) {
+      const parlay = parlays.find(item => item.id === parlayId);
+      if (!parlay || parlay.suggestionsOff) return;
+      parlay.suggestionsOff = true;
+      saveParlays();
+      renderTrackers();
     }
     function bookSuggestionPending(tracker, info) {
       return Boolean(info?.suggest) && !suggestionsSettled(tracker) && tracker.target !== info.suggest.target && tracker.dismissedLine !== suggestionId(info.suggest);
@@ -6779,8 +6788,11 @@
       open.target = "_blank";
       open.rel = "noopener noreferrer";
       if (carried) open.title = `Loads ${carried === legs.length ? "every pick" : `${carried} of ${legs.length} picks`} into your ${title} betslip`;
-      if (href) open.href = href;
-      else {
+      if (href) {
+        open.href = href;
+        // After the click, so the sportsbook tab opens before the window redraws.
+        followOnOpen(open, () => window.setTimeout(() => disableParlaySuggestions(parlay.id), 0));
+      } else {
         open.setAttribute("aria-disabled", "true");
         open.title = `No ${title} link is available yet`;
       }

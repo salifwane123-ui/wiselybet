@@ -21,6 +21,7 @@ const code = [
   slice("    // Default names (\"Parlay 2\") follow", "    // Asks what to do with the picks before a parlay is deleted."),
   slice("    function restoreRequestedTargets(", "    function setParlaySportsbook("),
   slice("    function chooseBookLine(", "    const bookPropsCache"),
+  slice("    const suggestionId = suggest =>", "    // Unanswered suggestions quietly expire"),
   slice("    // A parlay wins only if every leg hits", "    // Applause:"),
   slice("    function replacementFactor(snapshot) {", "    // Always-on performance read"),
   slice("    // Over keys keep their original shape", "    function syncTrackButtons"),
@@ -72,7 +73,8 @@ const page = runInNewContext(`${code}
 ({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead,
    pickIdentity, pickSlot, pickCopyIn, addTracker, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
    playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
-   forgetBestParlayRemoved, syncBestParlayRemoved, trackerClock });`, context);
+   forgetBestParlayRemoved, syncBestParlayRemoved, trackerClock, suggestionsSettled, bookSuggestionPending, removalSuggestionPending,
+   disableParlaySuggestions });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -327,6 +329,30 @@ test("a pick whose parlay is gone counts as a single pick", () => {
   assert.equal(leftover.parlay, "");
   assert.equal(leftover.target, 27);
   assert.equal(context.trackers.length, 1);
+});
+
+test("opening a parlay at the sportsbook turns its suggestions off for good", () => {
+  twoParlays();
+  const leg = track("Test Player", "PTS", 25, "p1");
+  const otherParlay = track("Test Player", "PTS", 25, "p2");
+  const single = track("Test Player", "PTS", 22, "");
+  const lineChange = { suggest: { book: "draftkings", target: 24, point: 23.5, price: 1.9, kind: "lower" } };
+  const removal = { suggestRemove: true };
+  assert.equal(page.bookSuggestionPending(leg, lineChange), true);
+  assert.equal(page.removalSuggestionPending(leg, removal, "draftkings"), true);
+
+  page.disableParlaySuggestions("p1");
+  assert.equal(context.parlays[0].suggestionsOff, true);
+  assert.equal(page.suggestionsSettled(leg), true);
+  assert.equal(page.bookSuggestionPending(leg, lineChange), false);
+  assert.equal(page.removalSuggestionPending(leg, removal, "draftkings"), false);
+  // A pick added to that parlay later gets none either; other parlays and single picks are unaffected.
+  const later = track("Other Player", "REB", 8, "p1");
+  assert.equal(page.bookSuggestionPending(later, lineChange), false);
+  assert.equal(page.bookSuggestionPending(otherParlay, lineChange), true);
+  assert.equal(page.suggestionsSettled(single), false);
+  page.disableParlaySuggestions("missing-parlay");
+  assert.equal(context.parlays[1].suggestionsOff, undefined);
 });
 
 test("deleting a parlay keeps its picks as singles without doubling one", () => {
