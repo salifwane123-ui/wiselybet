@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { breakDataKey, breakUntil, getSubscription, getUserData, listPushUsers, pushDataKey, updateUserData } from "./auth.mjs";
 import soccerSupport from "./soccer.js";
+import moneylineSupport from "./moneyline.js";
 
 const publicKey = (process.env.VAPID_PUBLIC || "").replace(/\s+/g, "");
 const privateKey = (process.env.VAPID_PRIVATE || "").replace(/\s+/g, "");
@@ -158,6 +159,18 @@ function injuryText(name, injury) {
 // Picks saved before Unders existed have no side and are Overs.
 export function trackerAlerts(tracker, previous, game, allowed = () => true) {
   const messages = [];
+  if (moneylineSupport.isMoneyline(tracker)) {
+    const next = moneylineSupport.snapshot(tracker, game);
+    next.done = next.outcome !== "live";
+    if (!next.error && allowed("score")) {
+      if (next.done && !previous?.done) {
+        messages.push({ title: `Moneyline ${next.outcome}`, body: `${tracker.name}: ${next.scoreText}. Check sportsbook settlement.`, tag: `final-${tracker.key}` });
+      } else if (previous && !previous.error && game.state === "in" && next.scoreText !== previous.scoreText) {
+        messages.push({ title: "Moneyline score update", body: next.scoreText, tag: `score-${tracker.key}` });
+      }
+    }
+    return { next, messages };
+  }
   const soccer = soccerSupport.isSoccer(tracker.sport);
   const athlete = findAthlete(game, tracker.name);
   const stats = deriveStats(tracker.sport, tracker.stat, athlete);

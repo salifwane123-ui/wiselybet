@@ -102,6 +102,12 @@ function request(path, { method = "GET", body, cookie, headers = {}, redirect = 
   });
 }
 const get = (path, cookie, options = {}) => request(path, { ...options, cookie });
+test("moneyline support is publicly served before account gating", async () => {
+  const reply = await get("/moneyline.js");
+  assert.equal(reply.status, 200);
+  assert.match(reply.headers.get("content-type"), /javascript/);
+  assert.match(await reply.text(), /root\.moneylineSupport = support/);
+});
 const post = (path, body, cookie, headers) => request(path, { method: "POST", body, cookie, headers });
 const put = (path, body, cookie) => request(path, { method: "PUT", body, cookie });
 

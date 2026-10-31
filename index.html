@@ -24,6 +24,7 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <title>WiselyBet | Market Board</title>
   <script src="/soccer.js"></script>
+  <script src="/moneyline.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -778,6 +779,12 @@
     .match-summary time { border-color: rgba(225,233,229,.11); color: #c1c6bd; }
     .odds-review summary { color: #c9e78f; }
     .price { border-color: rgba(225,233,229,.1); background: rgba(27,31,26,.84); }
+    .price .moneyline-track { display: block; width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid #698b48; background: #2b3d20; color: #e1f2c9; font-size: .74rem; }
+    .price .moneyline-track:hover:not(:disabled) { background: #3a502b; }
+    html[data-theme="light"] .price .moneyline-track { background: #e3edcf; color: #29420f; border-color: #99b66e; }
+    html[data-theme="light"] .price .moneyline-track:hover:not(:disabled) { background: #d4e4b7; }
+    .moneyline-card .moneyline-score { margin: 10px 0; font-size: 1rem; font-weight: 750; overflow-wrap: anywhere; }
+    .moneyline-card .moneyline-selection { margin: 8px 0; color: var(--muted); font-size: .75rem; }
     .price-value { color: #d7ed9f; }
     .rail-panel {
       margin-top: 16px;
@@ -5101,6 +5108,7 @@
               if (!current || outcome.price > current.price) {
                 bestPrices.set(outcome.name, {
                   price: outcome.price,
+                  book: bookmaker.key,
                   bookmaker: bookmaker.title || bookmaker.key || "Bookmaker"
                 });
               }
@@ -5147,6 +5155,9 @@
           item.append(nameRow);
           item.append(element("span", "price-value", formatAmericanOdds(offer.price)));
           item.append(element("span", "muted", `Best at ${offer.bookmaker}`));
+          if (supportedSports.includes(sportSelect.value) || isSoccer(sportSelect.value)) {
+            item.append(createMoneylineTrackControl(event, name, offer, sportSelect.value));
+          }
           prices.append(item);
         }
 
@@ -6647,6 +6658,7 @@
 
     const trackerStorageKey = "courtside.trackers.v1";
     const trackerStats = {
+      ML: { label: "Moneyline", short: "ML" },
       PTS: { label: "Points", short: "PTS" },
       REB: { label: "Rebounds", short: "REB" },
       AST: { label: "Assists", short: "AST" },
@@ -6734,6 +6746,9 @@
     function trackerSide(tracker) {
       return tracker?.side === "under" ? "under" : "over";
     }
+    function isMoneylineTracker(tracker) {
+      return tracker?.stat === "ML";
+    }
     function isUnderPick(tracker) {
       return trackerSide(tracker) === "under";
     }
@@ -6742,16 +6757,19 @@
     }
     // "25+" for an Over, "Under 24.5" for an Under.
     function pickGoal(tracker, target = tracker.target) {
+      if (isMoneylineTracker(tracker)) return /^draw$/i.test(tracker.name) ? "Draw (90 min)" : "To win";
       return isUnderPick(tracker) ? `Under ${pickLine(target)}` : `${target}+`;
     }
     // "26/25 PTS" for an Over, "21 PTS (Under 24.5)" for an Under.
     function pickScore(tracker, current, target = tracker.target) {
+      if (isMoneylineTracker(tracker)) return `${pickGoal(tracker)} · ${typeof current === "string" ? current : "Moneyline"}`;
       const short = trackerStats[tracker.stat]?.short || tracker.stat;
       return isUnderPick(tracker) ? `${current} ${short} (Under ${pickLine(target)})` : `${current}/${target} ${short}`;
     }
     // "won", "lost", "live" or "void". An Under is void when the game ends without him in the box score,
     // because sportsbooks refund props on players who don't play.
     function pickOutcome(tracker, snapshot) {
+      if (isMoneylineTracker(tracker)) return snapshot?.error ? "live" : snapshot?.outcome || "live";
       if (isSoccer(tracker.sport) && snapshot?.state === "post" && snapshot.found === false) return "void";
       const reached = (Number(snapshot?.current) || 0) >= Number(tracker.target);
       const finished = snapshot?.state === "post" || snapshot?.fouls >= 6;
@@ -6783,7 +6801,8 @@
         const stored = JSON.parse(localStorage.getItem(trackerStorageKey) || "[]");
         return Array.isArray(stored)
           ? stored.filter(item => item && item.key && item.name && trackerStats[item.stat] &&
-              Number(item.target) > 0 && item.home && item.away && item.date)
+              Number(item.target) > 0 && item.home && item.away && item.date &&
+              (!isMoneylineTracker(item) || ["home", "away", "draw"].includes(item.selection)))
           : [];
       } catch {
         return [];
@@ -6931,7 +6950,7 @@
         const body = element("div", "pick-placement-body");
         const heading = element("h2", "", "Where should this pick go?");
         heading.id = "pick-placement-title";
-        body.append(heading, element("p", "", `${name} · ${pickGoal({ side }, target)} ${trackerStats[stat].label}`));
+        body.append(heading, element("p", "", `${name} · ${pickGoal({ side, stat, name }, target)} ${trackerStats[stat].label}`));
         const identity = trackerKey(name, eventId, stat, side);
         const copyGoal = copy => pickGoal(copy, copy.requestedTarget ?? copy.target);
         const homes = [...parlays.filter(parlay => pickCopyIn(identity, parlay.id)).map(parlay => parlay.name),
@@ -7211,6 +7230,30 @@
       parlayBookState.set(parlay.id, state);
       await Promise.all(legs.map(async tracker => {
         const label = trackerStats[tracker.stat].label;
+        if (isMoneylineTracker(tracker)) {
+          try {
+            const events = await getJson(`/api/odds?sport=${encodeURIComponent(tracker.sport)}`);
+            const event = events.find(item => item.id === tracker.eventId);
+            const bookmaker = event?.bookmakers?.find(item => item.key === book);
+            if (bookmaker?.title) state.title = bookmaker.title;
+            const eventLink = safeLink(bookmaker?.link);
+            if (eventLink && !state.eventLink) state.eventLink = eventLink;
+            const market = bookmaker?.markets?.find(item => item.key === "h2h");
+            const outcome = market?.outcomes?.find(item => moneylineSupport.selection(item.name, event, tracker.sport) === tracker.selection);
+            if (!outcome || !(Number(outcome.price) > 1)) {
+              state.legs.set(tracker.key, { missing: `Moneyline is not currently offered at ${state.title}. Check your existing bet.` });
+              return;
+            }
+            if (parlay.sportsbook !== book || !trackers.includes(tracker)) return;
+            tracker.odds = { book, target: 1, price: Number(outcome.price) };
+            saveTrackers();
+            state.legs.set(tracker.key, { link: safeLink(outcome.link) || safeLink(market.link) || safeLink(bookmaker.link), direct: Boolean(safeLink(outcome.link)) });
+          } catch (error) {
+            state.error = error.message || "Couldn't load moneyline odds.";
+            state.legs.set(tracker.key, { missing: state.error });
+          }
+          return;
+        }
         const market = trackerMarket(tracker);
         if (!market) {
           state.legs.set(tracker.key, { missing: `No ${label} lines are available for this pick.` });
@@ -7583,7 +7626,8 @@
       const game = row => `${row.tracker.away} @ ${row.tracker.home}`;
       const unique = list => [...new Set(list)];
       const results = rows.map(row => {
-        const score = `${row.tracker.name}: ${pickScore(row.tracker, row.snapshot.current)} (${game(row)})`;
+        const score = `${row.tracker.name}: ${pickScore(row.tracker, isMoneylineTracker(row.tracker) ? row.snapshot.scoreText : row.snapshot.current)} (${game(row)})`;
+        if (isMoneylineTracker(row.tracker)) return `${row.hit ? "WIN" : row.outcome === "void" ? "NO ACTION" : "LOSS"} ${score}${row.outcome === "void" ? " — tied final; check sportsbook rules." : ""}`;
         if (row.outcome === "void") return `➖ ${score} — he didn't play, so most sportsbooks void this pick.`;
         if (isUnderPick(row.tracker)) {
           return row.hit
@@ -7599,16 +7643,17 @@
         return {
           tone: "bad",
           subject: `WiselyBet — ${parlay.name}: no action`,
-          intro: `None of the players in ${parlay.name} played, so sportsbooks usually void every pick and refund the stake.`,
+          intro: `Every pick in ${parlay.name} has no action (a player did not play or a two-way moneyline ended tied). Check your sportsbook's void and refund rules.`,
           sections
         };
       }
       const voidNote = voided.length
-        ? `${voided.map(row => row.tracker.name).join(", ")} didn't play, so ${voided.length === 1 ? "that pick is" : "those picks are"} usually voided and the parlay is settled on the other picks. Check your sportsbook's rules.`
+        ? `${voided.map(row => row.tracker.name).join(", ")}: no action (player did not play or tied two-way moneyline). The parlay is settled on the other picks. Check your sportsbook's rules.`
         : "";
 
       if (won) {
         const details = settled.map(row => {
+          if (isMoneylineTracker(row.tracker)) return `${row.tracker.name}: ${pickGoal(row.tracker)}. ${row.snapshot.scoreText}.`;
           const minutes = Number.parseFloat(row.snapshot.stats?.MIN) || 0;
           const against = isUnderPick(row.tracker) ? `against an Under ${pickLine(row.tracker.target)} line` : `against a target of ${row.tracker.target}`;
           return `${row.tracker.name}: ${row.snapshot.current} ${trackerStats[row.tracker.stat].label.toLowerCase()} ${against}${minutes ? `, in ${Math.round(minutes)} minutes` : ""}${row.snapshot.fouls ? `, ${row.snapshot.fouls} fouls` : ""}.`;
@@ -7616,6 +7661,10 @@
         sections.push({ heading: "Pick details", items: details });
         const risks = [];
         for (const row of settled) {
+          if (isMoneylineTracker(row.tracker)) {
+            risks.push(`${row.tracker.name}: moneyline picks settle only at the final whistle, not while a team is leading.`);
+            continue;
+          }
           const trail = row.snapshot.trail || {};
           const parts = [];
           const under = isUnderPick(row.tracker);
@@ -8494,6 +8543,9 @@
 
     // Always-on performance read: his actual number, the time left and the bench cover.
     function performanceVerdict(tracker, snapshot, assessment) {
+      if (isMoneylineTracker(tracker)) return { tone: assessment.level === "hit" ? "hype" : assessment.level === "far" ? "bad" : "idle",
+        title: snapshot.error ? "Data unavailable" : snapshot.state === "post" ? "Final moneyline result" : snapshot.position || "Waiting",
+        text: assessment.text };
       const short = trackerStats[tracker.stat].short;
       if (isSoccer(tracker.sport)) return { tone: assessment.level === "hit" ? "hype" : assessment.level === "far" ? "bad" : "idle",
         title: snapshot.error ? "Data unavailable" : "Match update", text: assessment.text };
@@ -8944,6 +8996,7 @@
     }
 
     function syncTrackButtons(buttons = document.querySelectorAll(".track-toggle")) {
+      syncMoneylineTrackButtons();
       for (const button of buttons) {
         const active = trackers.some(item =>
           item.name === button.dataset.playerName && item.eventId === button.dataset.eventId
@@ -9099,6 +9152,40 @@
       return `⚠️ Risky: ${source} ${first} ${basis} ${percent}% to ${goal}.${situation || " This pick is unlikely to hit."}`;
     }
 
+    function createMoneylineTrackControl(event, name, offer, sport) {
+      const active = trackers.some(item => isMoneylineTracker(item) && item.eventId === event.id && item.name === name);
+      const button = element("button", "moneyline-track", active ? "Moneyline tracked" : "Track moneyline");
+      button.type = "button";
+      button.setAttribute("aria-pressed", String(active));
+      button.dataset.moneylineName = name;
+      button.dataset.eventId = event.id;
+      button.setAttribute("aria-label", `Track ${name} moneyline`);
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          const placement = await choosePickPlacement(name, event.id, "ML", 1);
+          if (placement === null) return;
+          const tracker = addTracker(name, sport, event.id, "ML", 1, placement, "over", event);
+          if (!tracker) throw new Error("This match or moneyline selection is no longer available.");
+          tracker.odds = { book: offer.book, price: Number(offer.price), target: 1 };
+          saveTrackers();
+          renderTrackers();
+        } catch (error) {
+          showBanner(error.message || "Couldn't add this moneyline pick.");
+        } finally {
+          button.disabled = false;
+          syncMoneylineTrackButtons();
+        }
+      });
+      return button;
+    }
+    function syncMoneylineTrackButtons() {
+      for (const button of document.querySelectorAll(".moneyline-track")) {
+        const active = trackers.some(item => isMoneylineTracker(item) && item.eventId === button.dataset.eventId && item.name === button.dataset.moneylineName);
+        button.textContent = active ? "Moneyline tracked" : "Track moneyline";
+        button.setAttribute("aria-pressed", String(active));
+      }
+    }
     function createTrackControls(playerGroup, sport, eventId, market) {
       const button = element("button", "track-toggle");
       const hint = element("p", "track-hint");
@@ -9239,6 +9326,8 @@
       const event = currentEvents.find(candidate => candidate.id === eventId) ||
         (fallbackEvent?.id === eventId ? fallbackEvent : null);
       if (!event) return null;
+      const selection = stat === "ML" ? moneylineSupport.selection(name, event, sport) : "";
+      if (stat === "ML" && !selection) return null;
       const identity = trackerKey(name, eventId, stat, side);
       let tracker = pickCopyIn(identity, pickSlot(parlayId));
       if (tracker) {
@@ -9260,6 +9349,7 @@
           eventId,
           stat,
           target,
+          ...(stat === "ML" ? { selection } : {}),
           ...(side === "under" ? { side: "under" } : {}),
           home: event.home_team,
           away: event.away_team,
@@ -9556,6 +9646,14 @@
     }
 
     function assessTracker(tracker, snapshot) {
+      if (isMoneylineTracker(tracker)) {
+        const outcome = pickOutcome(tracker, snapshot);
+        return { level: outcome === "won" ? "hit" : outcome === "lost" ? "far" : "pending",
+          text: snapshot.error || (outcome === "won" ? `Final — ${pickGoal(tracker)} won.`
+            : outcome === "lost" ? `Final — ${pickGoal(tracker)} lost.`
+            : outcome === "void" ? "Tied final — no winner. Check your sportsbook's void rules."
+            : `${snapshot.position || "Waiting for the game"}. A lead is not a win; settled only on the final result.`) };
+      }
       const need = tracker.target - snapshot.current;
       const short = trackerStats[tracker.stat].short;
       if (isSoccer(tracker.sport)) {
@@ -9620,6 +9718,13 @@
 
     // End-of-game recap: what happened, why the pick missed, and what to do next time.
     function gameRecap(tracker, snapshot) {
+      if (isMoneylineTracker(tracker)) {
+        const outcome = pickOutcome(tracker, snapshot);
+        return { tone: outcome === "won" ? "hype" : outcome === "lost" ? "bad" : "idle",
+          title: `Moneyline recap — ${outcome}`, happened: `${tracker.name}: ${pickGoal(tracker)}. ${snapshot.scoreText || "Score unavailable"}.`,
+          why: [outcome === "won" ? "The selected result matched the final score." : outcome === "lost" ? "The selected result did not match the final score." : "No verified winner; check sportsbook rules."],
+          advice: ["A live lead does not guarantee a win. Soccer moneylines cover 90 minutes plus stoppage time, not extra time or penalties.", "Confirm settlement with your sportsbook. Only wager what you can afford to lose."] };
+      }
       if (isUnderPick(tracker)) return underRecap(tracker, snapshot);
       const label = trackerStats[tracker.stat].label.toLowerCase();
       const trail = snapshot.trail || {};
@@ -9757,6 +9862,26 @@
       const previous = trackerSnapshots.get(tracker.key);
       if (!game) {
         trackerSnapshots.set(tracker.key, { ...(previous || { current: 0, stats: {} }), error });
+        return;
+      }
+      if (isMoneylineTracker(tracker)) {
+        const snapshot = { ...moneylineSupport.snapshot(tracker, game), recorded: previous?.recorded || false, finalNotified: previous?.finalNotified || false };
+        const outcome = pickOutcome(tracker, snapshot);
+        if (previous && !previous.error && !snapshot.error && snapshot.state === "in" && snapshot.scoreText !== previous.scoreText) {
+          if (firstAnnouncement(`moneyline-score|${tracker.eventId}|${snapshot.scoreText}`)) pushNotification("score", snapshot.scoreText);
+        }
+        if (outcome !== "live" && !snapshot.finalNotified) {
+          if (firstAnnouncement(`moneyline-final|${pickIdentity(tracker)}`)) {
+            pushNotification("score", `${tracker.name} moneyline: ${outcome}. ${snapshot.scoreText}`);
+            if (outcome === "won") playCashSound();
+          }
+          snapshot.finalNotified = true;
+        }
+        if (outcome !== "live" && !snapshot.recorded) {
+          if (outcome !== "void") recordHistory(tracker, snapshot.scoreText, outcome === "won" ? "win" : "loss");
+          snapshot.recorded = true;
+        }
+        trackerSnapshots.set(tracker.key, snapshot);
         return;
       }
       const wanted = normalizeTeamName(tracker.name);
@@ -9945,6 +10070,42 @@
       grid.classList.add("is-masonry");
     }
 
+    function createMoneylineTrackerCard(tracker, snapshot, assessment) {
+      const card = element("article", `tracker-card moneyline-card level-${assessment.level}`);
+      const head = element("header", "tracker-card-head");
+      const clock = trackerClock(tracker, snapshot);
+      head.append(element("span", `tracker-clock is-${clock.tone}`, clock.text));
+      const top = element("div", "tracker-top");
+      const title = element("h3", "", tracker.name);
+      title.append(element("span", "tracker-stat-tag", "ML"));
+      const remove = element("button", "tracker-remove", "Remove");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `Stop tracking ${tracker.name} moneyline`);
+      remove.addEventListener("click", () => removeTracker(tracker.key));
+      top.append(title, remove);
+      head.append(top);
+      const score = element("p", "moneyline-score", snapshot.scoreText || "Awaiting live score");
+      const verdict = performanceVerdict(tracker, snapshot, assessment);
+      const box = element("div", `tracker-verdict tone-${verdict.tone}`);
+      box.append(element("strong", "", verdict.title), element("p", "", verdict.text));
+      card.append(head, element("p", "moneyline-selection", `${pickGoal(tracker)} · ${isSoccer(tracker.sport) ? "90 minutes + stoppage time" : "Includes overtime"}`), score, box);
+      if (Number(tracker.odds?.price) > 1) {
+        card.append(element("p", "muted", `Tracked quote: ${formatAmericanOdds(tracker.odds.price)}${tracker.odds.book ? ` at ${sportsbookTitle(tracker.odds.book)}` : ""}. Confirm your placed odds.`));
+      }
+      const parlay = parlays.find(item => item.id === tracker.parlay);
+      const book = parlay ? parlayBookState.get(parlay.id) : null;
+      const info = book?.status === "ready" ? book.legs.get(tracker.key) : null;
+      const link = info?.link ? resolveBookLink(info.link) : "";
+      if (link && snapshot.state !== "post") {
+        const add = element("a", "tracker-book-add", `Find at ${book.title} ↗`);
+        add.href = link;
+        add.target = "_blank";
+        add.rel = "noopener noreferrer";
+        card.append(add);
+      }
+      card.dataset.game = tracker.eventId;
+      return card;
+    }
     function renderTrackers() {
       // Keep animating while the user is editing a target: remember the field and restore it after the redraw.
       const focused = document.activeElement;
@@ -9990,6 +10151,7 @@
         const snapshot = trackerSnapshots.get(tracker.key) || { current: 0, stats: {}, state: "", fouls: 0, minutes: 0 };
         const assessment = assessTracker(tracker, snapshot);
         levels.set(tracker.key, assessment.level);
+        if (isMoneylineTracker(tracker)) return createMoneylineTrackerCard(tracker, snapshot, assessment);
         // The gain badge waits until the panel is open, then shows for 3 seconds above the player name.
         const windowKey = parlayIdSet.has(tracker.parlay) ? `parlay:${tracker.parlay}` : `singles:${tracker.eventId}`;
         const windowVisible = trackerPanelOpen && !collapsedTrackerWindows.has(windowKey) &&

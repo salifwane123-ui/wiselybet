@@ -330,6 +330,7 @@ async function fetchLiveGame(sport, date, home, away) {
       abbreviation: team.team?.abbreviation || "",
       homeAway: team.homeAway,
       score: team.score ?? "0",
+      scoreVerified: team.score !== undefined && team.score !== null && team.score !== "",
       color: team.team?.color || "",
       logo: team.team?.logo || "",
       linescores: (team.linescores || []).map(line => line.displayValue || line.value || ""),
@@ -1155,6 +1156,7 @@ const server = createServer(async (request, response) => {
     }
     if (url.pathname === "/sw.js") return sendStatic(response, "text/javascript; charset=utf-8", serviceWorker);
     if (url.pathname === "/soccer.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "soccer.js")));
+    if (url.pathname === "/moneyline.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "moneyline.js")));
     if (url.pathname === "/healthz") return sendStatic(response, "text/plain", "ok");
     if (url.pathname === "/api/auth/config") return await sendJson(response, 200, { firebase: firebaseWebConfig() });
     if (Object.hasOwn(publicPages, url.pathname)) return await sendPage(response, 200, publicPages[url.pathname]);
