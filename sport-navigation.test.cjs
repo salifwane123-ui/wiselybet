@@ -6,7 +6,7 @@ const soccerSupport = require("./soccer.js");
 const html = readFileSync("index.html", "utf8");
 const source = html.slice(html.indexOf("    function renderSportNavigation("), html.indexOf("    function normalizeTeamName("));
 
-function setup({ hover = true, phone = false, selected = "basketball_nba", leagues = true } = {}) {
+function setup({ hover = true, phone = false, selected = "basketball_nba", leagues = true, triggerTop = phone ? 780 : 350 } = {}) {
   class Node {
     constructor(tag, className = "", text = "") {
       Object.assign(this, { tag, className, textContent: text, children: [], dataset: {}, style: {}, attributes: {}, listeners: {} });
@@ -20,7 +20,7 @@ function setup({ hover = true, phone = false, selected = "basketball_nba", leagu
     addEventListener(name, callback) { this.listeners[name] = callback; }
     contains(node) { return this === node || this.children.some(child => child.contains(node)); }
     focus() { document.activeElement = this; }
-    getBoundingClientRect() { return this.className === "soccer-league-panel" ? { width: 260, height: 350 } : { top: phone ? 780 : 350, right: phone ? 370 : 200 }; }
+    getBoundingClientRect() { return this.className === "soccer-league-panel" ? { width: 260, height: 350 } : { top: triggerTop, bottom: triggerTop + 52, right: phone ? 370 : 200 }; }
     querySelectorAll(selector) {
       const match = node => selector === ".sport-nav-button:not(.soccer-nav-toggle)"
         ? node.className.includes("sport-nav-button") && !node.className.includes("soccer-nav-toggle")
@@ -110,6 +110,13 @@ test("Escape, outside click and focus departure close; ArrowDown focuses a leagu
   app.toggle.listeners.click();
   app.group.listeners.focusout({ relatedTarget: {} });
   assert.equal(app.panel.hidden, true);
+});
+
+test("phone menu opens below an inline sports row when there is more space below", () => {
+  const app = setup({ phone: true, hover: false, triggerTop: 120 });
+  app.toggle.listeners.click();
+  assert.equal(app.panel.style.top, "180px");
+  assert.equal(app.panel.style.maxHeight, "652px");
 });
 
 test("dropdown sport changes update the Soccer selection and preserve the full selector", () => {
