@@ -81,7 +81,7 @@ The suite uses Node's built-in `node:test` runner, so it needs no extra test pac
 - `page-scripts.test.cjs` parses every inline script in every page, so a syntax error can't blank a page in production.
 - The other tests load code straight out of the pages and modules. Each one cuts a script out between fixed marker comments (for example `// Break lock:` in `index.html` or `// Live court:` in `game.html`) and runs it in `node:vm`. If you rename or move one of those comments, update the matching test.
 
-Add every new test file to the `test` script in `package.json`. GitHub Actions (`.github/workflows/ci.yml`) checks module syntax and runs the full suite on Node 22 and 24 for every push to `main` and every pull request.
+Add every new test file to the `test` script in `package.json`. GitHub Actions (`.github/workflows/ci.yml`) checks script syntax and runs the full suite on Node 22 and 24 for every push to `main` and every pull request.
 
 ## Deploy
 
