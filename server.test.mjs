@@ -173,6 +173,8 @@ test("unknown addresses get the branded 404 page; API paths answer in JSON", asy
 
   reply = await get("/api/no-such-endpoint");
   assert.equal(reply.status, 401, "guests are asked to sign in before anything else");
+  reply = await get("/api/events?sport=bad%2Fkey");
+  assert.equal(reply.status, 400, "fixture metadata remains publicly available without a moneyline request");
   reply = await get("/subscribe", undefined, { redirect: "manual" });
   assert.equal(reply.status, 302);
   assert.equal(reply.headers.get("location"), "/login");
@@ -181,6 +183,8 @@ test("unknown addresses get the branded 404 page; API paths answer in JSON", asy
   reply = await get("/api/no-such-endpoint", cookie);
   assert.equal(reply.status, 404);
   assert.deepEqual(await reply.json(), { error: "Not found." });
+  reply = await get("/api/odds?sport=basketball_nba", cookie);
+  assert.equal(reply.status, 404, "the former H2H odds endpoint is removed");
   reply = await get("/no-such-page", cookie);
   assert.equal(reply.status, 404);
   assert.match(await reply.text(), /This page isn't on the board/);

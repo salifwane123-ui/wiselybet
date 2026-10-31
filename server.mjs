@@ -1186,7 +1186,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     // Guests may open the main page and the live scores; the odds and everything else need an account.
-    const guestAllowed = ["/", "/index.html", "/api/live-scores", "/api/matchup-insight", "/api/live-game", "/api/preview", "/api/preview-props", "/api/sports", "/api/odds", "/api/player-props", "/api/player-injuries", "/api/best-parlay", "/api/news", "/game"].includes(url.pathname) ||
+    const guestAllowed = ["/", "/index.html", "/api/live-scores", "/api/matchup-insight", "/api/live-game", "/api/preview", "/api/preview-props", "/api/sports", "/api/events", "/api/player-props", "/api/player-injuries", "/api/best-parlay", "/api/news", "/game"].includes(url.pathname) ||
       /^\/sounds\/[\w-]+\.(mp3|wav|ogg|m4a)$/i.test(url.pathname);
     if (!userKey && !guestAllowed) {
       if (url.pathname.startsWith("/api/")) return await sendJson(response, 401, { error: "Sign in to see the odds." });
@@ -1211,12 +1211,12 @@ const server = createServer(async (request, response) => {
     }
 
     if (url.pathname === "/api/preview") {
-      // Guest teaser: a few real games with live prices, cached briefly to protect the API quota.
+      // Guest teaser: a few upcoming fixtures, cached briefly to protect the API quota.
       if (!previewCache || Date.now() - previewCache.at > 120_000) {
         let events = [];
         for (const sport of ["basketball_nba", "icehockey_nhl"]) {
-          const odds = await fetchOddsApi(`sports/${sport}/odds/`, { regions, markets: "h2h", oddsFormat: "decimal" });
-          events = (Array.isArray(odds) ? odds : [])
+          const listed = await fetchOddsApi(`sports/${sport}/events/`, {});
+          events = (Array.isArray(listed) ? listed : [])
             .filter(event => Date.parse(event.commence_time) > Date.now())
             .sort((a, b) => Date.parse(a.commence_time) - Date.parse(b.commence_time))
             .slice(0, 6);
@@ -1233,7 +1233,7 @@ const server = createServer(async (request, response) => {
         let result = { game: "", players: [] };
         try {
           for (const sport of ["basketball_nba", "icehockey_nhl"]) {
-            const events = (await fetchOddsApi(`sports/${sport}/odds/`, { regions, markets: "h2h", oddsFormat: "decimal" }))
+            const events = (await fetchOddsApi(`sports/${sport}/events/`, {}))
               .filter(event => Date.parse(event.commence_time) > Date.now())
               .sort((a, b) => Date.parse(a.commence_time) - Date.parse(b.commence_time))
               .slice(0, 3);
@@ -1270,18 +1270,15 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    if (url.pathname === "/api/odds") {
+    if (url.pathname === "/api/events") {
       const sport = url.searchParams.get("sport") || "";
       if (!/^[a-z0-9_]+$/i.test(sport)) {
         await sendJson(response, 400, { error: "Provide a valid sport key." });
         return;
       }
 
-      const odds = await fetchOddsApi(
-        `sports/${encodeURIComponent(sport)}/odds/`,
-        { regions, markets: "h2h", oddsFormat: "decimal" }
-      );
-      await sendJson(response, 200, odds);
+      const events = await fetchOddsApi(`sports/${encodeURIComponent(sport)}/events/`, {});
+      await sendJson(response, 200, events);
       return;
     }
 

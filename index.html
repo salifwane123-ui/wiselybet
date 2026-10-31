@@ -2467,7 +2467,7 @@
         </select>
       </section>
       <nav class="sidebar-links" aria-label="Dashboard sections">
-        <a class="sidebar-link" href="#game-list"><span aria-hidden="true">◷</span><span class="link-name">Game odds</span></a>
+        <a class="sidebar-link" href="#game-list"><span aria-hidden="true">◷</span><span class="link-name">Games</span></a>
         <a class="sidebar-link" href="#player-picks"><span aria-hidden="true">✦</span><span class="link-name">Player props</span></a>
         <a class="sidebar-link" href="#upcoming-games"><span aria-hidden="true">▦</span><span class="link-name">Upcoming</span></a>
         <a class="sidebar-link" href="#followed"><span aria-hidden="true">★</span><span class="link-name">Followed</span></a>
@@ -2606,7 +2606,7 @@
       </header>
 
       <nav class="top-navigation" aria-label="Dashboard navigation">
-        <a href="#game-list">All odds</a>
+        <a href="#game-list">Games</a>
         <a href="#player-picks">Player props</a>
         <a href="#upcoming-games">Upcoming</a>
         <a href="#followed" id="followed-tab">Followed <span id="followed-count" class="tab-count"></span></a>
@@ -2621,8 +2621,8 @@
         <main class="main-column">
           <div class="dashboard-heading" id="game-list">
             <div>
-              <h2>Game odds</h2>
-              <p>Compare the best available head-to-head price by matchup.</p>
+              <h2>Games</h2>
+              <p>Open a game center or choose a fixture for player props.</p>
             </div>
             <p class="last-updated muted">Updated <time id="updatedAt">—</time></p>
           </div>
@@ -2693,7 +2693,7 @@
             <div id="followed-list"></div>
             <ul id="notification-feed" aria-label="Player notifications" aria-live="polite"></ul>
           </section>
-          <div id="matches" role="region" aria-label="Game odds" aria-live="polite"></div>
+          <div id="matches" role="region" aria-label="Games" aria-live="polite"></div>
 
           <section id="player-picks" class="panel" hidden>
             <div class="panel-heading">
@@ -3803,8 +3803,6 @@
             matchCard = document.getElementById(`match-${event.id}`);
           }
           if (!matchCard) return;
-          const oddsReview = matchCard.querySelector(".odds-review");
-          if (oddsReview) oddsReview.open = true;
           matchCard.scrollIntoView({ behavior: "smooth", block: "center" });
         });
         const summary = element("span", "upcoming-sport");
@@ -5039,7 +5037,7 @@
         matchesElement.append(element(
           "p",
           "muted",
-          "No upcoming odds were returned for this sport."
+          "No games were returned for this sport."
         ));
         updatePlayerPropsControls(currentEvents);
         return;
@@ -5112,99 +5110,7 @@
             : time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
           heading.append(element("time", "", timeLabel));
         }
-
-        const bestPrices = new Map();
-        for (const bookmaker of event.bookmakers || []) {
-          for (const market of bookmaker.markets || []) {
-            if (market.key !== "h2h") continue;
-            for (const outcome of market.outcomes || []) {
-              const current = bestPrices.get(outcome.name);
-              if (!current || outcome.price > current.price) {
-                bestPrices.set(outcome.name, {
-                  price: outcome.price,
-                  book: bookmaker.key,
-                  bookmaker: bookmaker.title || bookmaker.key || "Bookmaker"
-                });
-              }
-            }
-          }
-        }
-
-        // No public bet-count feed exists, so team "backing" is the bookmaker consensus with the vig removed.
-        const backing = new Map();
-        for (const bookmaker of event.bookmakers || []) {
-          const h2h = (bookmaker.markets || []).find(market => market.key === "h2h");
-          const outcomes = (h2h?.outcomes || []).filter(outcome => outcome.price > 1);
-          const total = outcomes.reduce((sum, outcome) => sum + 1 / outcome.price, 0);
-          if (!total) continue;
-          for (const outcome of outcomes) {
-            const entry = backing.get(outcome.name) || { sum: 0, count: 0 };
-            entry.sum += 1 / outcome.price / total;
-            entry.count += 1;
-            backing.set(outcome.name, entry);
-          }
-        }
-
-        const content = element("div", "match-content");
-        const prices = element("div", "prices");
-        const heatEntries = [];
-        for (const [name, offer] of bestPrices) {
-          const item = element("div", "price");
-          const nameRow = element("span", "price-team");
-          nameRow.append(element("span", "", name));
-          const share = backing.get(name);
-          if (share?.count) {
-            const probability = share.sum / share.count;
-            heatEntries.push({ name, probability, price: offer.price, books: share.count });
-            const percent = (probability * 100).toFixed(1);
-            const badge = element("span", `market-probability ${marketHeatClass(probability)}`);
-            badge.title = `${percent}% of market backing ${name} (bookmaker consensus, not a count of bettors)`;
-            badge.setAttribute("aria-label", badge.title);
-            const flame = element("span", "heat-flame");
-            flame.setAttribute("aria-hidden", "true");
-            flame.append(element("span", "flame-core"));
-            badge.append(flame, document.createTextNode(`${percent}%`));
-            nameRow.append(badge);
-          }
-          item.append(nameRow);
-          item.append(element("span", "price-value", formatAmericanOdds(offer.price)));
-          item.append(element("span", "muted", `Best at ${offer.bookmaker}`));
-          if (supportedSports.includes(sportSelect.value) || isSoccer(sportSelect.value)) {
-            item.append(createMoneylineTrackControl(event, name, offer, sportSelect.value));
-          }
-          prices.append(item);
-        }
-
-        if (bestPrices.size === 0) {
-          prices.append(element("span", "muted", "No head-to-head prices available."));
-        }
-
-        content.append(prices);
-        if (heatEntries.length >= 2) {
-          const sorted = [...heatEntries].sort((a, b) => b.probability - a.probability);
-          const hot = sorted[0];
-          const cold = sorted[sorted.length - 1];
-          const pct = value => `${(value * 100).toFixed(1)}%`;
-          const why = element("p", "heat-why");
-          if (hot.probability - cold.probability < 0.04) {
-            why.textContent = `⚖️ Why the flames match: bookmakers rate ${hot.name} (${pct(hot.probability)}) and ${cold.name} (${pct(cold.probability)}) almost equally, so the money is split and neither team runs hotter.`;
-          } else {
-            why.textContent = `🔥 Why ${hot.name} is hotter: ${hot.books} bookmaker${hot.books === 1 ? "" : "s"} price them as the favorite (${formatAmericanOdds(hot.price)}), so the market backs them at ${pct(hot.probability)}. ❄️ Why ${cold.name} is colder: they are the underdog (${formatAmericanOdds(cold.price)}), so the market backs them at only ${pct(cold.probability)}. Shorter odds mean more money and confidence behind a team, which makes the flame hotter.`;
-          }
-          content.append(why);
-          const insightDate = localDateKey(event.commence_time);
-          if (insightDate && (isSoccer(sportSelect.value) || sportSelect.value in { basketball_nba: 1, basketball_wnba: 1, icehockey_nhl: 1, baseball_mlb: 1, americanfootball_nfl: 1, americanfootball_ncaaf: 1 })) {
-            loadMatchupInsight(sportSelect.value, insightDate, event.home_team, event.away_team).then(insight => {
-              if (!insight) return;
-              const text = describeHeat(insight, hot, cold, pct);
-              if (text) why.textContent = text;
-            });
-          }
-        }
-        const oddsReview = element("details", "odds-review");
-        oddsReview.append(element("summary", "", "Review odds"));
-        oddsReview.append(content);
-        card.append(heading, oddsReview);
+        card.append(heading);
         matchesElement.append(card);
       }
 
@@ -10526,7 +10432,7 @@
     window.addEventListener("online", () => {
       showBanner("Back online — refreshing…", { info: true });
       window.setTimeout(hideBanner, 2500);
-      if (sportSelect.value) void loadOdds();
+      if (sportSelect.value) void loadGames();
     });
     if (navigator.onLine === false) showBanner("You are offline. Live data will resume when you reconnect.", { info: true });
 
@@ -10574,7 +10480,7 @@
       saveSettings();
       applyVolume();
       if (rerender && sportSelect.value) {
-        void loadOdds();
+        void loadGames();
         if (typeof playerPropsHasLoaded !== "undefined" && playerPropsHasLoaded) void loadPlayerProps();
         renderBestParlay();
       }
@@ -10797,19 +10703,19 @@
     })();
     renderHistory();
 
-    async function loadOdds() {
+    async function loadGames() {
       const sport = sportSelect.value;
       if (!sport) return;
 
       const requestId = ++oddsRequestId;
       refreshButton.disabled = true;
       statusElement.className = "muted";
-      statusElement.textContent = "Loading odds…";
+      statusElement.textContent = "Loading games…";
       showSkeletons(matchesElement);
       if (bestParlayState.sport !== bestParlaySport()) void loadBestParlay();
       else refreshBestParlayIfOld();
       try {
-        const events = await getJson(`/api/odds?sport=${encodeURIComponent(sport)}`);
+        const events = await getJson(`/api/events?sport=${encodeURIComponent(sport)}`);
         if (requestId !== oddsRequestId || sport !== sportSelect.value) return;
         renderMatches(events);
         document.querySelector("#updatedAt").textContent =
@@ -10822,13 +10728,13 @@
         updatePlayerPropsControls([]);
         statusElement.className = "error";
         statusElement.textContent = error.message;
-        showBanner(error.message, { retry: loadOdds });
+        showBanner(error.message, { retry: loadGames });
       } finally {
         if (requestId === oddsRequestId) refreshButton.disabled = false;
       }
     }
 
-    // Guests browse every game and price; only player props, the tracker and parlays need an account.
+    // Guests browse fixtures; only player props, the tracker and parlays need an account.
     // News window: ESPN headlines, injury reports and betting stories for the chosen sport.
     const newsSports = [["basketball_nba", "NBA"], ["icehockey_nhl", "NHL"], ["americanfootball_nfl", "NFL"], ["baseball_mlb", "MLB"], ["basketball_wnba", "WNBA"], ["americanfootball_ncaaf", "College football"]];
     newsSports.push(...Object.entries(soccerSupport.leagues).map(([key, league]) => [key, league.title]));
@@ -11037,7 +10943,7 @@
 
         sportSelect.disabled = false;
         refreshButton.disabled = false;
-        await loadOdds();
+        await loadGames();
       } catch (error) {
         statusElement.className = "error";
         statusElement.textContent = error.message;
@@ -11049,14 +10955,14 @@
       updateSportNavigation();
       clearOddsView();
       updatePlayerPropsControls([]);
-      loadOdds();
+      loadGames();
     });
     dateSelect.addEventListener("change", () => {
       renderFilteredMatches();
       updatePlayerPropsControls(currentEvents);
     });
     teamSearch.addEventListener("input", renderFilteredMatches);
-    refreshButton.addEventListener("click", loadOdds);
+    refreshButton.addEventListener("click", loadGames);
     loadPropsButton.addEventListener("click", loadPlayerProps);
     const handlePlayerPropSelectionChange = () => {
       const selectionKey = JSON.stringify([
@@ -11165,7 +11071,7 @@
       const steps = [
         { title: "Welcome to WiselyBet", body: "A 60-second tour of how to find a pick, track it live and see how it turned out. You can replay it any time with the ❔ Tour button." },
         { target: ".sidebar-section", title: "Choose a sport", body: "Switch between NBA, NHL, NFL, NCAAF, MLB and WNBA. Everything on the page updates for the sport you pick." },
-        { target: "#game-list", title: "Compare game odds", body: "Every game shows the best available price from the bookmakers. Open \"Review odds\" on a card for spreads, totals and the full breakdown." },
+        { target: "#game-list", title: "Choose a game", body: "Open a game center or select a fixture to browse its player props." },
         { target: ".sidebar-link[href=\"#player-picks\"]", title: "Browse player props", body: "Pick a game and a market such as Points or Assists to see each player's line, Over/Under prices and market-implied probability.", list: ["Follow ★ saves a player so you can find them fast", "Track 📊 adds the pick to your live tracker with a target"] },
         { title: "Track a player pick", demo: "track", body: "Found a player you like? Press Track 📊 on their row. The pick is saved with the line as its target, for example 24.5 points.", list: ["Create a free account to track (guests can preview)", "Group several picks into a parlay to follow them together"] },
         { target: "#tracker-toggle", title: "Keep monitoring it", demo: "monitor", body: "Open the Live tracker at the bottom of the screen. Each parlay has its own tracking window, with its picks, progress and scoring animations kept together. Expand or collapse each window independently.", list: ["Green bar: on pace, gold: close, full: target hit", "When you track a pick, choose a parlay, create one or keep it single", "Pick a sportsbook on a parlay to match its lines and open it there"] },
