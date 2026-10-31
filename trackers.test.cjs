@@ -69,7 +69,7 @@ const context = {
 const page = runInNewContext(`${code}
 ({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead,
    pickIdentity, pickSlot, pickCopyIn, addTracker, assignParlay, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
-   playOnce, bestParlayPicks, trackBestParlayPicks });`, context);
+   playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -143,6 +143,29 @@ test("parlays drop void Under legs like sportsbooks do", () => {
   assert.equal(page.parlayStatus(legs).label, "Lost ❌");
   trackerSnapshots.set("c", { state: "in", current: 4, found: true });
   assert.deepEqual(plain(page.parlayStatus(legs)), { tone: "idle", label: "Live", hits: 1, total: 2 });
+  trackerSnapshots.clear();
+});
+
+test("a hit parlay pays out at each counted leg's price at its sportsbook", () => {
+  const legs = [
+    { ...over, key: "a", target: 20, odds: { book: "draftkings", target: 20, price: 1.9 } },
+    // The line accepted for the book is what's tracked now, not the one opened earlier.
+    { ...over, key: "b", target: 8, bookLine: { book: "draftkings", point: 7.5, price: 1.8, kind: "lower" }, odds: { book: "draftkings", target: 9, price: 2.1 } },
+    { ...under, key: "c", target: 10 }
+  ];
+  trackerSnapshots.clear();
+  trackerSnapshots.set("a", { state: "post", current: 22, found: true });
+  trackerSnapshots.set("b", { state: "post", current: 9, found: true });
+  // He didn't play, so the Under is void and drops out of the payout like it does at the book.
+  trackerSnapshots.set("c", { state: "post", current: 0, found: false });
+  const parlay = { id: "p1", sportsbook: "draftkings" };
+  assert.ok(Math.abs(page.parlayWinOdds(parlay, legs) - 1.9 * 1.8) < 1e-9);
+  // Every counted leg needs a price at the parlay's own sportsbook for the line it tracks.
+  assert.equal(page.parlayWinOdds({ id: "p1" }, legs), null);
+  assert.equal(page.parlayWinOdds({ ...parlay, sportsbook: "fanduel" }, legs), null);
+  assert.equal(page.parlayWinOdds(parlay, [{ ...legs[0], target: 21 }]), null);
+  assert.equal(page.parlayWinOdds(parlay, [legs[0], { ...over, key: "d", target: 5 }]), null);
+  assert.equal(page.parlayWinOdds(parlay, [legs[2]]), null);
   trackerSnapshots.clear();
 });
 
@@ -482,4 +505,15 @@ test("another betslip, a later leg or another sportsbook starts a new ticket", (
   assert.deepEqual([fanduel.parlay.name, fanduel.parlay.sportsbook], ["Best parlay · FanDuel", "fanduel"]);
   assert.equal(context.parlays.length, 5);
   assert.equal(page.bestParlayPicks([brunson, hart], "basketball_nba").map(pick => pick.stat).join(","), "PTS,AST");
+});
+
+test("picks opened at the sportsbook keep their price there for the payout", () => {
+  noParlays();
+  const { parlay } = openAtBook([{ ...brunson, price: 1.87 }, tatum], true);
+  const [priced, unpriced] = context.trackers;
+  assert.deepEqual(plain(priced.odds), { book: "draftkings", target: 25, price: 1.87 });
+  assert.equal(unpriced.odds, undefined);
+  assert.equal(page.parlayWinOdds(parlay, [priced]), 1.87);
+  // A leg without a price means no payout figure, rather than a wrong one.
+  assert.equal(page.parlayWinOdds(parlay, [priced, unpriced]), null);
 });

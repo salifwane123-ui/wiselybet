@@ -1854,6 +1854,17 @@
     .parlay-win-title .tracker-dot-badge { -webkit-text-fill-color: initial; color: #10160c; font-size: 13px; }
     .parlay-win-count { margin: 8px 0 14px; color: #b9c3ad; font-size: 14px; }
     .parlay-win-count strong { color: #3ddc84; font-size: 18px; }
+    .parlay-win-money { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; }
+    .parlay-win-cash { position: relative; display: grid; justify-items: center; gap: 2px; margin: 0 0 14px; padding: 10px 14px 11px; overflow: hidden; border: 1px solid rgba(255,212,90,.5); border-radius: 14px; background: linear-gradient(135deg, rgba(255,212,90,.16), rgba(201,239,91,.06) 60%, rgba(255,212,90,.12)); box-shadow: inset 0 1px 0 rgba(255,240,190,.12); transition: border-color .4s ease, box-shadow .4s ease; animation: parlay-win-cash .5s cubic-bezier(.2,1.4,.4,1) .45s both; }
+    .parlay-win-cash::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,246,214,.26) 50%, transparent 65%); transform: translateX(-100%); pointer-events: none; animation: parlay-win-sweep 2.8s ease-in-out 2.2s infinite; }
+    .parlay-win-cash.is-paid { border-color: rgba(255,212,90,.85); box-shadow: inset 0 1px 0 rgba(255,240,190,.18), 0 0 0 3px rgba(255,212,90,.12), 0 0 28px rgba(255,212,90,.35); }
+    .parlay-win-cash-label { color: #ffd45a; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    .parlay-win-cash-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .parlay-win-cash-icon { font-size: 22px; line-height: 1; }
+    .parlay-win-cash-amount { background: linear-gradient(180deg, #fff6cf 10%, #ffd45a 50%, #e3a51c 90%); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: clamp(28px, 9vw, 36px); font-variant-numeric: tabular-nums; font-weight: 900; line-height: 1.15; filter: drop-shadow(0 2px 10px rgba(255,212,90,.35)); }
+    .parlay-win-cash.is-plain .parlay-win-cash-amount { font-size: clamp(24px, 7.5vw, 30px); letter-spacing: .03em; }
+    .parlay-win-cash.is-paid .parlay-win-cash-amount { animation: parlay-win-paid .7s cubic-bezier(.2,1.6,.4,1) both; }
+    .parlay-win-cash-note { color: #b9c3ad; font-size: 12px; }
     .parlay-win-legs { display: grid; gap: 6px; margin: 0 0 16px; padding: 0; list-style: none; text-align: left; }
     .parlay-win-legs li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid rgba(61,220,132,.28); border-radius: 12px; background: rgba(61,220,132,.08); font-size: 14px; animation: parlay-win-leg .4s ease-out both; }
     .parlay-win-check { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: #3ddc84; color: #08210f; font-size: 13px; font-weight: 900; }
@@ -1874,6 +1885,11 @@
     html[data-theme="light"] .parlay-win-legs li { border-color: rgba(30,140,70,.3); background: rgba(30,160,80,.08); }
     html[data-theme="light"] .parlay-win-leg-stat, html[data-theme="light"] .parlay-win-count strong { color: #17803f; }
     html[data-theme="light"] .parlay-win-share { border-color: rgba(77,122,11,.45); color: #4d7a0b; }
+    html[data-theme="light"] .parlay-win-cash { border-color: rgba(184,134,11,.45); background: linear-gradient(135deg, rgba(255,212,90,.24), rgba(255,247,220,.6) 60%, rgba(255,212,90,.2)); box-shadow: none; }
+    html[data-theme="light"] .parlay-win-cash.is-paid { border-color: rgba(184,134,11,.8); box-shadow: 0 0 0 3px rgba(255,212,90,.25), 0 0 24px rgba(212,160,23,.3); }
+    html[data-theme="light"] .parlay-win-cash-label { color: #8a6200; }
+    html[data-theme="light"] .parlay-win-cash-amount { background-image: linear-gradient(180deg, #d9a21b 10%, #b07d0a 55%, #7d5800 95%); filter: drop-shadow(0 1px 0 rgba(255,255,255,.6)); }
+    html[data-theme="light"] .parlay-win-cash-note { color: #5d6852; }
     @keyframes parlay-win-fade { from { opacity: 0; } to { opacity: 1; } }
     @keyframes parlay-win-pop { from { opacity: 0; transform: scale(.6) translateY(30px); } to { opacity: 1; transform: none; } }
     @keyframes parlay-win-trophy { 0% { opacity: 0; transform: scale(.2) rotate(-25deg); } 60% { opacity: 1; transform: scale(1.25) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
@@ -1881,7 +1897,24 @@
     @keyframes parlay-win-spin { to { transform: rotate(360deg); } }
     @keyframes parlay-win-shine { to { background-position: -250% 0; } }
     @keyframes parlay-win-leg { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
-    @media (prefers-reduced-motion: reduce) { .parlay-win, .parlay-win *, .parlay-win.is-leaving { animation: none !important; } }
+    @keyframes parlay-win-cash { from { opacity: 0; transform: scale(.85) translateY(8px); } to { opacity: 1; transform: none; } }
+    @keyframes parlay-win-paid { 0% { transform: scale(1); } 35% { transform: scale(1.18); } 100% { transform: scale(1); } }
+    @keyframes parlay-win-sweep { 0% { transform: translateX(-100%); } 45%, 100% { transform: translateX(100%); } }
+    /* Short screens (small phones, landscape): tighten the card so the payout and the buttons fit without scrolling. */
+    @media (max-height: 640px) {
+      .parlay-win-card { padding: 18px 18px 14px; }
+      .parlay-win-rays { top: -52px; }
+      .parlay-win-trophy { font-size: 48px; }
+      .parlay-win-kicker { margin-top: 8px; }
+      .parlay-win-count { margin: 4px 0 10px; }
+      .parlay-win-cash { margin-bottom: 10px; padding: 7px 12px 8px; }
+      .parlay-win-cash-amount { font-size: 28px; }
+      .parlay-win-cash.is-plain .parlay-win-cash-amount { font-size: 24px; }
+      .parlay-win-legs { margin-bottom: 12px; }
+      .parlay-win-legs li { padding: 6px 10px; }
+      .parlay-win-hint { margin-top: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .parlay-win, .parlay-win *, .parlay-win *::after, .parlay-win.is-leaving { animation: none !important; } }
 
     /* Layout polish: consistent top bar buttons, no overlapping prop filters, readable prop card headers */
     .topbar-heading { min-width: 0; }
@@ -3875,7 +3908,10 @@
         if (held.has(identity)) continue;
         const tracker = addTracker(leg.player, sport, leg.eventId, stat, Math.floor(Number(leg.line)) + 1, parlay.id, "over",
           { id: leg.eventId, home_team: leg.home, away_team: leg.away, commence_time: leg.start });
-        if (tracker) added.push(tracker.key);
+        if (!tracker) continue;
+        // Its price at this book now, for the payout when the parlay hits.
+        if (Number(leg.price) > 1) tracker.odds = { book, target: tracker.target, price: Number(leg.price) };
+        added.push(tracker.key);
       }
       if (created && !added.length) {
         deleteParlay(parlay);
@@ -3884,7 +3920,10 @@
       if (added.length) {
         parlay.ticketAt = Date.now();
         if (parlay.sportsbook !== book) setParlaySportsbook(parlay, book);
-        else saveParlays();
+        else {
+          saveTrackers();
+          saveParlays();
+        }
       }
       return { parlay, created, added, picks };
     }
@@ -6844,6 +6883,23 @@
       if (outcomes.length && !total) return { tone: "idle", label: "Void", hits, total };
       return { tone: "idle", label: "Live", hits, total };
     }
+    // The parlay's odds for the payout when it hits: each counted leg's price at the parlay's sportsbook, from the line
+    // accepted there or the price when it was opened there from Best parlay. Null when any counted leg has no price.
+    function parlayWinOdds(parlay, legs) {
+      const book = parlay?.sportsbook;
+      if (!book) return null;
+      let odds = 1;
+      let counted = 0;
+      for (const tracker of legs) {
+        if (pickOutcome(tracker, trackerSnapshots.get(tracker.key) || { current: 0 }) === "void") continue;
+        const opened = Number(tracker.odds?.target) === Number(tracker.target) ? tracker.odds : null;
+        const price = [tracker.bookLine, opened].map(quote => (quote?.book === book ? Number(quote.price) : 0)).find(value => value > 1);
+        if (!price) return null;
+        odds *= price;
+        counted += 1;
+      }
+      return counted ? odds : null;
+    }
 
     // Applause: hundreds of tiny hand-claps (short filtered noise bursts) that swell and fade, under a victory fanfare.
     function playParlayWinSound() {
@@ -6870,6 +6926,29 @@
         }
         playNoise({ at: 0.3, length: 3.4, freq: 1600, sweepTo: 1100, q: 0.45, volume: 0.07 });
         playNoise({ at: 0.9, length: 0.5, freq: 3000, q: 4, volume: 0.06 });
+      } catch {
+        // Sound is optional.
+      }
+    }
+
+    // Coins dropping onto the pile while the payout counts up. The counter eases out (1 − (1 − t)³), so a clink at
+    // each equal step of the amount lands further apart, and the register's ka-ching makes the last one.
+    function playCoinCountSound(at, length) {
+      if (settings.muted) return;
+      try {
+        prepareAudio();
+        const steps = 16;
+        const tones = [];
+        for (let index = 0; index < steps - 1; index += 1) {
+          const progress = index / (steps - 1);
+          const when = at + length * (1 - Math.cbrt(1 - progress));
+          const freq = 2600 + progress * 1500 + Math.random() * 200;
+          tones.push(
+            { freq, at: when, length: 0.07, volume: 0.05 },
+            { freq: freq * 1.5, at: when + 0.008, length: 0.05, volume: 0.025 }
+          );
+        }
+        playTones(tones);
       } catch {
         // Sound is optional.
       }
@@ -6954,6 +7033,31 @@
       const isVoidLeg = tracker => pickOutcome(tracker, trackerSnapshots.get(tracker.key) || { current: 0 }) === "void";
       const hitLegs = legs.filter(tracker => !isVoidLeg(tracker));
       count.append(countNumber, ` / ${hitLegs.length} picks hit`);
+      // The money: a $10 bet's return counting up when every counted leg has a price at the parlay's sportsbook,
+      // otherwise a cha-ching. Either way it pays out with the register sound and a burst of coins.
+      const odds = parlayWinOdds(parlay, legs);
+      const payout = odds ? 10 * odds : 0;
+      const cash = element("div", "parlay-win-cash");
+      const cashAmount = element("strong", "parlay-win-cash-amount");
+      if (odds) {
+        cashAmount.textContent = formatPayout(reduceMotion ? payout : 0);
+        cash.append(
+          element("span", "parlay-win-cash-label", "💵 $10 bet pays"),
+          cashAmount,
+          element("span", "parlay-win-cash-note", `Est. at ${formatAmericanOdds(odds)} · your ticket may differ`)
+        );
+      } else {
+        cash.classList.add("is-plain");
+        cashAmount.textContent = "Cha-ching!";
+        const row = element("div", "parlay-win-cash-row");
+        const bag = () => {
+          const icon = element("span", "parlay-win-cash-icon", "💰");
+          icon.setAttribute("aria-hidden", "true");
+          return icon;
+        };
+        row.append(bag(), cashAmount, bag());
+        cash.append(row, element("span", "parlay-win-cash-note", parlay.sportsbook ? "Every leg paid off — time to collect." : "Every leg hit. What a call!"));
+      }
       const list = element("ul", "parlay-win-legs");
       legs.forEach((tracker, index) => {
         const snapshot = trackerSnapshots.get(tracker.key) || { current: tracker.target };
@@ -6984,8 +7088,12 @@
       close.type = "button";
       actions.append(share, close);
       const hint = element("p", "parlay-win-hint", parlay.sportsbook ? `Check your ${sportsbookTitle(parlay.sportsbook)} account for the payout.` : "Informational only — confirm the payout with your sportsbook.");
-      card.append(rays, trophy, kicker, heading, count, list, actions, hint);
-      overlay.append(canvas, card);
+      card.append(rays, trophy, kicker, heading, count, cash, list, actions, hint);
+      // Money flies in front of the card (the confetti stays behind it), so it shows on phones too.
+      const moneyCanvas = document.createElement("canvas");
+      moneyCanvas.className = "parlay-win-money";
+      moneyCanvas.setAttribute("aria-hidden", "true");
+      overlay.append(canvas, card, moneyCanvas);
       document.body.append(overlay);
       close.focus({ preventScroll: true });
 
@@ -6998,9 +7106,43 @@
       }, reduceMotion ? 0 : Math.max(90, 600 / hitLegs.length));
 
       let frame = 0;
-      if (!reduceMotion) frame = runConfetti(canvas);
+      let money = null;
+      if (!reduceMotion) {
+        frame = runConfetti(canvas);
+        money = runMoneyRain(moneyCanvas);
+      }
       playParlayWinSound();
       if (navigator.vibrate) try { navigator.vibrate([80, 60, 80, 60, 220]); } catch { /* unsupported */ }
+
+      const centerOf = (node, down = 0.5) => {
+        const box = node.getBoundingClientRect();
+        return [box.left + box.width / 2, Math.min(innerHeight, Math.max(0, box.top + box.height * down))];
+      };
+      const timers = [];
+      if (money) timers.push(window.setTimeout(() => money.burst(...centerOf(trophy), { coins: 26, power: 12, spread: 2.2 }), 450));
+      // The payout rolls up after the card lands and pays out once the fanfare is done.
+      const countStart = 600;
+      const countLength = 1300;
+      const payAt = 1950;
+      let countFrame = 0;
+      if (odds && !reduceMotion) {
+        const from = performance.now() + countStart;
+        const roll = now => {
+          const progress = Math.min(1, Math.max(0, (now - from) / countLength));
+          cashAmount.textContent = formatPayout(payout * (1 - Math.pow(1 - progress, 3)));
+          countFrame = progress < 1 ? requestAnimationFrame(roll) : 0;
+        };
+        countFrame = requestAnimationFrame(roll);
+        playCoinCountSound(countStart / 1000, countLength / 1000);
+      }
+      timers.push(window.setTimeout(() => {
+        cancelAnimationFrame(countFrame);
+        if (odds) cashAmount.textContent = formatPayout(payout);
+        cash.classList.add("is-paid");
+        money?.burst(...centerOf(cash, 0.35), { coins: 34, bills: 6, power: 13, spread: 1.7 });
+        void playCashSound();
+        if (navigator.vibrate) try { navigator.vibrate([30, 40, 30, 40, 120]); } catch { /* unsupported */ }
+      }, payAt));
 
       // Stays up until the user closes it with the button (or Esc on a keyboard).
       let closed = false;
@@ -7008,11 +7150,14 @@
         if (closed) return;
         closed = true;
         window.clearInterval(counter);
+        timers.forEach(clearTimeout);
+        cancelAnimationFrame(countFrame);
         document.removeEventListener("keydown", onKey);
         overlay.classList.add("is-leaving");
         window.setTimeout(() => {
           cancelAnimationFrame(frame.id || 0);
           frame.stop?.();
+          money?.stop();
           overlay.remove();
           celebrationOpen = false;
           showNextCelebration();
@@ -7094,6 +7239,248 @@
       handle.id = requestAnimationFrame(step);
       const stop = handle.stop.bind(handle);
       handle.stop = () => { timers.forEach(clearTimeout); stop(); };
+      return handle;
+    }
+
+    // Banknote and gold coin images for the money rain, drawn once per pixel ratio. Each has a darker back for the flip.
+    let moneySpriteCache = null;
+    function moneySprites(ratio) {
+      if (moneySpriteCache?.ratio === ratio) return moneySpriteCache;
+      const font = "system-ui, -apple-system, 'Segoe UI', Arial, sans-serif";
+      const sprite = (width, height, draw) => {
+        const image = document.createElement("canvas");
+        image.width = Math.ceil(width * ratio);
+        image.height = Math.ceil(height * ratio);
+        const context = image.getContext("2d");
+        if (context) {
+          context.scale(ratio, ratio);
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+          draw(context);
+        }
+        return { image, width, height };
+      };
+      const roundedRect = (context, x, y, width, height, radius) => {
+        context.beginPath();
+        context.moveTo(x + radius, y);
+        context.arcTo(x + width, y, x + width, y + height, radius);
+        context.arcTo(x + width, y + height, x, y + height, radius);
+        context.arcTo(x, y + height, x, y, radius);
+        context.arcTo(x, y, x + width, y, radius);
+        context.closePath();
+      };
+      const bill = back => sprite(76, 34, context => {
+        const paper = context.createLinearGradient(0, 0, 76, 34);
+        paper.addColorStop(0, back ? "#5e9a48" : "#a3d98a");
+        paper.addColorStop(0.5, back ? "#4c873a" : "#80c166");
+        paper.addColorStop(1, back ? "#3f7630" : "#67a84f");
+        roundedRect(context, 0.5, 0.5, 75, 33, 3);
+        context.fillStyle = paper;
+        context.fill();
+        context.lineWidth = 1;
+        context.strokeStyle = "#2c5e1f";
+        context.stroke();
+        roundedRect(context, 3.5, 3.5, 69, 27, 2);
+        context.strokeStyle = back ? "rgba(214,240,196,.35)" : "rgba(240,255,228,.6)";
+        context.stroke();
+        context.beginPath();
+        context.ellipse(38, 17, 10, 11.5, 0, 0, Math.PI * 2);
+        context.fillStyle = back ? "rgba(200,232,180,.3)" : "rgba(232,248,218,.8)";
+        context.fill();
+        context.strokeStyle = "rgba(44,94,31,.65)";
+        context.stroke();
+        context.beginPath();
+        context.arc(16, 23, 4, 0, Math.PI * 2);
+        context.moveTo(64, 11);
+        context.arc(60, 11, 4, 0, Math.PI * 2);
+        context.fillStyle = "rgba(44,94,31,.35)";
+        context.fill();
+        context.fillStyle = "#2c5e1f";
+        context.font = `900 16px ${font}`;
+        context.fillText("$", 38, 18);
+        context.font = `800 7px ${font}`;
+        context.fillText("100", 13, 9.5);
+        context.fillText("100", 63, 25);
+      });
+      const coin = back => sprite(30, 30, context => {
+        const gold = context.createRadialGradient(10, 9, 1, 15, 15, 15);
+        gold.addColorStop(0, back ? "#f3dc8a" : "#fff8d2");
+        gold.addColorStop(0.35, back ? "#e2b437" : "#ffd84d");
+        gold.addColorStop(0.8, back ? "#c18a12" : "#e6a91e");
+        gold.addColorStop(1, back ? "#8d6205" : "#a8740a");
+        context.beginPath();
+        context.arc(15, 15, 14.5, 0, Math.PI * 2);
+        context.fillStyle = gold;
+        context.fill();
+        context.lineWidth = 1;
+        context.strokeStyle = "#8a5d05";
+        context.stroke();
+        context.beginPath();
+        context.arc(15, 15, 11, 0, Math.PI * 2);
+        context.strokeStyle = "rgba(138,93,5,.5)";
+        context.stroke();
+        context.font = `900 15px ${font}`;
+        context.fillStyle = "rgba(255,248,210,.85)";
+        context.fillText("$", 15.7, 16.2);
+        context.fillStyle = "#9a6a06";
+        context.fillText("$", 15, 15.5);
+      });
+      moneySpriteCache = { ratio, bill: bill(false), billBack: bill(true), coin: coin(false), coinBack: coin(true) };
+      return moneySpriteCache;
+    }
+
+    // Make it rain: money guns fire banknotes and coins from the bottom corners, more notes flutter down from the top,
+    // and burst(x, y, options) sprays coins (and notes) from a point. Returns a handle so it can be stopped early.
+    function runMoneyRain(canvas) {
+      const context = canvas.getContext("2d");
+      const handle = { id: 0, running: true, burst() {}, stop() {} };
+      handle.stop = () => {
+        handle.running = false;
+        cancelAnimationFrame(handle.id);
+      };
+      if (!context) return handle;
+      const ratio = Math.min(2, window.devicePixelRatio || 1);
+      let width = 0;
+      let height = 0;
+      const resize = () => {
+        width = innerWidth;
+        height = innerHeight;
+        canvas.width = Math.round(width * ratio);
+        canvas.height = Math.round(height * ratio);
+      };
+      resize();
+      const sprites = moneySprites(ratio);
+      // Smaller money on phones, and more of it on big screens.
+      const unit = Math.min(1, Math.max(0.75, width / 1000));
+      const density = Math.min(1.4, Math.max(0.6, width * height / (1280 * 800)));
+      const random = (min, max) => min + Math.random() * (max - min);
+      const pieces = [];
+      const sparkles = [];
+      const addBill = (x, y, vx, vy) => pieces.push({
+        bill: true, x, y, vx, vy, size: unit * random(0.6, 1), angle: random(-0.6, 0.6), flip: random(0, Math.PI * 2),
+        flipSpeed: random(0.04, 0.11), sway: random(0.5, 1.3), swaySpeed: random(1.6, 3), phase: random(0, Math.PI * 2),
+        fall: random(0.065, 0.1), tilt: 0, life: 1
+      });
+      const addCoin = (x, y, vx, vy) => pieces.push({
+        bill: false, x, y, vx, vy, size: unit * random(0.6, 1), angle: random(-0.4, 0.4), flip: random(0, Math.PI * 2),
+        flipSpeed: random(0.14, 0.32), tilt: 0, life: 1
+      });
+      const addSparkle = (x, y) => sparkles.push({ x, y, size: unit * random(4, 9), angle: random(0, Math.PI), age: 0, life: random(22, 40) });
+      const spray = (add, count, x, y, power, spread, aim = 0) => {
+        for (let index = 0; index < count; index += 1) {
+          const angle = -Math.PI / 2 + aim + (Math.random() - 0.5) * spread;
+          const speed = power * random(0.75, 1.1);
+          add(x + random(-10, 10), y + random(-6, 6), Math.cos(angle) * speed, Math.sin(angle) * speed);
+        }
+      };
+      // Notes drag through the air, so they need a harder push than coins to fly as high.
+      const cannon = (x, aim) => {
+        spray(addBill, Math.round(9 * density), x, height + 20, 14 + height * 0.012, 0.45, aim);
+        spray(addCoin, Math.round(6 * density), x, height + 10, Math.sqrt(height * 0.4), 0.4, aim * 0.8);
+      };
+      cannon(width * 0.06, 0.34);
+      cannon(width * 0.94, -0.34);
+      for (let index = 0; index < Math.round(8 * density); index += 1) addBill(random(0, width), random(-280, -30), random(-0.5, 0.5), random(1, 2));
+
+      const started = performance.now();
+      let last = started;
+      const rainFor = 3400;
+      const rainEvery = 1000 / (7 * density);
+      let rained = 0;
+      const step = now => {
+        handle.id = 0;
+        if (!handle.running) return;
+        if (width !== innerWidth || height !== innerHeight) resize();
+        // Frame-rate independent: one unit of motion per 60 Hz frame.
+        const dt = Math.min(3, Math.max(0.25, (now - last) / (1000 / 60)));
+        last = now;
+        const elapsed = now - started;
+        while (elapsed < rainFor && rained * rainEvery <= elapsed) {
+          rained += 1;
+          if (rained % 4) addBill(random(-20, width + 20), random(-60, -30), random(-0.6, 0.6), random(1, 2.2));
+          else addCoin(random(0, width), -20, random(-1, 1), random(1, 3));
+        }
+        const fading = elapsed > 8000;
+        const billDrag = Math.pow(0.965, dt);
+        const billSlide = Math.pow(0.98, dt);
+        const coinDrag = Math.pow(0.992, dt);
+        let kept = 0;
+        for (const piece of pieces) {
+          if (piece.bill) {
+            // A note sinks slowly, swaying and tipping side to side like a leaf.
+            piece.vx *= billSlide;
+            piece.vy = piece.vy * billDrag + piece.fall * dt;
+            const sway = Math.sin(elapsed / 1000 * piece.swaySpeed + piece.phase);
+            piece.x += (piece.vx + sway * piece.sway) * dt;
+            piece.y += piece.vy * dt;
+            piece.tilt = piece.angle + sway * 0.45;
+          } else {
+            piece.vx *= coinDrag;
+            piece.vy += 0.32 * dt;
+            piece.x += piece.vx * dt;
+            piece.y += piece.vy * dt;
+            piece.tilt = piece.angle;
+            if (Math.random() < 0.012 * dt) addSparkle(piece.x, piece.y);
+          }
+          piece.flip += piece.flipSpeed * dt;
+          if (fading) piece.life -= 0.025 * dt;
+          if (piece.life > 0 && piece.y < height + 80 && piece.x > -150 && piece.x < width + 150) pieces[kept++] = piece;
+        }
+        pieces.length = kept;
+
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        for (const piece of pieces) {
+          // Notes tumble end over end, coins spin on edge; the darker back shows when they're turned over.
+          const turn = Math.cos(piece.flip);
+          const art = piece.bill ? (turn >= 0 ? sprites.bill : sprites.billBack) : (turn >= 0 ? sprites.coin : sprites.coinBack);
+          const scaleX = piece.size * (piece.bill ? 1 : Math.max(0.1, Math.abs(turn)));
+          const scaleY = piece.size * (piece.bill ? Math.max(0.08, Math.abs(turn)) : 1);
+          const cos = Math.cos(piece.tilt);
+          const sin = Math.sin(piece.tilt);
+          context.globalAlpha = Math.min(1, piece.life);
+          context.setTransform(ratio * cos * scaleX, ratio * sin * scaleX, -ratio * sin * scaleY, ratio * cos * scaleY, ratio * piece.x, ratio * piece.y);
+          context.drawImage(art.image, -art.width / 2, -art.height / 2, art.width, art.height);
+        }
+        context.fillStyle = "#fff8d6";
+        kept = 0;
+        for (const sparkle of sparkles) {
+          sparkle.age += dt;
+          const progress = sparkle.age / sparkle.life;
+          if (progress >= 1) continue;
+          sparkles[kept++] = sparkle;
+          const size = sparkle.size * Math.sin(Math.PI * progress);
+          const cos = Math.cos(sparkle.angle) * size * ratio;
+          const sin = Math.sin(sparkle.angle) * size * ratio;
+          context.globalAlpha = 1 - progress * 0.6;
+          context.setTransform(cos, sin, -sin, cos, ratio * sparkle.x, ratio * sparkle.y);
+          context.beginPath();
+          context.moveTo(0, -1);
+          context.quadraticCurveTo(0, 0, 1, 0);
+          context.quadraticCurveTo(0, 0, 0, 1);
+          context.quadraticCurveTo(0, 0, -1, 0);
+          context.quadraticCurveTo(0, 0, 0, -1);
+          context.fill();
+        }
+        sparkles.length = kept;
+        context.globalAlpha = 1;
+        if ((pieces.length || sparkles.length || elapsed < rainFor) && elapsed < 12000) handle.id = requestAnimationFrame(step);
+        else {
+          context.setTransform(1, 0, 0, 1, 0, 0);
+          context.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      };
+      handle.burst = (x, y, { coins = 0, bills = 0, power = 12, spread = 1.6 } = {}) => {
+        if (!handle.running) return;
+        spray(addCoin, coins, x, y, power, spread);
+        spray(addBill, bills, x, y, power * 1.4, spread * 0.8);
+        for (let index = 0; index < 10; index += 1) addSparkle(x + random(-40, 40), y + random(-24, 16));
+        if (!handle.id) {
+          last = performance.now();
+          handle.id = requestAnimationFrame(step);
+        }
+      };
+      handle.id = requestAnimationFrame(step);
       return handle;
     }
 
