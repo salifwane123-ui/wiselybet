@@ -1191,12 +1191,18 @@
     #tracker-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 7px 12px; border: 1px solid rgba(118,224,189,.35); border-radius: 10px; background: #12202b; color: #f0eff7; font-size: .76rem; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
     #tracker-toggle .tracker-dots { display: flex; flex: 0 1 auto; align-items: stretch; min-width: 0; margin-left: auto; overflow: hidden; border: 1px solid rgba(255,255,255,.09); border-radius: 999px; background: rgba(0,0,0,.28); }
     #tracker-toggle .tracker-dots:empty { display: none; }
-    .tracker-dot-group { display: inline-flex; flex: 0 1 auto; align-items: center; gap: 6px; min-width: 0; padding: 3px 10px 3px 4px; }
+    .tracker-dot-group { display: inline-flex; flex: 1 1 0; align-items: center; gap: 6px; min-width: 0; padding: 3px 10px 3px 4px; }
     .tracker-dot-group + .tracker-dot-group { border-left: 1px solid rgba(255,255,255,.1); }
     .tracker-dot-badge { display: inline-grid; flex: 0 0 auto; place-items: center; min-width: 22px; height: 16px; padding: 0 5px; border-radius: 999px; background: #c9ef5b; color: #14200a; font-size: .58rem; font-weight: 900; letter-spacing: .03em; line-height: 1; }
     .tracker-dot-group.is-singles .tracker-dot-badge { background: rgba(255,255,255,.14); color: #e6edf5; }
     .tracker-dot-label { max-width: 12ch; overflow: hidden; color: rgba(240,239,247,.82); font-size: .64rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
     .tracker-dot-row { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; }
+    .tracker-dot-viewport { display: block; flex: 1 1 auto; min-width: 12px; overflow: hidden; }
+    .tracker-dot-viewport .tracker-dot-row { display: inline-flex; width: max-content; max-width: none; padding: 3px 1px; }
+    .tracker-dot-row .tracker-dot { flex: 0 0 auto; }
+    @media (prefers-reduced-motion: reduce) {
+      .tracker-dot-viewport .tracker-dot-row { width: 100%; max-width: 100%; flex-wrap: wrap; }
+    }
     .tracker-dot-group .tracker-dot { width: 7px; height: 7px; }
     @media (max-width: 560px) { .tracker-dot-label { display: none; } .tracker-dot-group { gap: 5px; padding: 3px 8px 3px 3px; } }
     html[data-theme="light"] #tracker-toggle .tracker-dots { border-color: rgba(47,77,8,.18); background: rgba(77,122,11,.07); }
@@ -10009,7 +10015,16 @@
     }
     window.addEventListener("resize", () => {
       trackerPanel.querySelectorAll(".tracker-header-slide").forEach(measureTrackerHeader);
+      trackerDots.querySelectorAll(".tracker-dot-viewport").forEach(measureTrackerHeader);
     });
+
+    function setupTrackerDotSlides() {
+      for (const viewport of trackerDots.querySelectorAll(".tracker-dot-viewport")) {
+        measureTrackerHeader(viewport);
+        trackerHeaderObserver?.observe(viewport);
+        trackerHeaderObserver?.observe(viewport.firstElementChild);
+      }
+    }
 
     function appendTrackerWindowLiveBadge(summary, picks) {
       const count = picks.filter(pick => {
@@ -10331,9 +10346,13 @@
           dot.title = `${dotName(tracker)}${trackerSnapshots.get(tracker.key)?.state === "post" ? " · final" : ""}`;
           row.append(dot);
         }
-        wrap.append(element("span", "tracker-dot-badge", group.badge), element("span", "tracker-dot-label", group.label), row);
+        const viewport = element("span", "tracker-dot-viewport tracker-header-slide");
+        row.classList.add("tracker-header-text");
+        viewport.append(row);
+        wrap.append(element("span", "tracker-dot-badge", group.badge), element("span", "tracker-dot-label", group.label), viewport);
         return wrap;
       }));
+      setupTrackerDotSlides();
       scheduleSuggestionExpiry();
       window.setTimeout(checkParlayWins, 0);
       syncBestParlayTracked();

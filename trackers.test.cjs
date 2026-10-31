@@ -310,6 +310,25 @@ test("tracker headers slide only when overflowing and resize without resetting u
   assert.equal(writes, disconnectedWrites);
 });
 
+test("each pick-dot viewport reuses overflow measurement and observes its own row", () => {
+  const measured = [], observed = [];
+  const viewports = [{ firstElementChild: { scrollWidth: 160 } }, { firstElementChild: { scrollWidth: 24 } }];
+  const app = {
+    trackerDots: { querySelectorAll: selector => { assert.equal(selector, ".tracker-dot-viewport"); return viewports; } },
+    measureTrackerHeader: node => measured.push(node),
+    trackerHeaderObserver: { observe: node => observed.push(node) }
+  };
+  runInNewContext(slice("    function setupTrackerDotSlides(", "    function appendTrackerWindowLiveBadge("), app);
+  app.setupTrackerDotSlides();
+  assert.deepEqual(measured, viewports);
+  assert.deepEqual(observed, [viewports[0], viewports[0].firstElementChild, viewports[1], viewports[1].firstElementChild]);
+  assert.ok(html.includes('row.classList.add("tracker-header-text")'));
+  assert.ok(html.includes('tracker-dot-viewport tracker-header-slide'));
+  assert.ok(html.includes('      setupTrackerDotSlides();'));
+  assert.ok(html.includes('.tracker-dot-row .tracker-dot { flex: 0 0 auto; }'));
+  assert.ok(html.includes('.tracker-dot-viewport .tracker-dot-row { width: 100%; max-width: 100%; flex-wrap: wrap; }'));
+});
+
 test("picks saved before Unders existed stay Overs", () => {
   assert.equal(page.trackerSide({ target: 25 }), "over");
   assert.equal(page.trackerSide({ target: 25, side: "sideways" }), "over");
