@@ -49,6 +49,7 @@ const context = {
   trackers: [],
   parlays: [],
   parlayBookState: new Map(),
+  bestParlayOddsCap: 2,
   currentEvents: [{ id: "e1", home_team: "Boston Celtics", away_team: "New York Knicks", commence_time: "2025-01-15T00:30:00Z" }],
   localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
   Date: FakeDate,
@@ -584,38 +585,40 @@ test("a player taken out of the best parlay stays out for his game, and an alter
   const removedKey = "courtside.bpRemoved.v1";
   const hours = count => count * 60 * 60_000;
   const names = ({ legs, removed }) => plain([legs.map(leg => leg.player), removed.map(leg => leg.player)]);
-  const data = { legs: [brunson, tatum], alternates: [hart] };
-  assert.deepEqual(names(page.bestParlayLegsFor(data, 2)), [["Jalen Brunson", "Jayson Tatum"], []]);
-  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [brunson] }, 2)), [["Jalen Brunson"], []]);
+  const pricedBrunson = { ...brunson, price: 1.3 };
+  const pricedTatum = { ...tatum, price: 1.3 };
+  const pricedHart = { ...hart, price: 1.3 };
+  const data = { legs: [pricedBrunson, pricedTatum], alternates: [pricedHart] };
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson", "Jayson Tatum"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [pricedBrunson] })), [["Jalen Brunson"], []]);
 
   // His game already started, so he stays out for 12 hours from now. Every market of his goes, in every tab.
   assert.ok(clock > Date.parse(brunson.start));
   page.rememberBestParlayRemoved(brunson);
   assert.equal(page.bestParlayPlayerKey(brunson), "e1|jalenbrunson");
   assert.deepEqual(JSON.parse(storage.get(removedKey)), { "e1|jalenbrunson": clock + hours(12) });
-  assert.deepEqual(names(page.bestParlayLegsFor(data, 2)), [["Jayson Tatum", "Josh Hart"], ["Jalen Brunson"]]);
-  assert.deepEqual(names(page.bestParlayLegsFor(data, 1)), [["Jayson Tatum"], ["Jalen Brunson"]]);
-  const assists = { ...brunson, market: "player_assists", line: 6.5 };
-  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [assists], alternates: [] }, 2)), [[], ["Jalen Brunson"]]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum", "Josh Hart"], ["Jalen Brunson"]]);
+  const assists = { ...pricedBrunson, market: "player_assists", line: 6.5 };
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [assists], alternates: [] })), [[], ["Jalen Brunson"]]);
   // The same name in another game is still in.
-  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [{ ...brunson, eventId: "e2" }] }, 2)), [["Jalen Brunson"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [{ ...pricedBrunson, eventId: "e2" }] })), [["Jalen Brunson"], []]);
 
   // Before tip-off, the 12 hours count from the start.
-  const later = { ...hart, eventId: "e3", start: new Date(clock + hours(2)).toISOString() };
+  const later = { ...pricedHart, eventId: "e3", start: new Date(clock + hours(2)).toISOString() };
   page.rememberBestParlayRemoved(later);
   assert.equal(JSON.parse(storage.get(removedKey))["e3|joshhart"], clock + hours(14));
 
   // Another tab reads the same list; it's forgotten once the time is up.
   page.syncBestParlayRemoved();
-  assert.deepEqual(names(page.bestParlayLegsFor(data, 2)), [["Jayson Tatum", "Josh Hart"], ["Jalen Brunson"]]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum", "Josh Hart"], ["Jalen Brunson"]]);
   clock += hours(13);
   page.syncBestParlayRemoved();
-  assert.deepEqual(names(page.bestParlayLegsFor(data, 2)), [["Jalen Brunson", "Jayson Tatum"], []]);
-  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [later] }, 2)), [[], ["Josh Hart"]]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson", "Jayson Tatum"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [later] })), [[], ["Josh Hart"]]);
 
   // Restoring brings him back and returns how many came back.
   assert.equal(page.forgetBestParlayRemoved(["e3|joshhart", "e1|nobody"]), 1);
   assert.equal(page.forgetBestParlayRemoved(["e3|joshhart"]), 0);
-  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [later] }, 2)), [["Josh Hart"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [later] })), [["Josh Hart"], []]);
   assert.deepEqual(JSON.parse(storage.get(removedKey)), {});
 });
