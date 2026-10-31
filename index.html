@@ -1951,6 +1951,10 @@
     .best-parlay h2 { display: flex; align-items: center; gap: 7px; margin: 0; color: #e4f4c4; font-size: .7rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
     .bp-sport { padding: 1px 6px; border-radius: 5px; background: rgba(255,255,255,.07); color: var(--muted); font-size: .6rem; letter-spacing: .06em; }
     .bp-sport:empty { display: none; }
+    .bp-scope { display: inline-flex; align-items: center; gap: 5px; padding: 1px 6px; border-radius: 5px; background: rgba(255,92,92,.14); color: #ff8a8a; font-size: .6rem; letter-spacing: .06em; }
+    .bp-scope::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: bp-pulse 1.6s ease-in-out infinite; }
+    .bp-scope[hidden] { display: none; }
+    @keyframes bp-pulse { 50% { opacity: .35; } }
     .bp-sub { display: none; margin: 2px 0 0; overflow: hidden; color: var(--muted); font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
     .bp-pickers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
     .bp-select { width: auto; max-width: 100%; height: 30px; min-height: 0; padding: 0 4px 0 8px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: #121611; color: #e7f7b0; font-size: .74rem; font-weight: 700; color-scheme: dark; cursor: pointer; }
@@ -1989,6 +1993,21 @@
     .bp-meta { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 2px; color: var(--muted); font-size: .68rem; white-space: nowrap; }
     .bp-meta span { overflow: hidden; text-overflow: ellipsis; }
     .bp-live { flex: 0 0 auto; padding: 0 5px; border-radius: 4px; background: rgba(255,92,92,.16); color: #ff8a8a; font-size: .58rem; font-weight: 850; letter-spacing: .08em; }
+    /* Live legs: the clock, time left and score, then his box-score line; side by side when there is room */
+    .bp-lines { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; min-width: 0; margin-top: 2px; }
+    .bp-lines > * { flex: 0 1 auto; max-width: 100%; }
+    .bp-lines .bp-meta { margin-top: 0; }
+    .bp-clock, .bp-score { display: none; }
+    .bp-meta .bp-left { flex: 0 0 auto; color: #dfe6d6; font-weight: 650; }
+    .bp-now { display: flex; align-items: center; min-width: 0; overflow: hidden; color: #cfd8c6; font-size: .68rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .bp-now span + span::before { content: "·"; margin: 0 5px; color: var(--muted); font-weight: 400; }
+    .bp-now .bp-now-good { color: #b9e86a; }
+    .bp-now .bp-now-warn { color: #ffd27a; }
+    .bp-pace { display: inline-flex; flex: 0 0 auto; align-items: center; padding: 1px 6px; border-radius: 5px; font-size: .62rem; font-weight: 800; line-height: 1.35; white-space: nowrap; cursor: help; }
+    .bp-pace-hot { background: rgba(201,239,91,.22); color: #e6fb9e; }
+    .bp-pace-on { background: rgba(201,239,91,.1); color: #cfe98c; }
+    .bp-pace-early { background: rgba(255,255,255,.07); color: var(--muted); }
+    .bp-pace-title { display: none; }
     .bp-odds { display: flex; grid-area: odds; flex-direction: column; align-items: flex-end; gap: 3px; }
     .bp-price { color: #eef6dc; font-size: .92rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
     .bp-chance { padding: 1px 7px; border-radius: 99px; background: rgba(201,239,91,.13); color: #d9f58a; font-size: .68rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: help; }
@@ -2022,8 +2041,16 @@
     .bp-details { grid-area: details; padding: 2px 12px 12px; border-top: 1px solid rgba(225,233,229,.08); }
     .bp-details[hidden] { display: none; }
     .bp-leg-list { display: grid; margin: 0; padding: 0; list-style: none; }
-    .bp-leg-list li { padding: 8px 0; border-bottom: 1px solid rgba(225,233,229,.06); }
+    .bp-leg-list > li { padding: 8px 0; border-bottom: 1px solid rgba(225,233,229,.06); }
     .bp-leg-list .bp-leg { grid-template-areas: "num main odds" "num main link"; }
+    .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds" "num main link" ". why why"; }
+    /* Why a live leg made the parlay: one line per check, colored by how it reads for the Over */
+    .bp-why { display: flex; grid-area: why; flex-wrap: wrap; gap: 2px 16px; margin: 3px 0 0; padding: 0; color: var(--muted); font-size: .68rem; line-height: 1.45; list-style: none; }
+    .bp-why li { position: relative; padding-left: 11px; }
+    .bp-why li::before { content: ""; position: absolute; top: .55em; left: 1px; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .5; }
+    .bp-why .bp-why-good::before { background: #a6dc5c; opacity: 1; }
+    .bp-why .bp-why-warn { color: #ffd27a; }
+    .bp-why .bp-why-warn::before { opacity: 1; }
     .bp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 8px; }
     .bp-tool { display: inline-flex; align-items: center; gap: 6px; height: 30px; min-height: 0; padding: 0 12px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: transparent; color: #dff3a6; font-size: .74rem; font-weight: 750; text-decoration: none; }
     .bp-tool:hover:not(:disabled) { border-color: #c9ef5b; background: rgba(201,239,91,.12); color: #f2f7e6; }
@@ -2038,6 +2065,10 @@
     @keyframes bp-progress { to { transform: scaleX(1); } }
     @container bp (min-width: 520px) {
       .bp-odds { flex-direction: row; align-items: center; gap: 8px; }
+      .bp-clock, .bp-score { display: inline; }
+      .bp-meta .bp-left::before, .bp-meta .bp-score::before { content: "·"; margin-right: 6px; color: var(--muted); font-weight: 400; }
+      .bp-pace-title { display: inline-flex; }
+      .bp-pace-side { display: none; }
     }
     /* Tablets: the totals and the betslip button share a row under the slides */
     @container bp (min-width: 640px) {
@@ -2046,6 +2077,7 @@
       .bp-actions { padding: 8px 12px; border-top: 1px solid rgba(225,233,229,.08); }
       .bp-open { flex: 0 1 auto; }
       .bp-leg-list .bp-leg { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "num main odds link"; }
+      .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds link" ". why why why"; }
     }
     /* Wide screens: totals sit beside the title, the betslip button beside the slides */
     @container bp (min-width: 1100px) {
@@ -2059,13 +2091,21 @@
     html[data-theme="light"] .bp-sport { background: rgba(47,77,8,.07); }
     html[data-theme="light"] .bp-select { border-color: rgba(61,98,8,.4); background: #fff; color: #1b2418; color-scheme: light; }
     html[data-theme="light"] .best-parlay.is-unset .bp-book-select, html[data-theme="light"] .bp-state-select.is-needed { border-color: #4d7a0b; box-shadow: 0 0 0 3px rgba(77,122,11,.14); }
-    html[data-theme="light"] .bp-ticker, html[data-theme="light"] .bp-stats, html[data-theme="light"] .bp-actions, html[data-theme="light"] .bp-details, html[data-theme="light"] .bp-leg-list li { border-color: rgba(40,58,22,.1); }
+    html[data-theme="light"] .bp-ticker, html[data-theme="light"] .bp-stats, html[data-theme="light"] .bp-actions, html[data-theme="light"] .bp-details, html[data-theme="light"] .bp-leg-list > li { border-color: rgba(40,58,22,.1); }
     html[data-theme="light"] .bp-nav { color: #3b4637; }
     html[data-theme="light"] .bp-nav:hover:not(:disabled) { border-color: rgba(40,58,22,.14); background: rgba(47,77,8,.06); color: #1b2418; }
     html[data-theme="light"] .bp-player, html[data-theme="light"] .bp-price, html[data-theme="light"] .bp-stat dd, html[data-theme="light"] .bp-message strong { color: #1b2418; }
     html[data-theme="light"] .bp-pick, html[data-theme="light"] .bp-stat-odds dd { color: #3d6208; }
     html[data-theme="light"] .bp-chance { background: rgba(120,170,30,.15); color: #2f4d08; }
-    html[data-theme="light"] .bp-live { background: rgba(200,40,40,.1); color: #b42318; }
+    html[data-theme="light"] .bp-live, html[data-theme="light"] .bp-scope { background: rgba(200,40,40,.1); color: #b42318; }
+    html[data-theme="light"] .bp-meta .bp-left { color: #26301f; }
+    html[data-theme="light"] .bp-now { color: #3b4637; }
+    html[data-theme="light"] .bp-now .bp-now-good { color: #3d6208; }
+    html[data-theme="light"] .bp-now .bp-now-warn, html[data-theme="light"] .bp-why .bp-why-warn { color: #8a5a00; }
+    html[data-theme="light"] .bp-pace-hot { background: rgba(120,170,30,.22); color: #2a4507; }
+    html[data-theme="light"] .bp-pace-on { background: rgba(120,170,30,.11); color: #3d6208; }
+    html[data-theme="light"] .bp-pace-early { background: rgba(47,77,8,.06); }
+    html[data-theme="light"] .bp-why .bp-why-good::before { background: #4d7a0b; }
     html[data-theme="light"] .bp-stale { background: rgba(214,140,0,.13); color: #8a5a00; }
     html[data-theme="light"] .bp-notes .bp-note-warn { color: #8a5a00; }
     html[data-theme="light"] .bp-more { border-color: rgba(40,58,22,.2); color: #26301f; }
@@ -2083,6 +2123,7 @@
       .bp-slide.is-active, .bp-slide.is-leaving { animation: none; }
       .bp-slide.is-leaving { visibility: hidden; opacity: 0; }
       .bp-open, .bp-more svg { transition: none; }
+      .bp-scope::before { animation: none; }
       .bp-progress, #bp-pause { display: none; }
     }
   </style>
@@ -2121,7 +2162,7 @@
             <div class="bp-brand">
               <span class="bp-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5V6a2 2 0 0 0 0 4v1.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5V10a2 2 0 0 0 0-4z"/><path d="M6.5 6h3M6.5 8h3M6.5 10h2"/></svg></span>
               <div class="bp-heading">
-                <h2 id="bp-title">Best parlay <span id="bp-sport" class="bp-sport"></span></h2>
+                <h2 id="bp-title">Best parlay <span id="bp-sport" class="bp-sport"></span><span id="bp-scope" class="bp-scope" hidden>Live</span></h2>
                 <p id="bp-sub" class="bp-sub">Top player props from the games on now, priced at your sportsbook</p>
               </div>
             </div>
@@ -2736,6 +2777,8 @@
     const bpStateSelect = document.querySelector("#bp-state");
     const bpLegsSelect = document.querySelector("#bp-legs");
     const bpSportLabel = document.querySelector("#bp-sport");
+    const bpScopeLabel = document.querySelector("#bp-scope");
+    const bpSubText = document.querySelector("#bp-sub");
     const bpStats = document.querySelector("#bp-stats");
     const bpMoreButton = document.querySelector("#bp-more");
     const bpOpenLink = document.querySelector("#bp-open");
@@ -3279,6 +3322,18 @@
     // The server picks the legs (/api/best-parlay); this code shows them, builds the betslip link and tracks them.
     const parlayLegCounts = [2, 3, 4, 5, 6, 7, 8];
     const bestParlayRefreshMs = 3 * 60_000;
+    // Live legs carry the game clock and box score, so they refresh about every minute.
+    const bestParlayLiveRefreshMs = 55_000;
+    const liveSkipWords = {
+      behind: "behind the pace",
+      fouls: "in foul trouble",
+      minutes: "on short minutes",
+      blowout: "in a blowout",
+      late: "too late in the game",
+      removed: "pulled from the game",
+      decided: "already over their line",
+      unverified: "not found in the box score"
+    };
     const twoWordNicknames = ["Red Sox", "White Sox", "Blue Jays", "Red Wings", "Golden Knights", "Maple Leafs", "Trail Blazers", "Blue Jackets"];
     function bestParlaySport() {
       return playerPropSports[sportSelect.value] ? sportSelect.value : "";
@@ -3328,6 +3383,61 @@
     function bestParlayLegText(leg, sport) {
       return `${leg.player} Over ${leg.line} ${propMarketPhrase(sport, leg.market)}`;
     }
+    function countText(count, one, many = `${one}s`) {
+      return `${count} ${count === 1 ? one : many}`;
+    }
+    // A live leg's read of the player's box score (see liveRead in best-parlay.mjs).
+    function liveLegRead(leg) {
+      const read = leg?.read;
+      return read && typeof read === "object" && typeof read.clock === "string" ? read : null;
+    }
+    function liveReadIsHoops(read) {
+      return Number.isFinite(read.fouls) && Number.isFinite(read.minutes);
+    }
+    function liveSkipText(skipped) {
+      const parts = Object.entries(skipped && typeof skipped === "object" ? skipped : {})
+        .filter(([reason, count]) => liveSkipWords[reason] && Number(count) > 0)
+        .sort((a, b) => b[1] - a[1])
+        .map(([reason, count]) => `${count} ${liveSkipWords[reason]}`);
+      return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0] || "";
+    }
+    function liveStatText(read) {
+      const parts = [read.clock, `${read.current} ${read.stat}`.trim()];
+      if (liveReadIsHoops(read)) parts.push(`${read.fouls} PF`, `${Math.round(read.minutes)} MIN`);
+      return parts.join(", ");
+    }
+    // "Proj. 24" when he is on or ahead of the pace the line needs, "Early" while his pace is still settling.
+    function createLivePace(read, place) {
+      let text = "";
+      if ((read.pace === "hot" || read.pace === "on") && Number.isFinite(read.projected)) text = `Proj. ${Math.round(read.projected)}`;
+      else if (read.pace === "early") text = "Early";
+      if (!text) return null;
+      const chip = element("span", `bp-pace bp-pace-${place} bp-pace-${read.pace}`, text);
+      chip.title = Array.isArray(read.notes) && read.notes[0]?.text ? read.notes[0].text : "";
+      return chip;
+    }
+    // His box-score line so far: the stat, then fouls and minutes in basketball, else what he still needs.
+    function createLiveNow(read, leg) {
+      const now = element("div", "bp-now");
+      const stat = element("span", "", `${read.current} ${read.stat}`.trim());
+      stat.title = `${read.current} so far · needs ${read.need} more to go over ${leg.line}`;
+      now.append(stat);
+      if (liveReadIsHoops(read)) {
+        const oneAway = read.fouls >= 3 && read.fouls === read.foulLimit - 1;
+        const fouls = element("span", read.fouls <= 1 ? "bp-now-good" : oneAway ? "bp-now-warn" : "", `${read.fouls} PF`);
+        fouls.title = oneAway
+          ? `${countText(read.fouls, "personal foul")}, one away from foul trouble`
+          : countText(read.fouls, "personal foul");
+        const minutes = Math.round(read.minutes);
+        const busy = read.pace !== "early" && read.minutes >= read.elapsed * 0.65;
+        const played = element("span", busy ? "bp-now-good" : "", `${minutes} MIN`);
+        played.title = `${countText(minutes, "minute")} played of ${Math.round(read.elapsed)} so far${read.starter ? " · starter" : " · off the bench"}`;
+        now.append(fouls, played);
+      } else {
+        now.append(element("span", "", `needs ${read.need}`));
+      }
+      return now;
+    }
 
     // The book and state lists are declared further down, so the pickers fill on first render.
     function fillBestParlayPickers() {
@@ -3370,10 +3480,12 @@
     function refreshBestParlayIfOld() {
       const state = bestParlayState;
       if (state.loading || document.hidden || !bestParlaySport() || !bestParlayBook()) return;
-      if (Date.now() - state.loadedAt > bestParlayRefreshMs) void loadBestParlay();
+      // Live picks, or games that have started, change by the minute.
+      const live = state.data?.live || (state.data?.legs || []).some(legStarted);
+      if (Date.now() - state.loadedAt > (live ? bestParlayLiveRefreshMs : bestParlayRefreshMs)) void loadBestParlay();
     }
 
-    function createBestParlayLeg(leg, number, sport, book) {
+    function createBestParlayLeg(leg, number, sport, book, detailed = false) {
       const row = element("div", "bp-leg");
       const badge = element("span", "bp-num", String(number));
       badge.setAttribute("aria-hidden", "true");
@@ -3382,18 +3494,48 @@
       title.append(element("strong", "bp-player", leg.player), element("span", "bp-pick", `Over ${leg.line} ${propMarketPhrase(sport, leg.market)}`));
       const meta = element("div", "bp-meta");
       const matchup = `${teamNickname(leg.away, sport)} @ ${teamNickname(leg.home, sport)}`;
-      if (legStarted(leg)) meta.append(element("b", "bp-live", "LIVE"), element("span", "", matchup));
-      else meta.append(element("span", "", `${formatSlateTime(leg.start)} · ${matchup}`));
       meta.title = `${leg.away} @ ${leg.home}`;
-      main.append(title, meta);
       const odds = element("div", "bp-odds");
       const price = element("span", "bp-price", formatAmericanOdds(leg.price));
       price.title = `${sportsbookTitle(book)} price`;
       const percent = Math.round(leg.probability * 100);
       const chance = element("span", "bp-chance", `${percent}%`);
-      chance.title = `About ${percent}% to hit, from the no-vig odds at ${leg.books} sportsbooks`;
       odds.append(price, chance);
+      const read = liveLegRead(leg);
+      if (read) {
+        // Live: the clock, time left and score, then his numbers so far; the pace chip sits in the title when
+        // there is room, else under the odds.
+        chance.title = leg.books === 1
+          ? `About ${percent}% to hit, from ${sportsbookTitle(book)}'s live no-vig odds`
+          : `About ${percent}% to hit, from the live no-vig odds at ${countText(leg.books, "sportsbook")}`;
+        const titlePace = createLivePace(read, "title");
+        if (titlePace) title.append(titlePace);
+        meta.append(element("b", "bp-live", "LIVE"), element("span", "bp-clock", read.clock), element("span", "bp-left", read.leftText || read.clock));
+        if (read.team && read.opponent) {
+          meta.append(element("span", "bp-score", `${read.team} ${read.teamScore}–${read.opponentScore} ${read.opponent}`));
+        }
+        meta.title = `${leg.away} @ ${leg.home} · ${read.clock}`;
+        const lines = element("div", "bp-lines");
+        lines.append(meta, createLiveNow(read, leg));
+        main.append(title, lines);
+        const sidePace = createLivePace(read, "side");
+        if (sidePace) odds.append(sidePace);
+      } else {
+        chance.title = `About ${percent}% to hit, from the no-vig odds at ${countText(leg.books, "sportsbook")}`;
+        if (legStarted(leg)) meta.append(element("b", "bp-live", "LIVE"), element("span", "", matchup));
+        else meta.append(element("span", "", `${formatSlateTime(leg.start)} · ${matchup}`));
+        main.append(title, meta);
+      }
       row.append(badge, main, odds);
+      // In "All legs", each live leg lists what his read found, colored by how it bodes for the Over.
+      const notes = read && detailed && Array.isArray(read.notes) ? read.notes.filter(note => note?.text) : [];
+      if (notes.length) {
+        row.classList.add("has-why");
+        const why = element("ul", "bp-why");
+        why.setAttribute("aria-label", `Live read for ${leg.player}`);
+        why.append(...notes.map(note => element("li", note.tone === "good" || note.tone === "warn" ? `bp-why-${note.tone}` : "", note.text)));
+        row.append(why);
+      }
       return row;
     }
 
@@ -3423,6 +3565,14 @@
         }
         return bestParlayMessage("Couldn't load the parlay.", bestParlayState.error || "Please try again in a minute.", true);
       }
+      if (data.live?.games) {
+        const games = countText(data.live.games, "game");
+        if (!data.live.bookGames) return bestParlayMessage(`${title} isn't pricing live player props for the ${games} on now.`, "Try another sportsbook, or check back at the next tip-off.");
+        const skipped = liveSkipText(data.live.skipped);
+        return bestParlayMessage("No live legs pass our checks right now.", skipped
+          ? `Left out: ${skipped}. We check again every minute.`
+          : `No player in the ${games} on now has a strong enough live line. We check again every minute.`);
+      }
       if (!data.games) return bestParlayMessage("No games on the board.", "Check back when the next games are posted.");
       if (!data.bookGames) return bestParlayMessage(`${title} hasn't posted player props for these games yet.`, "Try another sportsbook or check back closer to game time.");
       return bestParlayMessage("No legs pass our checks right now.", `Each leg needs a ${title} price, the same line at 2+ sportsbooks and a 50%+ hit chance. Check back soon.`);
@@ -3446,6 +3596,14 @@
       bestParlayElement.classList.toggle("is-unset", !book);
       bestParlayElement.classList.toggle("has-legs", legs.length > 0);
       bestParlayElement.classList.toggle("is-single", legs.length === 1);
+      bpScopeLabel.hidden = !(data?.scope === "live" && legs.length);
+      bpSubText.textContent = !legs.length
+        ? "Top player props from the games on now, priced at your sportsbook"
+        : data.scope === "live"
+          ? `Live picks from ${countText(data.games, "game")} in progress, checked against each player's box score`
+          : data.live?.games
+            ? "Pre-game picks for the next games, priced at your sportsbook"
+            : "Pre-game picks priced at your sportsbook · live picks start at tip-off";
       window.clearTimeout(state.leaveTimer);
       if (!legs.length) {
         bpViewport.dataset.dir = "none";
@@ -3514,7 +3672,9 @@
       ];
       if (data.stale) {
         const badge = element("span", "bp-stale", "Delayed");
-        badge.title = "Live odds are paused for a moment, so these prices may be out of date. Check the betslip before you bet.";
+        badge.title = data.scope === "live"
+          ? "Live data is paused for a moment, so these prices, clocks and box scores may be out of date. Check the betslip before you bet."
+          : "Live odds are paused for a moment, so these prices may be out of date. Check the betslip before you bet.";
         items.push(stat("bp-stat-fresh", "Prices", badge));
       }
       bpStats.replaceChildren(...items);
@@ -3544,7 +3704,7 @@
       const list = element("ol", "bp-leg-list");
       legs.forEach((leg, index) => {
         const item = element("li");
-        const row = createBestParlayLeg(leg, index + 1, sport, book);
+        const row = createBestParlayLeg(leg, index + 1, sport, book, true);
         const href = direct[index] || resolveBookLink(leg.marketLink) || resolveBookLink(leg.eventLink);
         if (href) {
           const link = element("a", "bp-leg-link", direct[index] ? "Add ↗" : "Find ↗");
@@ -3581,8 +3741,28 @@
       }
       const pricedAt = new Date(data.pricesAt || data.generatedAt);
       const time = Number.isNaN(pricedAt.getTime()) ? "" : ` as of ${pricedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-      note(`Prices from ${title}${time}. Lines move, so check each leg in the betslip before you bet.`);
-      note("Hit chance is an estimate from the no-vig odds of several sportsbooks and treats the legs as independent.");
+      const live = data.live && typeof data.live === "object" ? data.live : null;
+      if (data.scope === "live") {
+        const readAt = new Date(data.generatedAt);
+        const readTime = Number.isNaN(readAt.getTime()) ? "" : `; clocks and box scores as of ${readAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+        note("Each live leg is checked against the player's box score: his pace for the line, personal fouls, minutes, the bench players at his position and the score.");
+        const skipped = liveSkipText(live?.skipped);
+        if (skipped && live.checked) note(`Of the ${countText(live.checked, "player")} the live odds favor, we left out ${skipped}.`);
+        note(`Live prices from ${title}${time}${readTime}. In-play lines move fast, so check each leg in the betslip before you bet.`);
+        note("Hit chance is an estimate from the live no-vig odds and treats the legs as independent. The live read only decides the order of the picks.");
+      } else {
+        note(`Prices from ${title}${time}. Lines move, so check each leg in the betslip before you bet.`);
+        note("Hit chance is an estimate from the no-vig odds of several sportsbooks and treats the legs as independent.");
+        if (live?.games) {
+          const games = countText(live.games, "game is", "games are");
+          note(live.bookGames
+            ? `${games} in progress, but fewer than 2 live legs pass our checks, so these are pre-game picks. We check again every minute.`
+            : `${games} in progress, but ${title} isn't pricing live player props for ${live.games === 1 ? "it" : "them"}, so these are pre-game picks.`);
+        }
+      }
+      if (live?.unknown) {
+        note(`Live box scores weren't available for ${countText(live.unknown, "game")} in progress, so ${live.unknown === 1 ? "it was" : "they were"} left out.`, true);
+      }
       if (new Set(legs.map(leg => leg.eventId)).size < legs.length) {
         note(`Legs from the same game may need a same-game parlay at ${title}, which can change the price.`);
       }
@@ -3611,8 +3791,11 @@
     async function copyBestParlay(legs, data, button) {
       const odds = legs.reduce((product, leg) => product * leg.price, 1);
       const text = [
-        `WiselyBet best parlay · ${data.sport.split("_").pop().toUpperCase()} · ${sportsbookTitle(data.book)}`,
-        ...legs.map((leg, index) => `${index + 1}. ${bestParlayLegText(leg, data.sport)} (${formatAmericanOdds(leg.price)}) · ${leg.away} @ ${leg.home}`),
+        `WiselyBet best parlay · ${data.sport.split("_").pop().toUpperCase()} · ${sportsbookTitle(data.book)}${data.scope === "live" ? " · Live" : ""}`,
+        ...legs.map((leg, index) => {
+          const read = liveLegRead(leg);
+          return `${index + 1}. ${bestParlayLegText(leg, data.sport)} (${formatAmericanOdds(leg.price)}) · ${leg.away} @ ${leg.home}${read ? ` · ${liveStatText(read)}` : ""}`;
+        }),
         `Parlay odds ${formatAmericanOdds(odds)} · $10 pays ${formatPayout(10 * odds)}`
       ].join("\n");
       let copied = false;

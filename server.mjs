@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { displayName, firebaseEnabled, firebaseSignIn, firebaseWebConfig, getSessionUser, getSubscription, getUserData, logIn, logOut, pushDataKey, queueEmail, reportActive, signUp, subscribe, updateUserData } from "./auth.mjs";
 import { randomBytes } from "node:crypto";
 import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
-import { bestParlayMarkets, buildBestParlay, injuredPlayers, parlayBooks, propsTtlMs, selectSlate } from "./best-parlay.mjs";
+import { bestParlayMarkets, buildBestParlay, injuredPlayers, parlayBooks, parlayRules, propsTtlMs, selectSlate } from "./best-parlay.mjs";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -195,6 +195,262 @@ function teamsMatch(eventTeam, requestedTeam) {
   return Boolean(eventName && requestedName && eventNickname === requestedNickname);
 }
 
+// The live box score and play-by-play for one game, as /api/live-game returns it. A game ESPN can't find on that
+// date throws an error with status 404 and `noGame` set.
+async function fetchLiveGame(sport, date, home, away) {
+  const espnSport = espnScoreboardSports[sport];
+  const espnDate = date.replace(/-/g, "");
+  const scoreboardUrl = new URL(
+    `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/scoreboard`
+  );
+  scoreboardUrl.searchParams.set("dates", espnDate);
+  const scoreboard = await fetchEspnJson(scoreboardUrl);
+  const event = (scoreboard.events || []).find(candidate => {
+    const competitors = candidate.competitions?.[0]?.competitors || [];
+    const homeTeam = competitors.find(team => team.homeAway === "home");
+    const awayTeam = competitors.find(team => team.homeAway === "away");
+    return teamsMatch(homeTeam?.team?.displayName, home) &&
+      teamsMatch(awayTeam?.team?.displayName, away);
+  });
+
+  if (!event) {
+    const error = new Error("ESPN has no matching game on this date. It may not be listed in its scoreboard feed yet.");
+    error.status = 404;
+    error.noGame = true;
+    throw error;
+  }
+
+  const summaryUrl = new URL(
+    `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/summary`
+  );
+  summaryUrl.searchParams.set("event", event.id);
+  const summary = await fetchEspnJson(summaryUrl);
+  const competition = summary.header?.competitions?.[0] || event.competitions?.[0];
+  const boxScoreTeams = summary.boxscore?.players || [];
+  const teamLeaders = summary.leaders || [];
+  const status = competition?.status || event.status || {};
+  const statusType = status.type || {};
+  const isFootball = sport === "americanfootball_nfl" ||
+    sport === "americanfootball_ncaaf";
+  const isHockey = sport === "icehockey_nhl";
+  const isBaseball = sport === "baseball_mlb";
+  const teams = (competition?.competitors || []).map(team => {
+    const boxScore = boxScoreTeams.find(candidate =>
+      candidate.team?.id === team.team?.id ||
+      candidate.homeAway === team.homeAway ||
+      normalizeTeamName(candidate.team?.displayName) ===
+        normalizeTeamName(team.team?.displayName)
+    );
+    const teamLeaderGroup = teamLeaders.find(candidate =>
+      candidate.team?.id === team.team?.id ||
+      normalizeTeamName(candidate.team?.displayName) === normalizeTeamName(team.team?.displayName)
+    );
+    const playerMap = new Map();
+    for (const statGroup of boxScore?.statistics || []) {
+      const labels = statGroup.labels || statGroup.names || [];
+      for (const player of statGroup.athletes || []) {
+        if (!player.athlete || player.didNotPlay) continue;
+        const playerKey = String(player.athlete.id || player.athlete.displayName);
+        let playerEntry = playerMap.get(playerKey);
+        if (!playerEntry) {
+          playerEntry = {
+            id: playerKey,
+            name: player.athlete.displayName,
+            position: player.athlete.position?.abbreviation || "",
+            starter: Boolean(player.starter),
+            starterConfirmed: typeof player.starter === "boolean",
+            onCourt: statusType.state === "in" && Boolean(player.active),
+            stats: []
+          };
+          playerMap.set(playerKey, playerEntry);
+        }
+        const groupName = String(statGroup.name || "").trim() ||
+          (isBaseball ? labels.includes("IP") ? "Pitching" : "Batting" : "");
+        for (const [index, value] of (player.stats || []).entries()) {
+          const label = labels[index] || "";
+          playerEntry.stats.push({
+            label: (isFootball || isBaseball) && groupName ? `${groupName} ${label}` : label,
+            value
+          });
+        }
+      }
+    }
+    const players = [...playerMap.values()];
+    let leaders = (teamLeaderGroup?.leaders || []).map(category => {
+      const leader = category.leaders?.[0];
+      return leader ? {
+        category: category.displayName || category.name || "Leader",
+        player: leader.athlete?.displayName || "Player",
+        value: leader.displayValue || String(leader.value ?? "")
+      } : null;
+    }).filter(Boolean);
+    if (isBaseball && !leaders.length) {
+      const statLeader = (group, label, category, lowerIsBetter = false) => {
+        const candidates = players.flatMap(player => {
+          const stat = player.stats.find(item => item.label === `${group} ${label}`);
+          const value = Number.parseFloat(stat?.value);
+          return Number.isFinite(value) ? [{ player, value, displayValue: stat.value }] : [];
+        }).filter(candidate => candidate.value > 0);
+        candidates.sort((a, b) =>
+          (lowerIsBetter ? a.value - b.value : b.value - a.value) ||
+          a.player.name.localeCompare(b.player.name)
+        );
+        const leader = candidates[0];
+        if (leader) {
+          leaders.push({
+            category,
+            player: leader.player.name,
+            value: leader.displayValue
+          });
+        }
+      };
+      statLeader("Batting", "H", "Hits");
+      statLeader("Batting", "HR", "Home runs");
+      statLeader("Batting", "RBI", "Runs batted in");
+      statLeader("Pitching", "K", "Pitcher strikeouts");
+      statLeader("Pitching", "ERA", "Pitching ERA", true);
+    }
+
+    return {
+      name: team.team?.displayName || team.team?.name || "Team",
+      id: String(team.team?.id || ""),
+      abbreviation: team.team?.abbreviation || "",
+      homeAway: team.homeAway,
+      score: team.score ?? "0",
+      color: team.team?.color || "",
+      logo: team.team?.logo || "",
+      linescores: (team.linescores || []).map(line => line.displayValue || line.value || ""),
+      players,
+      leaders
+    };
+  });
+  const venue = summary.gameInfo?.venue?.fullName || event.competitions?.[0]?.venue?.fullName || "";
+  const statusLabel = statusType.state === "pre"
+    ? "Scheduled"
+    : statusType.completed
+      ? statusType.description || "Final"
+      : statusType.shortDetail || statusType.detail || statusType.description || "Game in progress";
+  const sportTitle = sport === "basketball_nba"
+    ? "NBA"
+    : sport === "basketball_wnba"
+      ? "WNBA"
+      : sport === "baseball_mlb"
+        ? "MLB"
+        : sport === "icehockey_nhl"
+          ? "NHL"
+          : sport === "americanfootball_nfl"
+            ? "NFL"
+            : "College Football";
+  const currentDrive = summary.drives?.current;
+  const drivePlays = [
+    ...(summary.drives?.previous || []).flatMap(drive =>
+      (drive.plays || []).map(play => ({ ...play, team: play.team || drive.team }))
+    ),
+    ...(currentDrive?.plays || []).map(play => ({
+      ...play,
+      team: play.team || currentDrive.team
+    }))
+  ];
+  const playSource = isFootball && drivePlays.length
+    ? [...(summary.plays || []), ...drivePlays]
+    : summary.plays || [];
+  const uniquePlays = new Map();
+  for (const play of playSource) {
+    const playId = String(play.id || play.sequenceNumber || "");
+    if (playId) uniquePlays.set(playId, play);
+  }
+  const teamIdsBySide = Object.fromEntries(
+    (competition?.competitors || []).map(team => [
+      team.homeAway,
+      String(team.team?.id || "")
+    ])
+  );
+  let previousAwayScore = 0;
+  let previousHomeScore = 0;
+  const orderedPlays = [...uniquePlays.values()]
+    .sort((a, b) => Number(a.sequenceNumber || 0) - Number(b.sequenceNumber || 0));
+  const playsWithSides = orderedPlays.map(play => {
+    const teamId = String(play.team?.id || play.teamId || "");
+    const awayScore = play.awayScore === null || play.awayScore === undefined
+      ? null
+      : Number(play.awayScore);
+    const homeScore = play.homeScore === null || play.homeScore === undefined
+      ? null
+      : Number(play.homeScore);
+    let teamSide = teamId && teamId === teamIdsBySide.home
+      ? "home"
+      : teamId && teamId === teamIdsBySide.away
+        ? "away"
+        : "";
+    if (!teamSide && (awayScore !== null || homeScore !== null)) {
+      const awayDelta = awayScore === null ? 0 : awayScore - previousAwayScore;
+      const homeDelta = homeScore === null ? 0 : homeScore - previousHomeScore;
+      if (awayDelta > homeDelta) teamSide = "away";
+      else if (homeDelta > awayDelta) teamSide = "home";
+    }
+    if (awayScore !== null) previousAwayScore = awayScore;
+    if (homeScore !== null) previousHomeScore = homeScore;
+    return { play, teamSide };
+  });
+  const plays = playsWithSides
+    .slice(-25)
+    .reverse()
+    .map(({ play, teamSide }) => ({
+      id: String(play.id || play.sequenceNumber || ""),
+      period: play.period?.displayValue || "",
+      clock: play.clock?.displayValue || "",
+      type: play.type?.text || "",
+      text: play.text || "",
+      teamId: String(play.team?.id || play.teamId || ""),
+      teamSide,
+      awayScore: play.awayScore ?? null,
+      homeScore: play.homeScore ?? null,
+      scoring: Boolean(play.scoringPlay)
+    }))
+    .filter(play => play.text);
+  return {
+    sport,
+    sportTitle,
+    eventId: event.id,
+    date: competition?.date || event.date,
+    status: statusLabel,
+    state: statusType.state || "pre",
+    period: status.period || 0,
+    periodLabel: statusType.shortDetail || statusType.detail || "",
+    clock: status.displayClock || "",
+    drive: currentDrive ? {
+      team: currentDrive.team?.displayName || "",
+      description: currentDrive.description || "",
+      start: currentDrive.start?.text || "",
+      plays: currentDrive.offensivePlays || 0,
+      yards: currentDrive.yards || 0
+    } : null,
+    situation: isBaseball && summary.situation ? {
+      balls: summary.situation.balls ?? null,
+      strikes: summary.situation.strikes ?? null,
+      outs: summary.situation.outs ?? null,
+      batterId: summary.situation.batter?.playerId
+        ? String(summary.situation.batter.playerId)
+        : "",
+      pitcherId: summary.situation.pitcher?.playerId
+        ? String(summary.situation.pitcher.playerId)
+        : ""
+    } : null,
+    venue,
+    teams,
+    plays,
+    injuries: (summary.injuries || []).flatMap(group =>
+      (group.injuries || []).map(injury => ({
+        teamId: String(group.team?.id || ""),
+        name: injury.athlete?.displayName || "",
+        status: injury.status || injury.type?.description || "",
+        detail: injury.shortComment || injury.details?.detail || injury.details?.type || ""
+      }))
+    ).filter(injury => injury.name),
+    updatedAt: new Date().toISOString()
+  };
+}
+
 const apiCache = new Map();
 const apiPending = new Map();
 const cacheTtlMs = { sports: 10 * 60_000, odds: 60_000, props: 60_000, espn: 10_000 };
@@ -263,22 +519,38 @@ async function parlayEventOdds(sport, event, book, premium, now) {
 async function buildParlayResponse(sport, book, premium) {
   const injuriesTask = cached(`parlay-injuries:${sport}`, 10 * 60_000, () => fetchPlayerInjuries(sport)).then(injuredPlayers, () => null);
   const now = Date.now();
-  const slate = selectSlate(await fetchOddsApi(`sports/${encodeURIComponent(sport)}/events`, {}), now);
-  const settled = await Promise.allSettled(slate.events.map(event => parlayEventOdds(sport, event, book, premium, now)));
-  const oddsByEvent = new Map();
-  settled.forEach((outcome, index) => {
-    if (outcome.status === "fulfilled" && outcome.value) oddsByEvent.set(slate.events[index].id, outcome.value);
-  });
-  if (settled.length && !oddsByEvent.size) throw settled[0].reason;
-  const injured = await injuriesTask;
+  const events = await fetchOddsApi(`sports/${encodeURIComponent(sport)}/events`, {});
   const markets = premium ? bestParlayMarkets[sport] : bestParlayMarkets[sport].slice(0, 1);
-  const result = buildBestParlay({ events: slate.events, oddsByEvent, book, markets, injured: injured || new Set() });
-  return {
+  const price = async list => {
+    const settled = await Promise.allSettled(list.map(event => parlayEventOdds(sport, event, book, premium, now)));
+    const oddsByEvent = new Map();
+    settled.forEach((outcome, index) => {
+      if (outcome.status === "fulfilled" && outcome.value) oddsByEvent.set(list[index].id, outcome.value);
+    });
+    if (settled.length && !oddsByEvent.size) throw settled[0].reason;
+    return oddsByEvent;
+  };
+
+  // Games past their listed start: ESPN says which are in progress, which haven't tipped off yet and which are over.
+  const started = selectSlate(events, now).events.filter(event => event.live);
+  const boxScores = await Promise.all(started.map(event =>
+    cached(`parlay-live:${sport}:${event.id}`, 30_000, () => parlayLiveGame(sport, event)).catch(() => null)));
+  const liveGames = new Map();
+  const waiting = new Set();
+  let unknown = 0;
+  started.forEach((event, index) => {
+    const game = boxScores[index];
+    if (game?.state === "in") liveGames.set(event.id, game);
+    else if (game?.state === "pre") waiting.add(event.id);
+    else if (!game) unknown += 1;
+  });
+  const injured = await injuriesTask;
+  const respond = (scope, slateEvents, result, live) => ({
     sport,
     book,
-    scope: slate.scope,
+    scope,
     markets: bestParlayMarkets[sport],
-    games: slate.events.length,
+    games: slateEvents.length,
     bookGames: result.bookGames,
     legs: result.legs,
     injuryCheck: Boolean(injured),
@@ -286,15 +558,70 @@ async function buildParlayResponse(sport, book, premium) {
     pricesAt: result.pricesAt,
     generatedAt: new Date(now).toISOString(),
     limited: !premium,
-    stale: false
-  };
+    stale: false,
+    live
+  });
+
+  // While games are on, the parlay comes from them alone, read against each player's live box score.
+  let live = unknown ? { games: 0, bookGames: 0, legs: 0, checked: 0, skipped: {}, unknown } : null;
+  let liveResult = null;
+  const liveEvents = started.filter(event => liveGames.has(event.id));
+  if (liveEvents.length) {
+    try {
+      liveResult = buildBestParlay({
+        events: liveEvents, oddsByEvent: await price(liveEvents), book, markets, injured: injured || new Set(), sport, liveGames
+      });
+    } catch (error) {
+      console.error("Live best parlay failed:", error.message);
+    }
+    live = {
+      games: liveEvents.length,
+      bookGames: liveResult?.bookGames || 0,
+      legs: liveResult?.legs.length || 0,
+      checked: liveResult?.liveChecked || 0,
+      skipped: liveResult?.liveSkipped || {},
+      unknown
+    };
+    if (liveResult && liveResult.legs.length >= parlayRules.minLiveLegs) return respond("live", liveEvents, liveResult, live);
+  }
+
+  // Otherwise the upcoming games, including any running late, priced before tip-off.
+  const upcoming = events.filter(event => Date.parse(event?.commence_time) > now || waiting.has(event?.id));
+  const slate = selectSlate(upcoming, now, parlayRules.maxGames, waiting);
+  let result = null;
+  try {
+    result = buildBestParlay({
+      events: slate.events, oddsByEvent: await price(slate.events), book, markets, injured: injured || new Set()
+    });
+  } catch (error) {
+    if (!liveResult?.legs.length) throw error;
+  }
+  if (!result?.legs.length && liveResult?.legs.length) return respond("live", liveEvents, liveResult, live);
+  return respond(slate.scope, slate.events, result, live);
+}
+
+const easternDates = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
+
+// ESPN files games under their US Eastern date; a late start can also sit under its UTC date.
+async function parlayLiveGame(sport, event) {
+  const start = new Date(event.commence_time);
+  for (const date of new Set([easternDates.format(start), start.toISOString().slice(0, 10)])) {
+    try {
+      return await fetchLiveGame(sport, date, event.home_team, event.away_team);
+    } catch (error) {
+      if (!error.noGame) throw error;
+    }
+  }
+  return null;
 }
 
 async function bestParlayFor(sport, book, premium) {
   const key = `best-parlay:${sport}|${book}|${premium ? "full" : "guest"}`;
   const lastGood = () => {
     const saved = parlayLastGood.get(key);
-    return saved && Date.now() - Date.parse(saved.generatedAt) < parlayStaleMs ? { ...saved, stale: true } : null;
+    // A live parlay's clock and score age quickly, so it is only reused for a few minutes.
+    const maxAge = saved?.scope === "live" ? 5 * 60_000 : parlayStaleMs;
+    return saved && Date.now() - Date.parse(saved.generatedAt) < maxAge ? { ...saved, stale: true } : null;
   };
   const fresh = cachedValue(key);
   if (fresh) return fresh;
@@ -1010,256 +1337,12 @@ const server = createServer(async (request, response) => {
         return;
       }
 
-      const espnDate = date.replace(/-/g, "");
-      const scoreboardUrl = new URL(
-        `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/scoreboard`
-      );
-      scoreboardUrl.searchParams.set("dates", espnDate);
-      const scoreboard = await fetchEspnJson(scoreboardUrl);
-      const event = (scoreboard.events || []).find(candidate => {
-        const competitors = candidate.competitions?.[0]?.competitors || [];
-        const homeTeam = competitors.find(team => team.homeAway === "home");
-        const awayTeam = competitors.find(team => team.homeAway === "away");
-        return teamsMatch(homeTeam?.team?.displayName, home) &&
-          teamsMatch(awayTeam?.team?.displayName, away);
-      });
-
-      if (!event) {
-        await sendJson(response, 404, {
-          error: "ESPN has no matching game on this date. It may not be listed in its scoreboard feed yet."
-        });
-        return;
+      try {
+        await sendJson(response, 200, await fetchLiveGame(sport, date, home, away));
+      } catch (error) {
+        if (!error.noGame) throw error;
+        await sendJson(response, 404, { error: error.message });
       }
-
-      const summaryUrl = new URL(
-        `https://site.api.espn.com/apis/site/v2/sports/${espnSport}/summary`
-      );
-      summaryUrl.searchParams.set("event", event.id);
-      const summary = await fetchEspnJson(summaryUrl);
-      const competition = summary.header?.competitions?.[0] || event.competitions?.[0];
-      const boxScoreTeams = summary.boxscore?.players || [];
-      const teamLeaders = summary.leaders || [];
-      const status = competition?.status || event.status || {};
-      const statusType = status.type || {};
-      const isFootball = sport === "americanfootball_nfl" ||
-        sport === "americanfootball_ncaaf";
-      const isHockey = sport === "icehockey_nhl";
-      const isBaseball = sport === "baseball_mlb";
-      const teams = (competition?.competitors || []).map(team => {
-        const boxScore = boxScoreTeams.find(candidate =>
-          candidate.team?.id === team.team?.id ||
-          candidate.homeAway === team.homeAway ||
-          normalizeTeamName(candidate.team?.displayName) ===
-            normalizeTeamName(team.team?.displayName)
-        );
-        const teamLeaderGroup = teamLeaders.find(candidate =>
-          candidate.team?.id === team.team?.id ||
-          normalizeTeamName(candidate.team?.displayName) === normalizeTeamName(team.team?.displayName)
-        );
-        const playerMap = new Map();
-        for (const statGroup of boxScore?.statistics || []) {
-          const labels = statGroup.labels || statGroup.names || [];
-          for (const player of statGroup.athletes || []) {
-            if (!player.athlete || player.didNotPlay) continue;
-            const playerKey = String(player.athlete.id || player.athlete.displayName);
-            let playerEntry = playerMap.get(playerKey);
-            if (!playerEntry) {
-              playerEntry = {
-                id: playerKey,
-                name: player.athlete.displayName,
-                position: player.athlete.position?.abbreviation || "",
-                starter: Boolean(player.starter),
-                starterConfirmed: typeof player.starter === "boolean",
-                onCourt: statusType.state === "in" && Boolean(player.active),
-                stats: []
-              };
-              playerMap.set(playerKey, playerEntry);
-            }
-            const groupName = String(statGroup.name || "").trim() ||
-              (isBaseball ? labels.includes("IP") ? "Pitching" : "Batting" : "");
-            for (const [index, value] of (player.stats || []).entries()) {
-              const label = labels[index] || "";
-              playerEntry.stats.push({
-                label: (isFootball || isBaseball) && groupName ? `${groupName} ${label}` : label,
-                value
-              });
-            }
-          }
-        }
-        const players = [...playerMap.values()];
-        let leaders = (teamLeaderGroup?.leaders || []).map(category => {
-          const leader = category.leaders?.[0];
-          return leader ? {
-            category: category.displayName || category.name || "Leader",
-            player: leader.athlete?.displayName || "Player",
-            value: leader.displayValue || String(leader.value ?? "")
-          } : null;
-        }).filter(Boolean);
-        if (isBaseball && !leaders.length) {
-          const statLeader = (group, label, category, lowerIsBetter = false) => {
-            const candidates = players.flatMap(player => {
-              const stat = player.stats.find(item => item.label === `${group} ${label}`);
-              const value = Number.parseFloat(stat?.value);
-              return Number.isFinite(value) ? [{ player, value, displayValue: stat.value }] : [];
-            }).filter(candidate => candidate.value > 0);
-            candidates.sort((a, b) =>
-              (lowerIsBetter ? a.value - b.value : b.value - a.value) ||
-              a.player.name.localeCompare(b.player.name)
-            );
-            const leader = candidates[0];
-            if (leader) {
-              leaders.push({
-                category,
-                player: leader.player.name,
-                value: leader.displayValue
-              });
-            }
-          };
-          statLeader("Batting", "H", "Hits");
-          statLeader("Batting", "HR", "Home runs");
-          statLeader("Batting", "RBI", "Runs batted in");
-          statLeader("Pitching", "K", "Pitcher strikeouts");
-          statLeader("Pitching", "ERA", "Pitching ERA", true);
-        }
-
-        return {
-          name: team.team?.displayName || team.team?.name || "Team",
-          id: String(team.team?.id || ""),
-          abbreviation: team.team?.abbreviation || "",
-          homeAway: team.homeAway,
-          score: team.score ?? "0",
-          color: team.team?.color || "",
-          logo: team.team?.logo || "",
-          linescores: (team.linescores || []).map(line => line.displayValue || line.value || ""),
-          players,
-          leaders
-        };
-      });
-      const venue = summary.gameInfo?.venue?.fullName || event.competitions?.[0]?.venue?.fullName || "";
-      const statusLabel = statusType.state === "pre"
-        ? "Scheduled"
-        : statusType.completed
-          ? statusType.description || "Final"
-          : statusType.shortDetail || statusType.detail || statusType.description || "Game in progress";
-      const sportTitle = sport === "basketball_nba"
-        ? "NBA"
-        : sport === "basketball_wnba"
-          ? "WNBA"
-          : sport === "baseball_mlb"
-            ? "MLB"
-            : sport === "icehockey_nhl"
-              ? "NHL"
-              : sport === "americanfootball_nfl"
-                ? "NFL"
-                : "College Football";
-      const currentDrive = summary.drives?.current;
-      const drivePlays = [
-        ...(summary.drives?.previous || []).flatMap(drive =>
-          (drive.plays || []).map(play => ({ ...play, team: play.team || drive.team }))
-        ),
-        ...(currentDrive?.plays || []).map(play => ({
-          ...play,
-          team: play.team || currentDrive.team
-        }))
-      ];
-      const playSource = isFootball && drivePlays.length
-        ? [...(summary.plays || []), ...drivePlays]
-        : summary.plays || [];
-      const uniquePlays = new Map();
-      for (const play of playSource) {
-        const playId = String(play.id || play.sequenceNumber || "");
-        if (playId) uniquePlays.set(playId, play);
-      }
-      const teamIdsBySide = Object.fromEntries(
-        (competition?.competitors || []).map(team => [
-          team.homeAway,
-          String(team.team?.id || "")
-        ])
-      );
-      let previousAwayScore = 0;
-      let previousHomeScore = 0;
-      const orderedPlays = [...uniquePlays.values()]
-        .sort((a, b) => Number(a.sequenceNumber || 0) - Number(b.sequenceNumber || 0));
-      const playsWithSides = orderedPlays.map(play => {
-        const teamId = String(play.team?.id || play.teamId || "");
-        const awayScore = play.awayScore === null || play.awayScore === undefined
-          ? null
-          : Number(play.awayScore);
-        const homeScore = play.homeScore === null || play.homeScore === undefined
-          ? null
-          : Number(play.homeScore);
-        let teamSide = teamId && teamId === teamIdsBySide.home
-          ? "home"
-          : teamId && teamId === teamIdsBySide.away
-            ? "away"
-            : "";
-        if (!teamSide && (awayScore !== null || homeScore !== null)) {
-          const awayDelta = awayScore === null ? 0 : awayScore - previousAwayScore;
-          const homeDelta = homeScore === null ? 0 : homeScore - previousHomeScore;
-          if (awayDelta > homeDelta) teamSide = "away";
-          else if (homeDelta > awayDelta) teamSide = "home";
-        }
-        if (awayScore !== null) previousAwayScore = awayScore;
-        if (homeScore !== null) previousHomeScore = homeScore;
-        return { play, teamSide };
-      });
-      const plays = playsWithSides
-        .slice(-25)
-        .reverse()
-        .map(({ play, teamSide }) => ({
-          id: String(play.id || play.sequenceNumber || ""),
-          period: play.period?.displayValue || "",
-          clock: play.clock?.displayValue || "",
-          type: play.type?.text || "",
-          text: play.text || "",
-          teamId: String(play.team?.id || play.teamId || ""),
-          teamSide,
-          awayScore: play.awayScore ?? null,
-          homeScore: play.homeScore ?? null,
-          scoring: Boolean(play.scoringPlay)
-        }))
-        .filter(play => play.text);
-      await sendJson(response, 200, {
-        sport,
-        sportTitle,
-        eventId: event.id,
-        date: competition?.date || event.date,
-        status: statusLabel,
-        state: statusType.state || "pre",
-        period: status.period || 0,
-        periodLabel: statusType.shortDetail || statusType.detail || "",
-        clock: status.displayClock || "",
-        drive: currentDrive ? {
-          team: currentDrive.team?.displayName || "",
-          description: currentDrive.description || "",
-          start: currentDrive.start?.text || "",
-          plays: currentDrive.offensivePlays || 0,
-          yards: currentDrive.yards || 0
-        } : null,
-        situation: isBaseball && summary.situation ? {
-          balls: summary.situation.balls ?? null,
-          strikes: summary.situation.strikes ?? null,
-          outs: summary.situation.outs ?? null,
-          batterId: summary.situation.batter?.playerId
-            ? String(summary.situation.batter.playerId)
-            : "",
-          pitcherId: summary.situation.pitcher?.playerId
-            ? String(summary.situation.pitcher.playerId)
-            : ""
-        } : null,
-        venue,
-        teams,
-        plays,
-        injuries: (summary.injuries || []).flatMap(group =>
-          (group.injuries || []).map(injury => ({
-            teamId: String(group.team?.id || ""),
-            name: injury.athlete?.displayName || "",
-            status: injury.status || injury.type?.description || "",
-            detail: injury.shortComment || injury.details?.detail || injury.details?.type || ""
-          }))
-        ).filter(injury => injury.name),
-        updatedAt: new Date().toISOString()
-      });
       return;
     }
 
