@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  bestParlayMarkets, buildBestParlay, injuredPlayers, liveClock, liveRead, normalizePlayerName, parlayBooks, propsTtlMs,
-  selectSlate
+  bestParlayMarkets, buildBestParlay, combineBestParlays, injuredPlayers, liveClock, liveRead, normalizePlayerName, parlayBooks,
+  propsTtlMs, selectSlate
 } from "./best-parlay.mjs";
 
 const now = Date.parse("2025-01-15T20:00:00Z");
@@ -17,7 +17,7 @@ function prices(chance, margin = 0.045) {
 function pair(player, point, over, under, link = `https://book.example/slip/${encodeURIComponent(player)}/${point}`) {
   return [
     { name: "Over", description: player, point, price: over, link },
-    { name: "Under", description: player, point, price: under }
+    { name: "Under", description: player, point, price: under, link }
   ];
 }
 // books: { bookKey: { market: [[player, point, over, under, link?], ...] } }
@@ -116,7 +116,7 @@ test("everyone on the injury report is excluded except probable players", () => 
   assert.equal(injuredPlayers(null).size, 0);
 });
 
-test("a leg is the chosen book's main-line Over, with the chance averaged over every book at that line", () => {
+test("legs use the chosen book's main-line side and average no-vig chances across books", () => {
   const result = build([game("g1", now + hour)], {
     g1: eventOdds({
       draftkings: {
@@ -129,11 +129,13 @@ test("a leg is the chosen book's main-line Over, with the chance averaged over e
       }
     })
   });
-  // Reaves has a single quote and Davis leans Under, so only LeBron qualifies.
-  assert.equal(result.legs.length, 1);
-  const [leg] = result.legs;
+  // Reaves has a single quote; LeBron qualifies Over and Davis qualifies Under.
+  assert.equal(result.legs.length, 2);
+  const leg = result.legs.find(item => item.player === "LeBron James");
+  const davis = result.legs.find(item => item.player === "Anthony Davis");
   const chance = ((1 / 1.8) / (1 / 1.8 + 1 / 2.0) + (1 / 1.83) / (1 / 1.83 + 1 / 1.95)) / 2;
   assert.equal(leg.player, "LeBron James");
+  assert.equal(leg.side, "over");
   assert.equal(leg.market, "player_points");
   assert.equal(leg.line, 24.5);
   assert.equal(leg.price, 1.8);
@@ -146,6 +148,10 @@ test("a leg is the chosen book's main-line Over, with the chance averaged over e
   assert.equal(result.bookGames, 1);
   assert.equal(result.pricesAt, iso(now));
   assert.ok(!("score" in leg));
+  assert.equal(davis.side, "under");
+  assert.equal(davis.price, 1.87);
+  assert.ok(davis.probability > 0.5);
+  assert.equal(davis.link, "https://book.example/slip/Anthony%20Davis/11.5");
 });
 
 test("long shots, heavy favourites and prices far below fair are left out", () => {
@@ -163,7 +169,7 @@ test("long shots, heavy favourites and prices far below fair are left out", () =
       }
     })
   });
-  assert.deepEqual(result.legs.map(leg => leg.player), ["Fair Leg"]);
+  assert.deepEqual(result.legs.map(leg => [leg.player, leg.side]), [["Long Shot", "under"], ["Fair Leg", "over"]]);
 });
 
 test("stale quotes don't count towards the consensus or the chosen book's price", () => {
@@ -218,6 +224,31 @@ test("one leg per player, spread across games strongest first", () => {
   assert.deepEqual(guest.legs.map(leg => leg.player), ["A One", "B One", "A Two", "B Two"]);
   assert.equal(guest.legs[0].market, "player_points");
   assert.equal(guest.bookGames, 2);
+});
+
+test("cross-sport aggregation ranks sides together and keeps sport identity", () => {
+  const result = combineBestParlays([
+    {
+      sport: "basketball_nba",
+      legs: [
+        { player: "Same Player", side: "under", probability: 0.6, books: 3, _rank: 0.61 },
+        { player: "NBA Player", side: "over", probability: 0.57, books: 2, _rank: 0.58 }
+      ],
+      alternates: [{ player: "NBA Alternate", side: "over", probability: 0.55, books: 2, _rank: 0.56 }]
+    },
+    {
+      sport: "americanfootball_nfl",
+      legs: [{ player: "Same Player", side: "over", probability: 0.62, books: 3, _rank: 0.63 }],
+      alternates: []
+    }
+  ], { maxLegs: 2, alternateLegs: 1 });
+
+  assert.deepEqual(result.legs.map(leg => [leg.sport, leg.player, leg.side]), [
+    ["americanfootball_nfl", "Same Player", "over"],
+    ["basketball_nba", "Same Player", "under"]
+  ]);
+  assert.deepEqual(result.alternates.map(leg => leg.player), ["NBA Player"]);
+  assert.ok([...result.legs, ...result.alternates].every(leg => !("_rank" in leg)));
 });
 
 test("games the book hasn't priced are skipped and unsafe links are dropped", () => {
@@ -357,6 +388,25 @@ test("players in foul trouble, on short minutes, in a blowout, behind the pace o
   assert.deepEqual(nbaRead(at(2, "6:00", tatum({ MIN: 14, PTS: 10 })), "Jaylen Brown"), { skip: "unverified" });
   assert.deepEqual(nbaRead(at(2, "6:00", { ...tatum(), stats: [{ label: "MIN", value: "14" }] }), "Jayson Tatum"), { skip: "unverified" });
   assert.deepEqual(nbaRead({ ...at(2, "6:00", tatum({ MIN: 14 })), state: "pre" }, "Jayson Tatum"), { skip: "unverified" });
+});
+
+test("live Under reads favor low pace and foul risk, and reject an over-pace projection", () => {
+  const game = hoopsGame(2, "0.0", [
+    side("BOS", 58, [hooper("Under Candidate", { MIN: 20, PTS: 5, PF: 4 })]),
+    side("MIA", 55, [])
+  ], "Halftime");
+  const under = liveRead({ sport: "basketball_nba", market: "player_points", line: 15.5, player: "Under Candidate", game, side: "under" });
+  assert.equal(under.read.side, "under");
+  assert.equal(under.read.fouls, 4);
+  assert.ok(under.read.projected < 16);
+  assert.ok(under.bonus > 0);
+
+  const overPace = hoopsGame(2, "0.0", [
+    side("BOS", 58, [hooper("Over Pace", { MIN: 20, PTS: 20 })]),
+    side("MIA", 55, [])
+  ], "Halftime");
+  assert.deepEqual(liveRead({ sport: "basketball_nba", market: "player_points", line: 25.5, player: "Over Pace", game: overPace, side: "under" }),
+    { skip: "ahead" });
 });
 
 test("box-score names match the odds feed by surname and first initial when only one player fits", () => {
