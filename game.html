@@ -13,7 +13,12 @@
   <meta name="theme-color" content="#12150f">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <title>WiselyBet | Live Game Tracker</title>
+  <script src="/client-errors.js"></script>
   <script>
+    // A break taken in Settings → Play responsibly covers the game pages too; the dashboard shows the lock.
+    try {
+      if (Number(JSON.parse(localStorage.getItem("courtside.break.v1") || "null")?.until) > Date.now()) location.replace("/");
+    } catch {}
     try {
       if (JSON.parse(localStorage.getItem("courtside.settings.v1") || "{}").theme === "light") document.documentElement.dataset.theme = "light";
     } catch {}

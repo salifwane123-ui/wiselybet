@@ -1,5 +1,5 @@
 import webpush from "web-push";
-import { getSubscription, getUserData, listPushUsers, pushDataKey, updateUserData } from "./auth.mjs";
+import { breakDataKey, breakUntil, getSubscription, getUserData, listPushUsers, pushDataKey, updateUserData } from "./auth.mjs";
 import soccerSupport from "./soccer.js";
 
 const publicKey = (process.env.VAPID_PUBLIC || "").replace(/\s+/g, "");
@@ -237,6 +237,8 @@ export function trackerAlerts(tracker, previous, game, allowed = () => true) {
 }
 
 async function checkUser({ userKey, data }, fetchGame) {
+  // No alerts while the user is taking a break.
+  if (breakUntil(data[breakDataKey]) > Date.now()) return;
   const userState = states.get(userKey) || new Map();
   forgetFinishedPicks(userState);
   let subs, trackers, followed, settings;

@@ -12,6 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="theme-color" content="#0f1412">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <meta name="description" content="Sign in to WiselyBet to compare live odds and player props and track your picks in real time.">
+  <script src="/client-errors.js"></script>
   <title>Sign in | WiselyBet</title>
   <style>
     :root { color-scheme: dark; font: 15px/1.5 "Segoe UI", system-ui, sans-serif; --muted: #9aa59f; --gold: #f3c64d; --green: #3ecf6e; --line: rgba(255, 255, 255, .1); --panel: #14181a; }
@@ -64,6 +66,11 @@
     .google:hover { border-color: var(--gold); color: var(--gold); }
     .link { display: block; margin: 14px auto 0; border: 0; background: none; color: var(--gold); font: inherit; font-size: .82rem; cursor: pointer; }
     .fine { margin: 18px 26px 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: .72rem; text-align: center; }
+    .consent { margin: 14px 0 0; color: var(--muted); font-size: .74rem; line-height: 1.5; text-align: center; }
+    .consent a, .legal-links a { color: var(--gold); }
+    .notice-ok { margin: 0 26px 6px; padding: 10px 12px; border: 1px solid rgba(62, 207, 110, .45); border-radius: 4px; background: rgba(62, 207, 110, .1); color: #c9f5d8; font-size: .84rem; }
+    .notice-ok[hidden] { display: none; }
+    .legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 8px 0 0; }
     footer { padding: 14px 28px 24px; color: #6f7a74; font-size: .72rem; text-align: center; }
     @media (max-width: 860px) { .stage { grid-template-columns: 1fr; gap: 28px; padding: 24px 16px; } .hero { order: 2; } .top { padding: 12px 16px; } .top-note { display: none; } }
   </style>
@@ -98,6 +105,7 @@
     <main class="card">
       <h2 class="card-title" id="card-title">Welcome back</h2>
       <p class="card-sub" id="card-sub">Sign in to open your market board.</p>
+      <p class="notice-ok" id="deleted-notice" role="status" hidden>Your account and everything saved to it were deleted. Thanks for using WiselyBet.</p>
       <div class="tabs" role="tablist" aria-label="Account">
         <button type="button" role="tab" id="tab-login" aria-selected="true">Sign in</button>
         <button type="button" role="tab" id="tab-signup" aria-selected="false">Join now</button>
@@ -118,11 +126,15 @@
           <button class="google" id="google" type="button">Continue with Google</button>
           <button class="link" id="forgot" type="button">Forgot password?</button>
         </div>
+        <p class="consent">By continuing, you agree to the <a href="/terms">Terms of Use</a> and <a href="/privacy">Privacy Policy</a> and confirm you are of legal betting age where you live.</p>
       </form>
       <p class="fine">Your trackers, parlays and settings are saved to your account. Informational only; not betting advice.</p>
     </main>
   </div>
-  <footer>18+ · Please gamble responsibly. Odds are for information only.</footer>
+  <footer>
+    18+ · Please gamble responsibly. Odds are for information only.
+    <nav class="legal-links" aria-label="Legal and help"><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/responsible-gaming">Responsible gaming</a></nav>
+  </footer>
   <script>
     let mode = "login";
     const form = document.querySelector("#form");
@@ -187,6 +199,11 @@
       document.querySelector("#extras").hidden = false;
     }
     setMode(location.hash === "#signup" ? "signup" : "login");
+    // After an account is deleted the app lands here with ?deleted=1.
+    if (new URLSearchParams(location.search).get("deleted") === "1") {
+      document.querySelector("#deleted-notice").hidden = false;
+      history.replaceState(null, "", "/login" + location.hash);
+    }
     const firebaseReady = setupFirebase();
 
     document.querySelector("#google").addEventListener("click", async () => {

@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { displayName, firebaseEnabled, firebaseSignIn, firebaseWebConfig, getSessionUser, getSubscription, getUserData, logIn, logOut, pushDataKey, queueEmail, reportActive, signUp, subscribe, updateUserData } from "./auth.mjs";
+import { deleteAccount, displayName, firebaseEnabled, firebaseSignIn, firebaseWebConfig, getSessionUser, getSubscription, getUserData, logIn, logOut, pushDataKey, queueEmail, reportActive, signUp, subscribe, updateUserData } from "./auth.mjs";
 import { randomBytes } from "node:crypto";
 import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
 import { bestParlayMarkets, buildBestParlay, combineBestParlays, injuredPlayers, parlayBooks, parlayRules, propsTtlMs, selectSlate } from "./best-parlay.mjs";
@@ -793,6 +793,8 @@ const securityHeaders = {
     "form-action 'self'"
   ].join("; ")
 };
+// The live site is served over HTTPS only; browsers ignore this header on plain-HTTP local runs.
+if (process.env.NODE_ENV === "production") securityHeaders["Strict-Transport-Security"] = "max-age=31536000";
 
 // Only the login page may load the Firebase sign-in scripts and talk to Google's auth services.
 function loginPolicy() {
@@ -850,6 +852,27 @@ self.addEventListener("fetch", event => {
 function sendStatic(response, type, body) {
   response.writeHead(200, { "Content-Type": type, "Cache-Control": "no-cache" });
   response.end(body);
+}
+
+// Public pages anyone can read without an account.
+const publicPages = { "/terms": "terms.html", "/privacy": "privacy.html", "/responsible-gaming": "responsible-gaming.html" };
+const robotsTxt = "User-agent: *\nDisallow: /api/\nDisallow: /game\nDisallow: /subscribe\n";
+
+// Pages show a support email only when SUPPORT_EMAIL is set; otherwise they point to the in-app feedback form.
+function supportContact() {
+  const email = String(process.env.SUPPORT_EMAIL || "").trim();
+  if (/^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(email)) return `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>`;
+  return "<strong>Send feedback</strong> in the app (Settings → Help &amp; legal)";
+}
+
+async function sendPage(response, status, file) {
+  const html = (await readFile(join(directory, file), "utf8")).replaceAll("%SUPPORT_CONTACT%", supportContact());
+  response.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": status === 200 ? "no-cache" : "no-store" });
+  response.end(html);
+}
+
+function httpError(status, message) {
+  return Object.assign(new Error(message), { status });
 }
 
 // Parlay recap email. The recipient comes only from the server environment, never from the request.
@@ -926,8 +949,7 @@ async function handleSendEmail(request, response) {
   if (origin && origin !== `http://${request.headers.host}` && origin !== `https://${request.headers.host}`) {
     return sendJson(response, 403, { error: "Cross-origin requests are not allowed." });
   }
-  const smtpReady = Boolean(mailConfig.user && mailConfig.pass);
-  if (!mailConfig.dryRun && !smtpReady && !firebaseEnabled) {
+  if (!mailReady()) {
     return sendJson(response, 503, { error: "Email is not set up on the server (set SMTP_USER and SMTP_PASS, or enable Firebase)." });
   }
   const now = Date.now();
@@ -936,14 +958,23 @@ async function handleSendEmail(request, response) {
   const message = buildRecapEmail(await readJsonBody(request));
   emailLimit.count += 1;
   if (mailConfig.dryRun) return sendJson(response, 200, { ok: true, dryRun: true, to: mailConfig.to, ...message });
-  if (!smtpReady) {
+  return sendJson(response, 200, await deliverMail(message));
+}
+
+function mailReady() {
+  return mailConfig.dryRun || Boolean(mailConfig.user && mailConfig.pass) || firebaseEnabled;
+}
+
+// Sends an email to the site owner (MAIL_TO) by SMTP, or through the Firebase mail queue when SMTP is not set up.
+async function deliverMail(message) {
+  if (!(mailConfig.user && mailConfig.pass)) {
     try {
       await queueEmail(mailConfig.to, message);
     } catch (caught) {
       console.error("Email queue failed:", caught.message);
-      return sendJson(response, 502, { error: "The email could not be queued." });
+      throw httpError(502, "The email could not be queued.");
     }
-    return sendJson(response, 200, { ok: true, queued: true });
+    return { ok: true, queued: true };
   }
   if (!mailTransport) {
     const { default: nodemailer } = await import("nodemailer");
@@ -958,9 +989,88 @@ async function handleSendEmail(request, response) {
     await mailTransport.sendMail({ from: `"WiselyBet" <${mailConfig.user}>`, to: mailConfig.to, ...message });
   } catch (caught) {
     console.error("Email failed:", caught.message);
-    return sendJson(response, 502, { error: "The email could not be sent. Check the SMTP settings on the server." });
+    throw httpError(502, "The email could not be sent. Check the SMTP settings on the server.");
   }
-  return sendJson(response, 200, { ok: true });
+  return { ok: true };
+}
+
+// Feedback from signed-in users is emailed to the site owner, with the sender as the reply-to address.
+const feedbackTopics = { idea: "Idea or request", bug: "Something isn't working", data: "Odds or stats look wrong", account: "Account or plan", other: "Other" };
+const feedbackLimits = new Map();
+const feedbackTotal = { count: 0, reset: 0, max: 40 };
+
+async function handleFeedback(request, response, userKey) {
+  if (!mailReady()) throw httpError(503, "Feedback can't be sent right now. Please try again later.");
+  const body = await readJsonBody(request, 8000);
+  const topic = Object.hasOwn(feedbackTopics, body?.topic) ? body.topic : "other";
+  const text = cleanText(body?.message, 2000).trim();
+  if (text.length < 10) throw httpError(400, "Please describe your feedback in a few more words.");
+  const now = Date.now();
+  if (now > feedbackTotal.reset) Object.assign(feedbackTotal, { count: 0, reset: now + 3_600_000 });
+  let mine = feedbackLimits.get(userKey);
+  if (!mine || mine.reset < now) feedbackLimits.set(userKey, mine = { count: 0, reset: now + 3_600_000 });
+  if (mine.count >= 5 || feedbackTotal.count >= feedbackTotal.max) throw httpError(429, "Thanks! We've received a lot of feedback this hour. Please try again later.");
+  mine.count += 1;
+  feedbackTotal.count += 1;
+
+  const name = cleanText(displayName(userKey), 200).replace(/[\r\n]+/g, " ") || "Signed-in user";
+  const replyTo = /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/.test(name) ? name : undefined;
+  const sub = await getSubscription(userKey).catch(() => null);
+  const details = body?.details && typeof body.details === "object" ? body.details : null;
+  const facts = [
+    ["Topic", feedbackTopics[topic]],
+    ["From", name],
+    ["Account", userKey],
+    ["Plan", !sub ? "unknown" : sub.status === "active" ? `${sub.plan || "paid"} (active)` : sub.status === "trial" ? "Free trial" : "Expired"],
+    ["App version", (process.env.RENDER_GIT_COMMIT || "local").slice(0, 7)],
+    ...(details ? [
+      ["Page", cleanText(details.page, 200)],
+      ["Screen", cleanText(details.screen, 40)],
+      ["Theme", cleanText(details.theme, 20)],
+      ["Time zone", cleanText(details.timeZone, 60)],
+      ["Browser", cleanText(request.headers["user-agent"], 300)]
+    ] : [])
+  ].filter(([, value]) => value);
+  const subject = `WiselyBet feedback: ${feedbackTopics[topic]}`;
+  const message = {
+    subject,
+    replyTo,
+    text: [...facts.map(([label, value]) => `${label}: ${value}`), "", text].join("\n"),
+    html: `<div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;color:#1b2418">
+<h1 style="font-size:18px;margin:0 0 12px">${escapeHtml(subject)}</h1>
+<table style="border-collapse:collapse;font-size:13px;margin-bottom:14px">${facts.map(([label, value]) => `<tr><td style="padding:2px 12px 2px 0;color:#5b6658">${escapeHtml(label)}</td><td style="padding:2px 0">${escapeHtml(value)}</td></tr>`).join("")}</table>
+<div style="white-space:pre-wrap;line-height:1.5;border-left:3px solid #a9ec24;padding:8px 12px;background:#f6f8f2">${escapeHtml(text)}</div>
+</div>`
+  };
+  if (mailConfig.dryRun) return sendJson(response, 200, { ok: true, dryRun: true, ...message });
+  return sendJson(response, 200, await deliverMail(message));
+}
+
+// Script errors from visitors' browsers go to the server log (without personal data) so problems surface quickly.
+const clientErrors = { count: 0, reset: 0, max: 60, seen: new Map() };
+const withoutQuery = value => cleanText(value, 1500).replace(/[?#][^\s)'"]*/g, "");
+
+async function handleClientError(request) {
+  const body = await readJsonBody(request, 4000);
+  const now = Date.now();
+  if (now > clientErrors.reset) Object.assign(clientErrors, { count: 0, reset: now + 60_000 });
+  for (const [key, at] of clientErrors.seen) if (now - at > 600_000) clientErrors.seen.delete(key);
+  const report = {
+    kind: body?.kind === "rejection" ? "rejection" : "error",
+    message: cleanText(body?.message, 300).replace(/\s+/g, " ").trim(),
+    source: withoutQuery(body?.source).slice(0, 200),
+    line: Number.isInteger(body?.line) ? body.line : undefined,
+    column: Number.isInteger(body?.column) ? body.column : undefined,
+    page: withoutQuery(body?.page).slice(0, 120),
+    stack: withoutQuery(body?.stack).slice(0, 1200) || undefined,
+    version: (process.env.RENDER_GIT_COMMIT || "local").slice(0, 7)
+  };
+  if (!report.message) return;
+  const key = `${report.message}|${report.source}|${report.line}`;
+  if (clientErrors.seen.has(key) || clientErrors.count >= clientErrors.max) return;
+  clientErrors.seen.set(key, now);
+  clientErrors.count += 1;
+  console.error("Client error:", JSON.stringify(report));
 }
 
 const server = createServer(async (request, response) => {
@@ -968,7 +1078,7 @@ const server = createServer(async (request, response) => {
 
   const requestPath = (request.url || "").split("?")[0];
   if (request.method !== "GET") {
-    const postRoutes = ["/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/firebase", "/api/send-parlay-email", "/api/subscription/subscribe", "/api/push/subscribe", "/api/push/unsubscribe", "/api/push/test"];
+    const postRoutes = ["/api/auth/signup", "/api/auth/login", "/api/auth/logout", "/api/auth/firebase", "/api/send-parlay-email", "/api/subscription/subscribe", "/api/push/subscribe", "/api/push/unsubscribe", "/api/push/test", "/api/feedback", "/api/client-error", "/api/account/delete"];
     const allowed = (request.method === "POST" && postRoutes.includes(requestPath)) ||
       (request.method === "PUT" && requestPath === "/api/user-data");
     if (!allowed) {
@@ -982,6 +1092,12 @@ const server = createServer(async (request, response) => {
         return await sendJson(response, 403, { error: "Cross-origin requests are not allowed." });
       }
       const address = request.socket.remoteAddress || "local";
+      if (requestPath === "/api/client-error") {
+        await handleClientError(request);
+        response.writeHead(204, { "Cache-Control": "no-store" });
+        response.end();
+        return;
+      }
       if (requestPath === "/api/auth/signup") return await sendJson(response, 200, await signUp(await readJsonBody(request, 2000), response, address));
       if (requestPath === "/api/auth/login") return await sendJson(response, 200, await logIn(await readJsonBody(request, 2000), response, address));
       if (requestPath === "/api/auth/firebase") return await sendJson(response, 200, await firebaseSignIn(await readJsonBody(request, 6000), response, address));
@@ -1008,6 +1124,12 @@ const server = createServer(async (request, response) => {
         return await sendJson(response, 200, { ok: true });
       }
       if (requestPath === "/api/push/test") return await sendJson(response, 200, await sendTest(userKey));
+      if (requestPath === "/api/feedback") return await handleFeedback(request, response, userKey);
+      if (requestPath === "/api/account/delete") {
+        if ((await readJsonBody(request, 500))?.confirm !== "DELETE") return await sendJson(response, 400, { error: "Type DELETE to confirm." });
+        await deleteAccount(userKey, response);
+        return await sendJson(response, 200, { ok: true });
+      }
       return await handleSendEmail(request, response);
     } catch (caught) {
       return sendJson(response, caught.status || 500, { error: caught.message || "Request failed." });
@@ -1031,6 +1153,10 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/soccer.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "soccer.js")));
     if (url.pathname === "/healthz") return sendStatic(response, "text/plain", "ok");
     if (url.pathname === "/api/auth/config") return await sendJson(response, 200, { firebase: firebaseWebConfig() });
+    if (Object.hasOwn(publicPages, url.pathname)) return await sendPage(response, 200, publicPages[url.pathname]);
+    if (url.pathname === "/legal.css") return sendStatic(response, "text/css; charset=utf-8", await readFile(join(directory, "legal.css")));
+    if (url.pathname === "/client-errors.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "client-errors.js")));
+    if (url.pathname === "/robots.txt") return sendStatic(response, "text/plain; charset=utf-8", robotsTxt);
 
     const userKey = await getSessionUser(request);
     if (userKey) reportActive(userKey);
@@ -1058,6 +1184,8 @@ const server = createServer(async (request, response) => {
       /^\/sounds\/[\w-]+\.(mp3|wav|ogg|m4a)$/i.test(url.pathname);
     if (!userKey && !guestAllowed) {
       if (url.pathname.startsWith("/api/")) return await sendJson(response, 401, { error: "Sign in to see the odds." });
+      // /subscribe is the only page that needs an account; any other unknown address is a missing page.
+      if (url.pathname !== "/subscribe") return await sendPage(response, 404, "404.html");
       response.writeHead(302, { Location: "/login", "Cache-Control": "no-store" });
       response.end();
       return;
@@ -1502,8 +1630,8 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    response.writeHead(404);
-    response.end("Not found");
+    if (url.pathname.startsWith("/api/")) return await sendJson(response, 404, { error: "Not found." });
+    return await sendPage(response, 404, "404.html");
   } catch (error) {
     console.error("Request failed:", error.message);
     await sendJson(response, error.status || 502, {
@@ -1522,3 +1650,18 @@ server.listen(port, host, () => {
     return reply.json();
   });
 });
+
+// Render stops the old instance with SIGTERM on every deploy: finish the requests in flight, then exit.
+let shuttingDown = false;
+function shutDown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, closing the server.`);
+  server.close(() => process.exit(0));
+  server.closeIdleConnections();
+  setTimeout(() => process.exit(0), 8000).unref();
+}
+process.on("SIGTERM", () => shutDown("SIGTERM"));
+process.on("SIGINT", () => shutDown("SIGINT"));
+// One failed background task (an odds refresh, a phone alert) must not take the whole site down.
+process.on("unhandledRejection", error => console.error("Unhandled rejection:", error?.stack || error));

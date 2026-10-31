@@ -12,6 +12,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <title>WiselyBet | Subscribe</title>
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <script src="/client-errors.js"></script>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif; color: #e8efe9; background: #0e1514; }
@@ -45,6 +46,33 @@
     footer { max-width: 900px; margin: 10px auto 40px; padding: 0 20px; font-size: .78rem; opacity: .6; line-height: 1.5; }
     footer a { color: inherit; }
     .back { display: inline-block; margin-top: 18px; color: #d4a72c; text-decoration: none; }
+    .legal-links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
+    .account { margin-top: 34px; padding: 20px 22px; background: #16201e; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; }
+    .account h2 { margin: 0 0 6px; font-size: 1.05rem; }
+    .account p { margin: 0; font-size: .9rem; line-height: 1.5; opacity: .8; }
+    .account-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .account-actions button, .dialog-actions button { padding: 10px 16px; border: 1px solid rgba(255,255,255,.25); border-radius: 4px; background: transparent; color: #e8efe9; font: inherit; font-size: .9rem; font-weight: 700; cursor: pointer; }
+    .account-actions button:hover:not(:disabled), .dialog-actions button:hover:not(:disabled) { border-color: #d4a72c; color: #d4a72c; }
+    .account-actions button.danger { border-color: rgba(229,83,75,.55); color: #ff8b84; }
+    .account-actions button.danger:hover:not(:disabled) { border-color: #e5534b; background: rgba(229,83,75,.12); color: #ffb1ab; }
+    .account-actions button:disabled { opacity: .6; cursor: wait; }
+    #account-message { margin-top: 10px; font-size: .85rem; opacity: 1; }
+    #account-message:empty { margin-top: 0; }
+    #account-message.error { color: #ff8b84; }
+    dialog { width: min(440px, calc(100vw - 32px)); padding: 0; border: 1px solid rgba(255,255,255,.14); border-top: 3px solid #e5534b; border-radius: 6px; background: #121a18; color: #e8efe9; box-shadow: 0 24px 70px rgba(0,0,0,.6); }
+    dialog::backdrop { background: rgba(4,8,7,.72); }
+    dialog form { display: grid; gap: 12px; padding: 22px; }
+    dialog h2 { margin: 0; font-size: 1.15rem; }
+    dialog p { margin: 0; font-size: .9rem; line-height: 1.5; opacity: .85; }
+    dialog label { display: grid; gap: 6px; font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    dialog input { padding: 11px 12px; border: 1px solid #2b3430; border-radius: 4px; background: #0b0f0d; color: inherit; font: inherit; letter-spacing: .08em; }
+    dialog input:focus { border-color: #d4a72c; outline: 2px solid rgba(212,167,44,.3); outline-offset: 0; }
+    .dialog-error { color: #ff8b84; opacity: 1; }
+    .dialog-error[hidden] { display: none; }
+    .dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+    .dialog-actions button.danger { border-color: #e5534b; background: #c9423b; color: #fff; }
+    .dialog-actions button.danger:hover:not(:disabled) { border-color: #e5534b; background: #dc4b43; color: #fff; }
+    .dialog-actions button:disabled { opacity: .5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -80,11 +108,36 @@
     <div id="message" role="status" aria-live="polite"></div>
     <div id="demo" class="demo" hidden>Demo checkout: no card is charged and no payment provider is connected yet.</div>
     <a class="back" id="back" href="/" hidden>← Back to the dashboard</a>
+    <section class="account" aria-labelledby="account-title">
+      <h2 id="account-title">Your account &amp; privacy</h2>
+      <p><span id="account-who" hidden>Signed in as <strong id="account-name"></strong>. </span>Download a copy of everything saved to your account, or delete the account for good.</p>
+      <div class="account-actions">
+        <button type="button" id="data-download">⬇ Download my data</button>
+        <button type="button" class="danger" id="account-delete">Delete my account…</button>
+      </div>
+      <p id="account-message" role="status" aria-live="polite"></p>
+    </section>
   </main>
   <footer>
     18+ only. Informational only, not betting advice. Gambling involves risk, so only wager what you can afford to lose.
     Need help? Call <a href="tel:18004262537">1-800-GAMBLER</a> or visit <a href="https://www.ncpgambling.org" target="_blank" rel="noopener noreferrer">ncpgambling.org</a>.
+    <nav class="legal-links" aria-label="Legal and help"><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/responsible-gaming">Responsible gaming</a></nav>
   </footer>
+  <dialog id="delete-dialog" aria-labelledby="delete-title">
+    <form id="delete-form" novalidate>
+      <h2 id="delete-title">⚠ Delete your account?</h2>
+      <p>This permanently deletes your WiselyBet account and everything saved to it: followed players, trackers, parlays, your pick record, settings, phone alerts and your plan. <strong>It can't be undone.</strong></p>
+      <p>Want a copy first? Close this and use <strong>⬇ Download my data</strong>.</p>
+      <label>Type DELETE to confirm
+        <input id="delete-confirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </label>
+      <p class="dialog-error" id="delete-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" data-close>Keep my account</button>
+        <button type="submit" class="danger" id="delete-submit" disabled>Delete my account</button>
+      </div>
+    </form>
+  </dialog>
   <script>
     const statusBox = document.querySelector("#status");
     const message = document.querySelector("#message");
@@ -157,6 +210,101 @@
     document.querySelector("#sign-out").addEventListener("click", async () => {
       try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* leave anyway */ }
       location.replace("/");
+    });
+
+    // Account care: a copy of everything saved to the account (importable from Settings → Your data), and deletion.
+    fetch("/api/auth/me").then(reply => (reply.ok ? reply.json() : null)).then(me => {
+      if (!me?.username) return;
+      document.querySelector("#account-name").textContent = me.username;
+      document.querySelector("#account-who").hidden = false;
+    }).catch(() => {});
+
+    const accountMessage = document.querySelector("#account-message");
+    const downloadButton = document.querySelector("#data-download");
+    downloadButton.addEventListener("click", async () => {
+      downloadButton.disabled = true;
+      accountMessage.className = "";
+      accountMessage.textContent = "Preparing your file…";
+      let body = {};
+      let problem = "";
+      try {
+        const reply = await fetch("/api/user-data", { cache: "no-store" });
+        if (reply.status === 401) { location.replace("/login"); return; }
+        body = await reply.json().catch(() => ({}));
+        if (!reply.ok) problem = body.error || "Your data couldn't be loaded. Please try again.";
+      } catch {
+        problem = "Your data couldn't be loaded. Check your connection and try again.";
+      }
+      downloadButton.disabled = false;
+      if (problem) {
+        accountMessage.className = "error";
+        accountMessage.textContent = problem;
+        return;
+      }
+      const data = {};
+      for (const [key, value] of Object.entries(body.data || {})) {
+        if (typeof value !== "string") { data[key] = value; continue; }
+        try { data[key] = JSON.parse(value); } catch { data[key] = value; }
+      }
+      const payload = { app: "courtside", version: 1, exportedAt: new Date().toISOString(), account: { username: body.username }, subscription: body.subscription, data };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "wiselybet-account-data.json";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      accountMessage.textContent = "Downloaded. You can import this file again from Settings → Your data.";
+    });
+
+    const deleteDialog = document.querySelector("#delete-dialog");
+    const deleteOpen = document.querySelector("#account-delete");
+    const deleteInput = document.querySelector("#delete-confirm");
+    const deleteSubmit = document.querySelector("#delete-submit");
+    const deleteError = document.querySelector("#delete-error");
+    let deleting = false;
+    const deleteConfirmed = () => deleteInput.value.trim().toUpperCase() === "DELETE";
+    deleteOpen.addEventListener("click", () => {
+      deleteInput.value = "";
+      deleteSubmit.disabled = true;
+      deleteError.hidden = true;
+      deleteDialog.showModal();
+      deleteInput.focus();
+    });
+    deleteDialog.querySelector("[data-close]").addEventListener("click", () => deleteDialog.close());
+    deleteDialog.addEventListener("cancel", event => { if (deleting) event.preventDefault(); });
+    deleteDialog.addEventListener("close", () => deleteOpen.focus());
+    deleteInput.addEventListener("input", () => { deleteSubmit.disabled = deleting || !deleteConfirmed(); });
+    document.querySelector("#delete-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      if (deleting || !deleteConfirmed()) return;
+      deleting = true;
+      deleteSubmit.disabled = true;
+      deleteSubmit.textContent = "Deleting…";
+      deleteError.hidden = true;
+      let problem = "";
+      try {
+        const reply = await fetch("/api/account/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirm: "DELETE" }) });
+        if (!reply.ok) problem = (await reply.json().catch(() => ({}))).error || "Your account couldn't be deleted. Please try again.";
+      } catch {
+        problem = "Your account couldn't be deleted. Check your connection and try again.";
+      }
+      if (problem) {
+        deleting = false;
+        deleteError.textContent = problem;
+        deleteError.hidden = false;
+        deleteSubmit.textContent = "Delete my account";
+        deleteSubmit.disabled = !deleteConfirmed();
+        return;
+      }
+      try { localStorage.clear(); } catch { /* ignore */ }
+      try {
+        const registration = await Promise.race([navigator.serviceWorker?.getRegistration(), new Promise(resolve => setTimeout(resolve, 2000))]);
+        const subscription = await registration?.pushManager?.getSubscription();
+        await subscription?.unsubscribe();
+      } catch { /* the server already dropped this phone's alerts */ }
+      location.replace("/login?deleted=1");
     });
     load();
   </script>

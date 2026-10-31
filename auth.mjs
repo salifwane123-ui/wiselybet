@@ -127,6 +127,26 @@ export async function firebaseSignIn(body, response, address) {
   }
 }
 
+// Firebase accounts deleted while this server runs; their still-signed cookies stop working at once.
+const deletedUsers = new Set();
+// A session cookie stays validly signed until it expires, so every few minutes we also ask Firebase whether the
+// account still exists and is enabled. That way a deleted account is signed out on every device.
+const accountCheckMs = 5 * 60_000;
+const lastAccountCheck = new Map();
+async function accountStillActive(auth, cookie, uid) {
+  if (Date.now() - (lastAccountCheck.get(uid) || 0) < accountCheckMs) return true;
+  try {
+    await auth.verifySessionCookie(cookie, true);
+  } catch (error) {
+    if (error?.code === "auth/user-not-found") deletedUsers.add(uid);
+    if (["auth/user-not-found", "auth/user-disabled", "auth/session-cookie-revoked"].includes(error?.code)) return false;
+    // Firebase unreachable: keep the signed cookie working and check again on a later request.
+    return true;
+  }
+  lastAccountCheck.set(uid, Date.now());
+  return true;
+}
+
 export async function getSessionUser(request) {
   if (firebaseEnabled) {
     const cookie = parseCookies(request)[cookieName];
@@ -134,6 +154,7 @@ export async function getSessionUser(request) {
     try {
       const { auth } = await firebase();
       const decoded = await auth.verifySessionCookie(cookie);
+      if (deletedUsers.has(decoded.uid) || !(await accountStillActive(auth, cookie, decoded.uid))) return null;
       firebaseNames.set(decoded.uid, decoded.email || decoded.name || "Account");
       return decoded.uid;
     } catch {
@@ -240,6 +261,49 @@ export async function logOut(request, response) {
   setCookie(response, "", 0);
 }
 
+// Permanently deletes the account and everything saved with it: synced data, phone alert subscriptions,
+// presence and plan records. Every session of the account stops working.
+export async function deleteAccount(userKey, response) {
+  if (firebaseEnabled) {
+    const { auth, db } = await firebase();
+    // Blocks late saves (a closing tab, a phone alert check) from recreating the record while it is deleted.
+    deletedUsers.add(userKey);
+    try {
+      await Promise.all([db.collection("users").doc(userKey).delete(), db.collection("presence").doc(userKey).delete()]);
+      await auth.deleteUser(userKey).catch(error => {
+        if (error?.code !== "auth/user-not-found") throw error;
+      });
+    } catch (error) {
+      deletedUsers.delete(userKey);
+      console.error("Account deletion failed:", error.message);
+      throw httpError(502, "Your account could not be deleted right now. Please try again.");
+    }
+  } else {
+    await load();
+    delete users[userKey];
+    for (const [id, session] of Object.entries(sessions)) if (session.user === userKey) delete sessions[id];
+    await persist();
+  }
+  firebaseNames.delete(userKey);
+  subscriptions.delete(userKey);
+  lastReported.delete(userKey);
+  lastAccountCheck.delete(userKey);
+  setCookie(response, "", 0);
+}
+
+// A break taken in Settings closes the app on every device until it ends and pauses phone alerts.
+// The server keeps it in place: an active break can be extended but never removed or shortened early.
+export const breakDataKey = "courtside.break.v1";
+const maxBreakMs = 31 * 86_400_000;
+export function breakUntil(raw) {
+  try {
+    const until = Number(JSON.parse(raw || "null")?.until);
+    return Number.isFinite(until) ? until : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function getUserData(userKey) {
   if (firebaseEnabled) {
     const { db } = await firebase();
@@ -265,6 +329,7 @@ export async function listPushUsers() {
 }
 
 export async function updateUserData(userKey, body, internal = false) {
+  if (deletedUsers.has(userKey)) throw httpError(401, "Please sign in.");
   if (!firebaseEnabled) await load();
   const user = firebaseEnabled ? {} : users[userKey];
   if (!user || !body || typeof body.data !== "object" || !body.data || Array.isArray(body.data)) {
@@ -272,9 +337,15 @@ export async function updateUserData(userKey, body, internal = false) {
   }
   function mergeData(current) {
     const next = { ...current };
+    const now = Date.now();
     for (const [key, value] of Object.entries(body.data)) {
       if (!/^courtside\.[\w.-]{1,60}$/.test(key)) continue;
       if (key === pushDataKey && !internal) continue;
+      if (key === breakDataKey) {
+        const activeUntil = breakUntil(current[key]);
+        if (activeUntil > now && (value === null || breakUntil(value) < activeUntil)) continue;
+        if (value !== null && breakUntil(value) > now + maxBreakMs) continue;
+      }
       if (value === null) delete next[key];
       else if (typeof value === "string") next[key] = value;
     }
@@ -317,14 +388,19 @@ export async function updateUserData(userKey, body, internal = false) {
 export async function queueEmail(to, message) {
   if (!firebaseEnabled) return false;
   const { db } = await firebase();
-  await db.collection("mail").add({ to, message: { subject: message.subject, text: message.text, html: message.html }, createdAt: new Date().toISOString() });
+  await db.collection("mail").add({
+    to,
+    ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+    message: { subject: message.subject, text: message.text, html: message.html },
+    createdAt: new Date().toISOString()
+  });
   return true;
 }
 
 // Records that a signed-in user is active in Firestore (presence/{uid}), at most once a minute per user.
 const lastReported = new Map();
 export function reportActive(userKey) {
-  if (!firebaseEnabled || Date.now() - (lastReported.get(userKey) || 0) < 60_000) return;
+  if (!firebaseEnabled || deletedUsers.has(userKey) || Date.now() - (lastReported.get(userKey) || 0) < 60_000) return;
   lastReported.set(userKey, Date.now());
   firebase()
     .then(({ db }) => db.collection("presence").doc(userKey).set({
@@ -360,6 +436,7 @@ async function readSubscription(userKey) {
 }
 
 async function writeSubscription(userKey, record) {
+  if (deletedUsers.has(userKey)) return;
   if (firebaseEnabled) {
     const { db } = await firebase();
     await db.collection("users").doc(userKey).set(record, { merge: true });
