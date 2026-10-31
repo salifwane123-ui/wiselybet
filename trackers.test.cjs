@@ -32,7 +32,8 @@ const code = [
   slice("    // Opening a pick or the whole parlay at the sportsbook also tracks it", "    // A short note that the picks are in the tracker, with Undo."),
   slice("    function normalizeName(", "    function normalizeSignalName("),
   slice("    // Players the user took out of the best parlay", "    function bestParlayLegText("),
-  slice("    function bestParlayOutcomeText(", "    // The book and state lists are declared")
+  slice("    function bestParlayOutcomeText(", "    // The book and state lists are declared"),
+  slice("    const trackerHeaderAnimationStart =", "    function setupTrackerHeaders(")
 ].join("\n");
 const trackerSnapshots = new Map();
 const storage = new Map();
@@ -84,13 +85,50 @@ const page = runInNewContext(`${code}
    pickIdentity, pickSlot, pickCopyIn, addTracker, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
    playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
    forgetBestParlayRemoved, syncBestParlayRemoved, trackerClock, suggestionsSettled, bookSuggestionPending, removalSuggestionPending,
-  disableParlaySuggestions, bestParlayOutcomeText, bestParlayLegText, createLiveNow });`, context);
+  disableParlaySuggestions, bestParlayOutcomeText, bestParlayLegText, createLiveNow, measureTrackerHeader });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
 const over = { key: "over", name: "Test Player", sport: "basketball_nba", stat: "PTS", target: 25 };
 const under = { ...over, key: "under", side: "under" };
 const live = (extra = {}) => ({ state: "in", current: 12, found: true, minutes: 20, remaining: 20, fouls: 2, injury: null, replacements: [], ...extra });
+
+test("tracker headers slide only when overflowing and resize without resetting unchanged slides", () => {
+  const values = new Map();
+  const classes = new Set();
+  let writes = 0;
+  const header = {
+    isConnected: true, clientWidth: 200, firstElementChild: { scrollWidth: 320 },
+    style: {
+      getPropertyValue: key => values.get(key) || "",
+      setProperty: (key, value) => { values.set(key, value); writes++; }
+    },
+    classList: { toggle: (name, enabled) => enabled ? classes.add(name) : classes.delete(name) }
+  };
+  page.measureTrackerHeader(header);
+  assert.ok(classes.has("is-overflowing"));
+  assert.equal(values.get("--header-shift"), "-120px");
+  assert.equal(values.get("--header-duration"), `${120 / 24 / 0.35}s`);
+  const written = writes;
+  page.measureTrackerHeader(header);
+  assert.equal(writes, written);
+  header.clientWidth = 400;
+  page.measureTrackerHeader(header);
+  assert.ok(!classes.has("is-overflowing"));
+  header.clientWidth = 319;
+  page.measureTrackerHeader(header);
+  assert.ok(!classes.has("is-overflowing"));
+  header.clientWidth = 318;
+  page.measureTrackerHeader(header);
+  assert.ok(classes.has("is-overflowing"));
+  header.clientWidth = 0;
+  page.measureTrackerHeader(header);
+  assert.ok(!classes.has("is-overflowing"));
+  header.isConnected = false;
+  const disconnectedWrites = writes;
+  page.measureTrackerHeader(header);
+  assert.equal(writes, disconnectedWrites);
+});
 
 test("picks saved before Unders existed stay Overs", () => {
   assert.equal(page.trackerSide({ target: 25 }), "over");

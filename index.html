@@ -1242,6 +1242,20 @@
     .tracker-window-summary::before { content: "+"; color: var(--accent); font-weight: 800; }
     .tracker-window[open] > .tracker-window-summary::before { content: "-"; }
     .tracker-window-summary .tracker-parlay-title { min-width: 0; overflow-wrap: anywhere; }
+    .tracker-window-summary .tracker-header-slide, .tracker-top h3.tracker-header-slide,
+    .tracker-game-row .tracker-header-slide { flex: 1; min-width: 0; overflow: hidden; text-overflow: clip; white-space: nowrap; overflow-wrap: normal; }
+    .tracker-header-text { display: inline-block; width: max-content; max-width: none; padding: 2px 0; }
+    .tracker-header-slide.is-overflowing .tracker-header-text { animation: tracker-header-slide var(--header-duration) linear var(--header-delay) infinite; }
+    @keyframes tracker-header-slide {
+      0%, 15%, 100% { transform: translateX(0); }
+      50%, 65% { transform: translateX(var(--header-shift)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tracker-header-slide.is-overflowing .tracker-header-text { animation: none; }
+      .tracker-window-summary .tracker-header-slide, .tracker-top h3.tracker-header-slide,
+      .tracker-game-row .tracker-header-slide { white-space: normal; overflow-wrap: anywhere; }
+      .tracker-header-slide .tracker-header-text { width: auto; max-width: 100%; }
+    }
     .tracker-window-summary .tracker-parlay-badge { flex: 0 0 auto; margin: 0; }
     .tracker-window-tools { display: flex; justify-content: flex-end; gap: 8px; padding: 0 0 8px; }
     .tracker-window-tools .tracker-parlay-btn { min-height: 30px; padding: 4px 9px; }
@@ -9457,6 +9471,7 @@
       syncParlayFilter();
       trackerToggle.setAttribute("aria-expanded", String(open));
       trackerArrow.textContent = open ? "▼" : "▲";
+      if (open) trackerPanel.querySelectorAll(".tracker-header-slide").forEach(measureTrackerHeader);
     }
 
     function clockMinutes(clock) {
@@ -10070,6 +10085,46 @@
       grid.classList.add("is-masonry");
     }
 
+    const trackerHeaderAnimationStart = Date.now();
+    const trackerHeaderObserver = window.ResizeObserver
+      ? new ResizeObserver(entries => {
+        for (const header of new Set(entries.map(entry => entry.target.closest(".tracker-header-slide")))) {
+          if (header) measureTrackerHeader(header);
+        }
+      })
+      : null;
+    function measureTrackerHeader(header) {
+      const text = header.firstElementChild;
+      if (!text || !header.isConnected) return;
+      const distance = Math.max(0, text.scrollWidth - header.clientWidth);
+      const overflowing = header.clientWidth > 0 && distance > 1;
+      const shift = `${-distance}px`;
+      if (header.style.getPropertyValue("--header-shift") !== shift) {
+        const duration = Math.max(8, distance / 24 / 0.35);
+        header.style.setProperty("--header-shift", shift);
+        header.style.setProperty("--header-duration", `${duration}s`);
+        // Keep the slide moving across the live tracker's frequent DOM redraws.
+        header.style.setProperty("--header-delay", `${-((Date.now() - trackerHeaderAnimationStart) / 1000) % duration}s`);
+      }
+      header.classList.toggle("is-overflowing", overflowing);
+    }
+    function setupTrackerHeaders() {
+      trackerHeaderObserver?.disconnect();
+      for (const header of trackerPanel.querySelectorAll(".tracker-window-summary h4, .tracker-top h3, .tracker-game-row .tracker-leg-game")) {
+        header.classList.add("tracker-header-slide");
+        header.title = header.textContent.trim();
+        const text = element("span", "tracker-header-text");
+        text.append(...header.childNodes);
+        header.replaceChildren(text);
+        measureTrackerHeader(header);
+        trackerHeaderObserver?.observe(header);
+        trackerHeaderObserver?.observe(text);
+      }
+    }
+    window.addEventListener("resize", () => {
+      trackerPanel.querySelectorAll(".tracker-header-slide").forEach(measureTrackerHeader);
+    });
+
     function createMoneylineTrackerCard(tracker, snapshot, assessment) {
       const card = element("article", `tracker-card moneyline-card level-${assessment.level}`);
       const head = element("header", "tracker-card-head");
@@ -10342,12 +10397,14 @@
 
       syncParlayFilter();
       trackerPanel.parentElement.dataset.windows = String(Math.min(groupedCards.length, 3));
+      trackerHeaderObserver?.disconnect();
       trackerMasonryObserver?.disconnect();
       if (groupedCards.length) {
         const windows = element("div", "tracker-window-grid");
         windows.setAttribute("aria-label", "Parlay and single-pick tracking windows");
         windows.append(...groupedCards);
         trackerPanel.replaceChildren(windows);
+        setupTrackerHeaders();
         for (const group of groupedCards) trackerMasonryObserver?.observe(group);
         layoutTrackerMasonry(windows);
       } else {
