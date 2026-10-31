@@ -116,6 +116,12 @@
     .market-pick-suggestion.no-lean strong { color: #a7aec0; font-weight: 600; }
     .market-pick-suggestion a { flex: 0 0 auto; color: #d4e9a1; font-weight: 650; text-decoration: underline; text-decoration-color: rgba(212,233,161,.45); text-underline-offset: 2px; }
     .market-pick-suggestion a:hover { color: #efffc9; text-decoration-color: currentColor; }
+    .public-pick-review { grid-column: 1 / -1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); font-size: .7rem; }
+    .public-pick-review p { margin: 4px 0; }
+    .public-pick-review a, .public-research-sample a { color: var(--accent); text-underline-offset: 2px; }
+    .public-research-sample { margin-top: 10px; color: var(--muted); font-size: .73rem; }
+    .public-research-sample summary { cursor: pointer; }
+    .public-research-sample p { max-width: 680px; }
     .market-probability {
       display: inline-flex;
       align-items: center;
@@ -2455,6 +2461,11 @@
                 <h2 id="player-picks-title">Player prop odds</h2>
                 <p>Compare the best Over and Under price for each player and line. Percentages are normalized market-implied probabilities—not internet pick counts or betting recommendations.</p>
                 <p class="prop-auto-note">Auto-refreshes every 60 seconds while this page is open. Each check uses your odds provider quota.</p>
+                <details class="public-research-sample">
+                  <summary>Public research example · October 30, 2026</summary>
+                  <p>Franz Wagner · Magic vs. Raptors · points 22.5: one verified article author backed Under. No matching Reddit or X posts were verified. This past-game sample is not a current pick or a count of all bettors.</p>
+                  <a href="https://rotogrinders.com/articles/nba-player-props-today-best-bets-today-friday-october-30-2026-4221178" target="_blank" rel="noopener noreferrer">Read Nick Galaida's dated RotoGrinders pick</a>
+                </details>
               </div>
               <span class="panel-tag">BEST AVAILABLE PRICE</span>
             </div>
@@ -4705,6 +4716,71 @@
       return normalizeName(String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
     }
 
+    const publicPickResearch = [{
+      player: "Franz Wagner",
+      sport: "basketball_nba",
+      market: "player_points",
+      point: 22.5,
+      gameDate: "2026-10-30",
+      teams: ["Orlando Magic", "Toronto Raptors"],
+      checkedDate: "2026-10-31",
+      sources: [{
+        author: "Nick Galaida",
+        publisher: "RotoGrinders",
+        side: "under",
+        publishedDate: "2026-10-30",
+        url: "https://rotogrinders.com/articles/nba-player-props-today-best-bets-today-friday-october-30-2026-4221178"
+      }]
+    }];
+
+    function matchingPublicPickResearch(player, sport, market, point, event) {
+      const teams = [event.home_team, event.away_team].map(normalizeSignalName).sort();
+      return publicPickResearch.find(sample =>
+        normalizeSignalName(sample.player) === normalizeSignalName(player) &&
+        sample.sport === sport && sample.market === market &&
+        typeof point === "number" && sample.point === point &&
+        sample.gameDate === localDateKey(event.commence_time) &&
+        sample.teams.map(normalizeSignalName).sort().every((team, index) => team === teams[index])
+      ) || null;
+    }
+
+    function countPublicPickAuthors(sources) {
+      const authors = new Map();
+      for (const source of sources) {
+        const id = normalizeSignalName(source.author);
+        if (!id || !["over", "under"].includes(source.side)) continue;
+        if (!authors.has(id)) authors.set(id, new Set());
+        authors.get(id).add(source.side);
+      }
+      const counts = { over: 0, under: 0, conflicting: 0 };
+      for (const sides of authors.values()) {
+        if (sides.size > 1) counts.conflicting += 1;
+        else counts[[...sides][0]] += 1;
+      }
+      return counts;
+    }
+
+    function createPublicPickReview(player, sport, market, point, event) {
+      const review = element("div", "public-pick-review");
+      const sample = matchingPublicPickResearch(player, sport, market, point, event);
+      review.append(element("strong", "", "Public pick research · not bettor counts"));
+      if (sample) {
+        const counts = countPublicPickAuthors(sample.sources);
+        review.append(element("p", "", `Verified authors in this sample: Over ${counts.over} · Under ${counts.under} · Conflicting ${counts.conflicting}. Game: ${sample.gameDate}; reviewed ${sample.checkedDate}.`));
+        for (const source of sample.sources) {
+          const link = element("a", "", `${source.author} · ${source.publisher} · ${source.side === "over" ? "Over" : "Under"} ${sample.point} · published ${source.publishedDate}`);
+          link.href = source.url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          review.append(link);
+        }
+        review.append(element("p", "", "One article author was verified; no matching Reddit or X posts were verified. This is a limited historical sample, not a consensus, win probability, or live social feed."));
+      } else {
+        review.append(element("p", "", "Not researched for this exact game and line. No public count is available; this does not mean nobody picked it."));
+      }
+      return review;
+    }
+
     function signalDataFresh(value, now, maxAge) {
       const time = Date.parse(value);
       return Number.isFinite(time) && time <= now + 60_000 && now - time <= maxAge;
@@ -5389,6 +5465,7 @@
                     : "No lean · both prices needed"
               ));
               row.append(suggestion);
+              row.append(createPublicPickReview(playerGroup.player, sport, market, line.point, event));
             }
             card.append(row);
           }

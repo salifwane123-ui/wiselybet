@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test account-sync.test.cjs player-signals.test.cjs best-parlay.test.mjs trackers.test.cjs betslip-links.test.cjs game-court.test.cjs push.test.cjs"
+    "test": "node --test account-sync.test.cjs player-signals.test.cjs public-picks.test.cjs best-parlay.test.mjs trackers.test.cjs betslip-links.test.cjs game-court.test.cjs push.test.cjs"
   },
   "keywords": [],
   "author": "",
