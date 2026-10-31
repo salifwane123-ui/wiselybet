@@ -544,7 +544,7 @@ async function parlayEventOdds(sport, event, book, premium, now) {
   return entry;
 }
 
-async function buildParlayResponse(sport, book, premium, { maxGames = parlayRules.maxGames, includeScore = false, sideFilter = "all" } = {}) {
+async function buildParlayResponse(sport, book, premium, { maxGames = parlayRules.maxGames, includeScore = false, sideFilter = "all", rankBy = "strength" } = {}) {
   const injuriesTask = cached(`parlay-injuries:${sport}`, 10 * 60_000, () => fetchPlayerInjuries(sport)).then(injuredPlayers, () => null);
   const now = Date.now();
   const events = await fetchOddsApi(`sports/${encodeURIComponent(sport)}/events`, {});
@@ -577,6 +577,7 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
     sport,
     book,
     side: sideFilter,
+    rankBy,
     scope,
     markets: bestParlayMarkets[sport],
     games: slateEvents.length,
@@ -599,7 +600,7 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
   if (liveEvents.length) {
     try {
       liveResult = buildBestParlay({
-        events: liveEvents, oddsByEvent: await price(liveEvents), book, markets, injured: injured || new Set(), sport, liveGames, includeScore, sideFilter
+        events: liveEvents, oddsByEvent: await price(liveEvents), book, markets, injured: injured || new Set(), sport, liveGames, includeScore, sideFilter, rankBy
       });
     } catch (error) {
       console.error("Live best parlay failed:", error.message);
@@ -621,7 +622,7 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
   let result = null;
   try {
     result = buildBestParlay({
-      events: slate.events, oddsByEvent: await price(slate.events), book, markets, injured: injured || new Set(), sport, includeScore, sideFilter
+      events: slate.events, oddsByEvent: await price(slate.events), book, markets, injured: injured || new Set(), sport, includeScore, sideFilter, rankBy
     });
   } catch (error) {
     if (!liveResult?.legs.length) throw error;
@@ -649,7 +650,8 @@ async function bestParlayFor(sport, book, premium, options = {}) {
   const maxGames = Number.isInteger(options.maxGames) ? options.maxGames : parlayRules.maxGames;
   const includeScore = options.includeScore === true;
   const sideFilter = options.sideFilter === "over" || options.sideFilter === "under" ? options.sideFilter : "all";
-  const extraKey = maxGames === parlayRules.maxGames && !includeScore && sideFilter === "all" ? "" : `|${maxGames}|${includeScore ? "ranked" : "plain"}|${sideFilter}`;
+  const rankBy = options.rankBy === "price" ? "price" : "strength";
+  const extraKey = maxGames === parlayRules.maxGames && !includeScore && sideFilter === "all" && rankBy === "strength" ? "" : `|${maxGames}|${includeScore ? "ranked" : "plain"}|${sideFilter}|${rankBy}`;
   const key = `best-parlay:${sport}|${book}|${premium ? "full" : "guest"}${extraKey}`;
   const lastGood = () => {
     const saved = parlayLastGood.get(key);
@@ -667,7 +669,7 @@ async function bestParlayFor(sport, book, premium, options = {}) {
     throw error;
   }
   try {
-    const value = await cached(key, 60_000, () => buildParlayResponse(sport, book, premium, { maxGames, includeScore, sideFilter }));
+    const value = await cached(key, 60_000, () => buildParlayResponse(sport, book, premium, { maxGames, includeScore, sideFilter, rankBy }));
     parlayLastGood.set(key, value);
     return value;
   } catch (error) {
@@ -680,8 +682,8 @@ async function bestParlayFor(sport, book, premium, options = {}) {
   }
 }
 
-async function bestParlayForAllSports(book, premium, sideFilter = "all") {
-  const key = `best-parlay:all|${book}|${premium ? "full" : "guest"}|${sideFilter}`;
+async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy = "strength") {
+  const key = `best-parlay:all|${book}|${premium ? "full" : "guest"}|${sideFilter}|${rankBy}`;
   const lastGood = () => {
     const saved = parlayLastGood.get(key);
     return saved && Date.now() - Date.parse(saved.generatedAt) < parlayStaleMs ? { ...saved, stale: true } : null;
@@ -693,7 +695,7 @@ async function bestParlayForAllSports(book, premium, sideFilter = "all") {
     const unavailable = [];
     for (const sport of Object.keys(bestParlayMarkets)) {
       try {
-        results.push(await bestParlayFor(sport, book, premium, { maxGames: 2, includeScore: true, sideFilter }));
+        results.push(await bestParlayFor(sport, book, premium, { maxGames: 2, includeScore: true, sideFilter, rankBy }));
       } catch (error) {
         unavailable.push(sport);
         console.error(`All-sports parlay skipped ${sport}:`, error.message);
@@ -719,6 +721,7 @@ async function bestParlayForAllSports(book, premium, sideFilter = "all") {
       sport: "all",
       book,
       side: sideFilter,
+      rankBy,
       scope: liveLegs === merged.legs.length && liveLegs ? "live" : liveLegs ? "mixed" : results.some(result => result.scope === "next") ? "next" : "soon",
       markets: [...new Set(results.flatMap(result => result.markets || []))],
       games: results.reduce((sum, result) => sum + (result.games || 0), 0),
@@ -1161,14 +1164,14 @@ const server = createServer(async (request, response) => {
         return;
       }
       if (sport === "all") {
-        await sendJson(response, 200, await bestParlayForAllSports(book, premium, sideFilter));
+        await sendJson(response, 200, await bestParlayForAllSports(book, premium, sideFilter, "price"));
         return;
       }
       if (!Object.hasOwn(bestParlayMarkets, sport)) {
         await sendJson(response, 400, { error: "Best parlays are not available for this sport." });
         return;
       }
-      await sendJson(response, 200, await bestParlayFor(sport, book, premium, { sideFilter }));
+      await sendJson(response, 200, await bestParlayFor(sport, book, premium, { sideFilter, rankBy: "price" }));
       return;
     }
 
