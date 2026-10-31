@@ -936,14 +936,12 @@
     #simulate-alert { bottom: calc(16px + env(safe-area-inset-bottom)); }
     #toast-stack { top: calc(16px + env(safe-area-inset-top)); }
     @media (max-width: 820px) { input, select, textarea { font-size: 16px !important; } button, a { -webkit-tap-highlight-color: transparent; } }
-    .tracker-parlay-select, .tracker-filter select, #parlay-view { color-scheme: dark; background-color: #0f1a24; color: #e7f7b0; }
-    .tracker-parlay-select option, .tracker-filter select option, #parlay-view option, .tracker-parlay-select optgroup { background: #0f1a24; color: #e7f7b0; }
-    .tracker-parlay-select option:checked, .tracker-filter select option:checked, #parlay-view option:checked { background: #c9ef5b linear-gradient(#c9ef5b, #c9ef5b); color: #10160a; }
-    .tracker-parlay-select option:disabled { color: #6f8091; }
-    html[data-theme="light"] .tracker-parlay-select, html[data-theme="light"] .tracker-filter select, html[data-theme="light"] #parlay-view { color-scheme: light; background-color: #fff; color: #1b2418; }
-    html[data-theme="light"] .tracker-parlay-select option, html[data-theme="light"] .tracker-filter select option, html[data-theme="light"] #parlay-view option { background: #fff; color: #1b2418; }
-    html[data-theme="light"] .tracker-parlay-select option:checked, html[data-theme="light"] .tracker-filter select option:checked, html[data-theme="light"] #parlay-view option:checked { background: #dff5a8 linear-gradient(#dff5a8, #dff5a8); color: #1b2418; }
-    html[data-theme="light"] .tracker-parlay-select option:disabled { color: #98a294; }
+    .tracker-filter select, #parlay-view { color-scheme: dark; background-color: #0f1a24; color: #e7f7b0; }
+    .tracker-filter select option, #parlay-view option { background: #0f1a24; color: #e7f7b0; }
+    .tracker-filter select option:checked, #parlay-view option:checked { background: #c9ef5b linear-gradient(#c9ef5b, #c9ef5b); color: #10160a; }
+    html[data-theme="light"] .tracker-filter select, html[data-theme="light"] #parlay-view { color-scheme: light; background-color: #fff; color: #1b2418; }
+    html[data-theme="light"] .tracker-filter select option, html[data-theme="light"] #parlay-view option { background: #fff; color: #1b2418; }
+    html[data-theme="light"] .tracker-filter select option:checked, html[data-theme="light"] #parlay-view option:checked { background: #dff5a8 linear-gradient(#dff5a8, #dff5a8); color: #1b2418; }
     @media (max-width: 560px) { .topbar { flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; } .topbar-actions { flex-wrap: wrap; max-width: 100%; } }
     #ios-install { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 300; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(201,239,91,.4); background: #1a231c; color: #eaf1ec; box-shadow: 0 12px 36px rgba(0,0,0,.6); font-size: .86rem; line-height: 1.4; }
     #ios-install[hidden] { display: none; }
@@ -1334,7 +1332,6 @@
     .tracker-report.tone-bad { border-color: #ff4d4d; background: rgba(52,10,10,.75); color: #ffd9d9; }
     .tracker-report.tone-bad summary, .tracker-report.tone-bad b { color: #ff6b6b; }
     .tracker-report-mail { color: #aab3c2; font-style: italic; }
-    .tracker-parlay-select { width: 100%; margin: 2px 0 4px; padding: 2px 4px; border: 1px solid rgba(201,239,91,.35); border-radius: 6px; background: rgba(0,0,0,.25); color: inherit; font-size: .64rem; }
     .tracker-bar { height: 4px; overflow: hidden; border-radius: 99px; background: rgba(145,161,179,.18); }
     .tracker-bar span { display: block; height: 100%; width: 0; border-radius: 99px; background: #6b7a8c; transition: width .8s cubic-bezier(.2,.9,.3,1), background .4s; }
     .tracker-verdict { margin: 6px 0 0; padding: 5px 8px; border: 1px solid #3ddc84; border-radius: 8px; background: rgba(8,40,22,.7); color: #3ddc84; }
@@ -1608,7 +1605,6 @@
     html[data-theme="light"] .tracker-parlay.tone-hype .tracker-parlay-badge { background: #bfe8cf; color: #1f7a42; }
     html[data-theme="light"] .tracker-parlay.tone-bad .tracker-parlay-badge { background: #f6caca; color: #b92b2b; }
     html[data-theme="light"] .tracker-leg-game { color: #5b6658; }
-    html[data-theme="light"] .tracker-parlay-select { border-color: rgba(61,98,8,.35); background: #fff; color: #1b2418; }
     html[data-theme="light"] .tracker-report { border-color: #2e9e5b; background: #e8f7ee; color: #264233; }
     html[data-theme="light"] .tracker-report summary, html[data-theme="light"] .tracker-report b { color: #1f7a42; }
     html[data-theme="light"] .tracker-report.tone-bad { border-color: #d64545; background: #fdeaea; color: #5a2323; }
@@ -6200,20 +6196,6 @@
       return parlay;
     }
 
-    function assignParlay(tracker, value) {
-      const previous = tracker.parlay;
-      // Each parlay holds a pick once; the picker already disables parlays that have this one.
-      if (value !== "__new" && !tracker.demo && pickCopyIn(pickIdentity(tracker), pickSlot(value), tracker)) {
-        renderTrackers();
-        return;
-      }
-      if (value === "__new") tracker.parlay = createParlay().id;
-      else tracker.parlay = value || "";
-      if (tracker.parlay !== previous) restoreRequestedTargets([tracker]);
-      saveTrackers();
-      renderTrackers();
-    }
-
     function renameParlay(parlay) {
       const next = window.prompt("Parlay name", parlay.name);
       if (next === null) return;
@@ -6313,26 +6295,6 @@
       document.body.append(dialog);
       dialog.showModal();
       keep.focus();
-    }
-
-    function createParlayPicker(tracker) {
-      const select = document.createElement("select");
-      select.className = "tracker-parlay-select";
-      select.setAttribute("aria-label", `Parlay for ${tracker.name} ${trackerStats[tracker.stat].label}`);
-      // A parlay that already holds this pick (or the single picks, if it's one already) can't take a second copy.
-      const identity = pickIdentity(tracker);
-      const option = (label, value) => {
-        const taken = !tracker.demo && Boolean(pickCopyIn(identity, value, tracker));
-        const item = new Option(taken ? `${label} · has this pick` : label, value);
-        item.disabled = taken;
-        return item;
-      };
-      select.append(option("Single pick", ""));
-      for (const parlay of parlays) select.append(option(`🎟 ${parlay.name}`, parlay.id));
-      select.append(new Option("+ New parlay", "__new"));
-      select.value = parlays.some(item => item.id === tracker.parlay) ? tracker.parlay : "";
-      select.addEventListener("change", () => assignParlay(tracker, select.value));
-      return select;
     }
 
     // Asks where a newly tracked pick belongs. Resolves to a parlay id, "" for a single pick, or null when cancelled.
@@ -9457,7 +9419,6 @@
         gameRow.append(clockChip);
         head.append(gameRow, top);
         card.append(head);
-        if (snapshot.state !== "post") card.append(createParlayPicker(tracker));
         const legParlay = parlays.find(item => item.id === tracker.parlay);
         if (legParlay?.sportsbook && tracker.bookLine?.book === legParlay.sportsbook && tracker.requestedTarget !== undefined) {
           card.append(element("span", "tracker-book-note",
@@ -9534,7 +9495,7 @@
             group.append(card);
           }
         } else {
-          group.append(element("p", "tracker-empty", "No picks yet. Track a player and choose this parlay in the pop-up, or use the dropdown on a pick card."));
+          group.append(element("p", "tracker-empty", "No picks yet. Track a player and choose this parlay in the pop-up."));
         }
         groupedCards.push(group);
       }

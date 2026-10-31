@@ -70,7 +70,7 @@ const context = {
 };
 const page = runInNewContext(`${code}
 ({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead,
-   pickIdentity, pickSlot, pickCopyIn, addTracker, assignParlay, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
+   pickIdentity, pickSlot, pickCopyIn, addTracker, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
    playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
    forgetBestParlayRemoved, syncBestParlayRemoved, trackerClock });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
@@ -327,19 +327,6 @@ test("a pick whose parlay is gone counts as a single pick", () => {
   assert.equal(leftover.parlay, "");
   assert.equal(leftover.target, 27);
   assert.equal(context.trackers.length, 1);
-});
-
-test("moving a pick never puts two copies in one parlay", () => {
-  twoParlays();
-  track("Test Player", "PTS", 25, "p1");
-  const copy = track("Test Player", "PTS", 25, "p2");
-  page.assignParlay(copy, "p1");
-  assert.equal(copy.parlay, "p2");
-  page.assignParlay(copy, "");
-  assert.equal(copy.parlay, "");
-  page.assignParlay(copy, "__new");
-  assert.equal(context.parlays.length, 3);
-  assert.equal(copy.parlay, context.parlays[2].id);
 });
 
 test("deleting a parlay keeps its picks as singles without doubling one", () => {
