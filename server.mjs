@@ -6,6 +6,7 @@ import { displayName, firebaseEnabled, firebaseSignIn, firebaseWebConfig, getSes
 import { randomBytes } from "node:crypto";
 import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
 import { bestParlayMarkets, buildBestParlay, combineBestParlays, injuredPlayers, parlayBooks, parlayRules, propsTtlMs, selectSlate } from "./best-parlay.mjs";
+import soccerSupport from "./soccer.js";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -19,6 +20,7 @@ const espnScoreboardSports = {
   baseball_mlb: "baseball/mlb",
   basketball_wnba: "basketball/wnba"
 };
+for (const [key, league] of Object.entries(soccerSupport.leagues)) espnScoreboardSports[key] = league.espn;
 const liveGameSports = new Set([
   "basketball_nba",
   "basketball_wnba",
@@ -27,6 +29,7 @@ const liveGameSports = new Set([
   "americanfootball_nfl",
   "americanfootball_ncaaf"
 ]);
+for (const key of Object.keys(soccerSupport.leagues)) liveGameSports.add(key);
 const playerPropMarkets = {
   basketball_nba: new Set([
     "player_points",
@@ -77,6 +80,9 @@ const playerPropMarkets = {
 };
 playerPropMarkets.basketball_wnba = playerPropMarkets.basketball_nba;
 playerPropMarkets.americanfootball_ncaaf = playerPropMarkets.americanfootball_nfl;
+for (const [key, league] of Object.entries(soccerSupport.leagues)) {
+  if (league.props) playerPropMarkets[key] = new Set(soccerSupport.markets.map(([market]) => market));
+}
 // Every supported prop market has an "_alternate" ladder at the odds provider except these.
 const marketsWithoutAlternates = new Set(["batter_stolen_bases"]);
 
@@ -186,7 +192,12 @@ function normalizeTeamName(name) {
   return String(name || "").toLowerCase().replace(/[^a-z]/g, "");
 }
 
-function teamsMatch(eventTeam, requestedTeam) {
+function teamsMatch(eventTeam, requestedTeam, sport = "") {
+  if (eventTeam && typeof eventTeam === "object") return [
+    eventTeam.displayName, eventTeam.shortDisplayName, eventTeam.name
+  ].some(name => teamsMatch(name, requestedTeam, sport));
+  if (soccerSupport.isSoccer(sport)) return Boolean(soccerSupport.teamName(eventTeam)) &&
+    soccerSupport.teamName(eventTeam) === soccerSupport.teamName(requestedTeam);
   const eventName = normalizeTeamName(eventTeam);
   const requestedName = normalizeTeamName(requestedTeam);
   if (eventName === requestedName) return true;
@@ -209,8 +220,8 @@ async function fetchLiveGame(sport, date, home, away) {
     const competitors = candidate.competitions?.[0]?.competitors || [];
     const homeTeam = competitors.find(team => team.homeAway === "home");
     const awayTeam = competitors.find(team => team.homeAway === "away");
-    return teamsMatch(homeTeam?.team?.displayName, home) &&
-      teamsMatch(awayTeam?.team?.displayName, away);
+    return teamsMatch(homeTeam?.team, home, sport) &&
+      teamsMatch(awayTeam?.team, away, sport);
   });
 
   if (!event) {
@@ -234,6 +245,7 @@ async function fetchLiveGame(sport, date, home, away) {
     sport === "americanfootball_ncaaf";
   const isHockey = sport === "icehockey_nhl";
   const isBaseball = sport === "baseball_mlb";
+  const isSoccer = soccerSupport.isSoccer(sport);
   const teams = (competition?.competitors || []).map(team => {
     const boxScore = boxScoreTeams.find(candidate =>
       candidate.team?.id === team.team?.id ||
@@ -275,7 +287,8 @@ async function fetchLiveGame(sport, date, home, away) {
         }
       }
     }
-    const players = [...playerMap.values()];
+    const roster = (summary.rosters || []).find(entry => String(entry.team?.id) === String(team.team?.id));
+    const players = isSoccer ? soccerSupport.players(roster, statusType.state) : [...playerMap.values()];
     let leaders = (teamLeaderGroup?.leaders || []).map(category => {
       const leader = category.leaders?.[0];
       return leader ? {
@@ -321,6 +334,8 @@ async function fetchLiveGame(sport, date, home, away) {
       logo: team.team?.logo || "",
       linescores: (team.linescores || []).map(line => line.displayValue || line.value || ""),
       players,
+      ...(isSoccer ? { statistics: (summary.boxscore?.players || []).find(entry => String(entry.team?.id) === String(team.team?.id))?.statistics ||
+        (summary.boxscore?.teams || []).find(entry => String(entry.team?.id) === String(team.team?.id))?.statistics || [] } : {}),
       leaders
     };
   });
@@ -330,7 +345,7 @@ async function fetchLiveGame(sport, date, home, away) {
     : statusType.completed
       ? statusType.description || "Final"
       : statusType.shortDetail || statusType.detail || statusType.description || "Game in progress";
-  const sportTitle = sport === "basketball_nba"
+  const sportTitle = isSoccer ? soccerSupport.leagues[sport].title : sport === "basketball_nba"
     ? "NBA"
     : sport === "basketball_wnba"
       ? "WNBA"
@@ -351,7 +366,9 @@ async function fetchLiveGame(sport, date, home, away) {
       team: play.team || currentDrive.team
     }))
   ];
-  const playSource = isFootball && drivePlays.length
+  const playSource = isSoccer ? (summary.keyEvents || []).filter(play => !play.shootout).map((play, index) => ({
+    ...play, sequenceNumber: index, period: { ...play.period, displayValue: `Half ${play.period?.number || 1}` }
+  })) : isFootball && drivePlays.length
     ? [...(summary.plays || []), ...drivePlays]
     : summary.plays || [];
   const uniquePlays = new Map();
@@ -426,7 +443,7 @@ async function fetchLiveGame(sport, date, home, away) {
     date: competition?.date || event.date,
     status: statusLabel,
     state: statusType.state || "pre",
-    period: status.period || 0,
+    period: isSoccer ? Math.max(Number(status.period) || 0, ...(summary.keyEvents || []).filter(play => !play.shootout).map(play => Number(play.period?.number) || 0)) : status.period || 0,
     periodLabel: statusType.shortDetail || statusType.detail || "",
     clock: status.displayClock || "",
     drive: currentDrive ? {
@@ -1005,6 +1022,7 @@ const server = createServer(async (request, response) => {
       return sendStatic(response, "image/png", await readFile(join(directory, "icons", url.pathname.slice(1))));
     }
     if (url.pathname === "/sw.js") return sendStatic(response, "text/javascript; charset=utf-8", serviceWorker);
+    if (url.pathname === "/soccer.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "soccer.js")));
     if (url.pathname === "/healthz") return sendStatic(response, "text/plain", "ok");
     if (url.pathname === "/api/auth/config") return await sendJson(response, 200, { firebase: firebaseWebConfig() });
 
@@ -1151,7 +1169,9 @@ const server = createServer(async (request, response) => {
       const eventId = url.searchParams.get("eventId") || "";
       const market = url.searchParams.get("market") || "";
       if (!Object.hasOwn(playerPropMarkets, sport)) {
-        await sendJson(response, 400, { error: "Player props are not supported for this sport." });
+        await sendJson(response, 400, { error: soccerSupport.isSoccer(sport)
+          ? "Champions League player props are not currently covered by the odds provider. Match odds and live match data remain available."
+          : "Player props are not supported for this sport." });
         return;
       }
       if (!/^[a-f0-9-]{20,}$/i.test(eventId)) {
@@ -1307,8 +1327,8 @@ const server = createServer(async (request, response) => {
       const scoreboard = await fetchEspnJson(scoreboardUrl);
       const event = (scoreboard.events || []).find(candidate => {
         const competitors = candidate.competitions?.[0]?.competitors || [];
-        return teamsMatch(competitors.find(team => team.homeAway === "home")?.team?.displayName, home) &&
-          teamsMatch(competitors.find(team => team.homeAway === "away")?.team?.displayName, away);
+        return teamsMatch(competitors.find(team => team.homeAway === "home")?.team, home, sport) &&
+          teamsMatch(competitors.find(team => team.homeAway === "away")?.team, away, sport);
       });
       if (!event) {
         await sendJson(response, 404, { error: "No matching game in the ESPN feed." });
@@ -1332,7 +1352,8 @@ const server = createServer(async (request, response) => {
           const mineScore = scoreOf(mine);
           const otherScore = scoreOf(other);
           const won = mine.winner === true || (mine.winner === undefined && mineScore > otherScore);
-          results.push({ won, margin: Number.isFinite(mineScore - otherScore) ? mineScore - otherScore : 0 });
+          results.push({ won, draw: soccerSupport.isSoccer(sport) && mineScore === otherScore,
+            margin: Number.isFinite(mineScore - otherScore) ? mineScore - otherScore : 0 });
         }
         const last = results.slice(-5);
         const injuries = (injuryFeed.injuries || [])
@@ -1344,11 +1365,13 @@ const server = createServer(async (request, response) => {
           name: competitor.team?.displayName || "",
           overall: record("overall") || record("total"),
           venue: competitor.homeAway === "home" ? record("home") : record("road"),
-          lastFive: { wins: last.filter(game => game.won).length, games: last.length },
+          lastFive: { wins: last.filter(game => game.won).length, draws: last.filter(game => game.draw).length, games: last.length },
           streak: (() => {
             let count = 0;
-            for (let index = results.length - 1; index >= 0 && results[index].won === results[results.length - 1].won; index -= 1) count += 1;
-            return results.length ? { won: results[results.length - 1].won, count } : null;
+            for (let index = results.length - 1; index >= 0 &&
+              results[index].won === results[results.length - 1].won &&
+              results[index].draw === results[results.length - 1].draw; index -= 1) count += 1;
+            return results.length ? { won: results[results.length - 1].won, draw: results[results.length - 1].draw, count } : null;
           })(),
           avgMargin: last.length ? last.reduce((sum, game) => sum + game.margin, 0) / last.length : 0,
           injuries
@@ -1413,7 +1436,7 @@ const server = createServer(async (request, response) => {
       const espnSport = espnScoreboardSports[sport];
       if (!liveGameSports.has(sport) || !espnSport) {
         await sendJson(response, 400, {
-          error: "Live game tracker is available for NBA, WNBA, NHL, MLB, NFL, and college football games."
+          error: "Choose a supported basketball, hockey, baseball, football or soccer league."
         });
         return;
       }

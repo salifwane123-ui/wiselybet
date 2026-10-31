@@ -96,6 +96,7 @@
     .baseball-field-lines { display: none; }
     .football-field-lines { display: none; }
     .hockey-rink-lines { display: none; }
+    .soccer-field-lines { display: none; }
     .play-stage, .play-caption, .court-note-plays { display: none; }
     .court-card.baseball-scoreboard .court {
       border-color: #9cbd82;
@@ -134,6 +135,58 @@
       border-color: rgba(215, 232, 244, .45);
       background: rgba(16, 25, 38, .94);
     }
+    .court-card.soccer-scoreboard .court {
+      display: block;
+      width: min(100%, 920px);
+      min-height: 0;
+      aspect-ratio: 1000 / 640;
+      margin: 0 auto;
+      border-color: #b7d59b;
+      background: repeating-linear-gradient(90deg, #286344 0 92px, #33734d 93px 184px);
+    }
+    .court-card.soccer-scoreboard .court svg.soccer-field-lines {
+      display: block;
+      stroke: rgba(239, 249, 226, .84);
+      stroke-width: 4;
+    }
+    .court-card.soccer-scoreboard .court-score {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: min(680px, calc(100% - 24px));
+      padding: 14px 18px;
+      transform: translate(-50%, -50%);
+      border-color: rgba(235, 248, 218, .32);
+    }
+    .court-card.soccer-scoreboard .team-score img { width: 42px; height: 42px; }
+    .soccer-events {
+      position: absolute;
+      z-index: 2;
+      right: 12px;
+      bottom: 12px;
+      left: 12px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      pointer-events: none;
+    }
+    .soccer-event {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 999px;
+      background: rgba(13, 20, 17, .9);
+      color: #f3f5ed;
+      font-size: .75rem;
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+    .soccer-event-icon { font-size: .88rem; }
+    .soccer-court-note { display: none; }
+    .court-card.soccer-scoreboard ~ .court-note .soccer-court-note { display: inline; }
 
     .court-score {
       position: relative;
@@ -477,6 +530,11 @@
       .court-card.basketball-scoreboard .team-score img { width: 34px; height: 34px; }
       .court-card.basketball-scoreboard .play-caption { padding: 6px 9px; font-size: .8rem; }
       .court-paint-label { font-size: 36px; }
+      .court-card.soccer-scoreboard .court-score { padding: 7px 5px; }
+      .court-card.soccer-scoreboard .team-score img { width: 30px; height: 30px; }
+      .court-card.soccer-scoreboard .game-clock { min-width: 70px; }
+      .soccer-events { right: 5px; bottom: 5px; left: 5px; gap: 3px; }
+      .soccer-event { padding: 3px 6px; font-size: .65rem; }
     }
     html[data-theme="light"] { filter: invert(1) hue-rotate(180deg); background: #111; }
     html[data-theme="light"] img, html[data-theme="light"] video, html[data-theme="light"] iframe { filter: invert(1) hue-rotate(180deg); }
@@ -496,6 +554,7 @@
     <span id="venue">Loading venue…</span>
     <span id="status" class="status">Loading</span>
   </div>
+  <p id="soccer-props-note" class="muted" hidden></p>
   <div id="loading" class="muted" role="status" aria-live="polite">
     Loading live game data…
   </div>
@@ -543,12 +602,27 @@
         <circle cx="730" cy="100" r="3" fill="currentColor"></circle>
         <circle cx="730" cy="280" r="3" fill="currentColor"></circle>
       </svg>
+      <svg class="soccer-field-lines" viewBox="0 0 1000 640" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="14" y="14" width="972" height="612" rx="2"></rect>
+        <line x1="500" y1="14" x2="500" y2="626"></line>
+        <circle cx="500" cy="320" r="90"></circle>
+        <circle cx="500" cy="320" r="4" fill="currentColor"></circle>
+        <rect x="14" y="175" width="150" height="290"></rect>
+        <rect x="14" y="250" width="55" height="140"></rect>
+        <rect x="836" y="175" width="150" height="290"></rect>
+        <rect x="931" y="250" width="55" height="140"></rect>
+        <circle cx="110" cy="320" r="4" fill="currentColor"></circle>
+        <circle cx="890" cy="320" r="4" fill="currentColor"></circle>
+        <path d="M164 255 A80 80 0 0 1 164 385 M836 255 A80 80 0 0 0 836 385"></path>
+        <path d="M14 285 H0 V355 H14 M986 285 H1000 V355 H986"></path>
+      </svg>
       <div class="court-score">
         <div class="team-score">
           <img id="away-logo" alt="" hidden>
           <span id="away-name" class="team-name">Away</span>
           <span id="away-score" class="score">—</span>
         </div>
+        <div id="soccer-events" class="soccer-events" aria-label="Recent goals, cards, and substitutions"></div>
         <div class="game-clock">
           <strong id="clock">—</strong>
           <span id="period">Waiting for game</span>
@@ -596,6 +670,7 @@
       Live scoreboard—not a video stream.
       Live scoreboard data is provided by ESPN and refreshes about every 15 seconds.
       <span class="court-note-plays">Each new play is re-created on the court from ESPN’s play-by-play, so spots are approximate.</span>
+      <span class="soccer-court-note">The pitch is illustrative. Event markers show play type and time only; player and event locations are not inferred.</span>
     </p>
   </section>
 
@@ -623,12 +698,25 @@
     <div id="leaders" class="leader-grid"></div>
   </section>
 
+  <section id="team-stats-panel" class="panel" hidden>
+    <div class="section-heading">
+      <h2>Team statistics</h2>
+      <span class="muted">ESPN labels</span>
+    </div>
+    <div id="team-stats" class="leader-grid"></div>
+  </section>
+
   <section id="on-court-panel" class="panel">
     <div class="section-heading">
       <h2 id="game-situation-title">On the court</h2>
       <span id="game-situation-note" class="muted">Players currently reported active</span>
     </div>
     <div id="on-court" class="lineup-grid"></div>
+  </section>
+
+  <section id="injuries-panel" class="panel" hidden>
+    <div class="section-heading"><h2>Injuries</h2></div>
+    <div id="injuries" class="leader-grid"></div>
   </section>
 
   <section class="panel">
@@ -727,7 +815,8 @@
       if (!home || !away) throw new Error("The scoreboard did not include both teams.");
 
       activeSport = data.sport || game.sport;
-      const sportTitle = data.sportTitle || "NBA";
+      const isSoccer = isSoccerSport(activeSport);
+      const sportTitle = data.sportTitle || (isSoccer ? "Soccer" : "NBA");
       const isBaseball = activeSport === "baseball_mlb";
       const isHockey = activeSport === "icehockey_nhl";
       const isFootball = activeSport === "americanfootball_nfl" ||
@@ -741,6 +830,7 @@
       document.querySelector(".court-card").classList.toggle("baseball-scoreboard", isBaseball);
       document.querySelector(".court-card").classList.toggle("football-scoreboard", isFootball);
       document.querySelector(".court-card").classList.toggle("hockey-scoreboard", isHockey);
+      document.querySelector(".court-card").classList.toggle("soccer-scoreboard", isSoccer);
       document.querySelector(".court-card").classList.toggle("basketball-scoreboard", isBasketballSport(activeSport));
       document.querySelector(".court-card").setAttribute(
         "aria-label",
@@ -750,30 +840,45 @@
             ? "Football field scoreboard"
             : isHockey
               ? "Hockey rink scoreboard"
-            : `${sportTitle} scoreboard`
+              : isSoccer
+                ? "Soccer pitch scoreboard"
+                : `${sportTitle} scoreboard`
       );
       document.querySelector("#period-head").closest("section").querySelector("h2").textContent =
-        isBaseball ? "Score by inning" : isHockey ? "Score by period" : "Score by quarter";
+        isSoccer ? "Score by half" : isBaseball ? "Score by inning" : isHockey ? "Score by period" : "Score by quarter";
       document.querySelector("#on-court-panel").hidden = false;
       document.querySelector("#leaders-panel").hidden = false;
+      document.querySelector("#team-stats-panel").hidden = !isSoccer;
+      document.querySelector("#injuries-panel").hidden = true;
+      const propsNote = document.querySelector("#soccer-props-note");
+      propsNote.hidden = activeSport !== "soccer_uefa_champs_league";
+      propsNote.textContent = propsNote.hidden
+        ? ""
+        : "Player props are unavailable for UEFA Champions League matches.";
       document.querySelector("#leaders-panel").querySelector("h2").textContent =
-        isBaseball ? "Team batting & pitching leaders" : "Game leaders";
+        isSoccer ? "Match leaders" : isBaseball ? "Team batting & pitching leaders" : "Game leaders";
       document.querySelector("#leaders-panel").querySelector(".muted").textContent =
-        isFootball
+        isSoccer
+          ? "Match leaders reported by ESPN"
+          : isFootball
           ? "Passing · rushing · receiving"
           : isHockey
             ? "Goals · assists · points"
             : isBaseball
               ? "Hits · home runs · RBI · pitching"
             : "Points · rebounds · assists";
-      document.querySelector("#game-situation-title").textContent = isFootball
+      document.querySelector("#game-situation-title").textContent = isSoccer
+        ? "Squad & lineups"
+        : isFootball
         ? "Current drive & key players"
         : isHockey
           ? "Key players & goalies"
           : isBaseball
             ? "At-bat situation"
             : "On the court";
-      document.querySelector("#game-situation-note").textContent = isFootball
+      document.querySelector("#game-situation-note").textContent = isSoccer
+        ? "Lineup records; player positions on the pitch are not shown"
+        : isFootball
         ? "Possession and drive details"
         : isHockey
           ? "Ice time, scoring, and goaltending"
@@ -781,7 +886,9 @@
             ? "Current count, batter, and pitcher"
             : "Players currently reported active";
       document.querySelector("#player-stats-panel").querySelector(".stats-note").textContent =
-        isBaseball
+        isSoccer
+          ? "Player statistics use the labels supplied by ESPN."
+          : isBaseball
           ? "Batting and pitching box scores are refreshed with the scoreboard."
           : isFootball
             ? "Passing, rushing, receiving, and defensive box-score categories are refreshed with the scoreboard."
@@ -797,10 +904,14 @@
       document.querySelector("#clock").textContent =
         isBaseball
           ? (data.state === "in" ? data.periodLabel || data.status : data.status)
+          : isSoccer
+            ? (data.state === "in" && data.clock ? data.clock : data.status)
           : data.state === "in" && data.clock
             ? data.clock
             : data.status;
-      document.querySelector("#period").textContent = isBaseball
+      document.querySelector("#period").textContent = isSoccer
+        ? soccerPeriodName(data)
+        : isBaseball
         ? (data.state === "post"
           ? "Final"
           : data.period
@@ -843,14 +954,21 @@
         }
       }
 
+      const matchPlays = isSoccer ? soccerPlaysNewestFirst(data.plays || []) : data.plays || [];
       renderPeriods([away, home]);
       renderLeaders([away, home]);
       if (isFootball) renderDrive(data.drive, [away, home]);
       else if (isHockey) renderGoalies([away, home]);
       else if (isBaseball) renderBaseballSituation(data.situation, [away, home], data.state);
+      else if (isSoccer) renderSoccerSquads([away, home], data.state);
       else renderOnCourt([away, home], data.state);
-      renderPlayByPlay(data.plays || [], data.state);
+      if (isSoccer) {
+        renderSoccerTeamStats([away, home]);
+        renderSoccerInjuries(data, [away, home]);
+      }
+      renderPlayByPlay(matchPlays, data.state);
       renderCourtPlays(data, { away, home });
+      if (isSoccer) renderSoccerEvents({ ...data, plays: matchPlays });
       renderPlayerStats([away, home]);
       document.querySelector("#updated-at").textContent =
         `Updated ${new Date(data.updatedAt).toLocaleTimeString()}`;
@@ -861,7 +979,7 @@
         addUpdate(data.state === "pre"
           ? `Scheduled at ${new Date(data.date).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
           : `${data.status}. Current score: ${score}.`);
-        const latestPlay = (data.plays || [])[0];
+        const latestPlay = matchPlays[0];
         if (latestPlay?.teamSide) {
           addUpdate(
             `${latestPlay.period}${latestPlay.clock ? `, ${latestPlay.clock}` : ""}: ${latestPlay.text}`,
@@ -882,7 +1000,9 @@
         if (data.state !== previousSnapshot.state) {
           addUpdate(`Game status: ${data.status}.`);
         } else if (data.period !== previousSnapshot.period) {
-          addUpdate(`${isBaseball ? "Inning" : isHockey ? "Period" : "Quarter"} ${data.period} started.`);
+          addUpdate(isSoccer
+            ? `${soccerPeriodName(data)} started.`
+            : `${isBaseball ? "Inning" : isHockey ? "Period" : "Quarter"} ${data.period} started.`);
         }
         const driveKey = data.drive
           ? `${data.drive.team || ""}:${data.drive.plays || 0}:${data.drive.yards || 0}`
@@ -906,7 +1026,7 @@
           ? `${data.drive.team || ""}:${data.drive.plays || 0}:${data.drive.yards || 0}`
           : ""
       };
-      const newPlays = (data.plays || []).filter(play => play.id && !knownPlayIds.has(play.id));
+      const newPlays = matchPlays.filter(play => play.id && !knownPlayIds.has(play.id));
       if (playUpdatesInitialized) {
         for (const play of newPlays.reverse()) {
           addUpdate(
@@ -915,7 +1035,7 @@
           );
         }
       }
-      knownPlayIds = new Set((data.plays || []).map(play => play.id).filter(Boolean));
+      knownPlayIds = new Set(matchPlays.map(play => play.id).filter(Boolean));
       playUpdatesInitialized = true;
     }
 
@@ -1113,6 +1233,218 @@
           }
         }
         container.append(panel);
+      }
+    }
+
+    // Soccer rendering keeps ESPN labels and event times; it never projects roster data onto the pitch.
+    function soccerStatEntries(stats) {
+      if (Array.isArray(stats)) {
+        return stats.flatMap(stat => {
+          if (!stat || typeof stat !== "object") return [];
+          const label = stat.label ?? stat.name ?? stat.abbreviation;
+          const value = stat.displayValue ?? stat.value;
+          return label == null || value == null || typeof value === "object"
+            ? []
+            : [{ label: String(label), value: String(value) }];
+        });
+      }
+      if (!stats || typeof stats !== "object") return [];
+      return Object.entries(stats).flatMap(([key, stat]) => {
+        if (stat == null || typeof stat === "object") {
+          if (!stat || typeof stat !== "object") return [];
+          const label = stat.label ?? stat.name ?? key;
+          const value = stat.displayValue ?? stat.value;
+          return value == null || typeof value === "object"
+            ? []
+            : [{ label: String(label), value: String(value) }];
+        }
+        return [{ label: key, value: String(stat) }];
+      });
+    }
+
+    function soccerStatLabel(label) {
+      return ({
+        G: "Goals",
+        A: "Assists",
+        SH: "Shots",
+        SOT: "Shots on target",
+        SAV: "Saves",
+        YC: "Yellow cards",
+        RC: "Red cards",
+        FC: "Fouls committed",
+        APP: "Appearances",
+        MIN: "Minutes played",
+        SUBIN: "Substitutions in",
+        SUBOUT: "Substitutions out"
+      })[label] || label;
+    }
+
+    function soccerPlaysNewestFirst(plays) {
+      return [...plays].sort((a, b) => {
+        const sequenceA = Number(a.sequenceNumber);
+        const sequenceB = Number(b.sequenceNumber);
+        return Number.isFinite(sequenceA) && Number.isFinite(sequenceB)
+          ? sequenceB - sequenceA
+          : 0;
+      });
+    }
+
+    function soccerPeriodName(data) {
+      if (data.state === "post") return "Final";
+      if (data.state === "pre") return "Kickoff pending";
+      const label = String(data.periodLabel || "").trim();
+      if (label) return label;
+      const period = Number(data.period);
+      if (period === 1) return "First Half";
+      if (period === 2) return "Second Half";
+      if (period === 3) return "Extra Time · First Half";
+      if (period === 4) return "Extra Time · Second Half";
+      if (period >= 5) return "Penalty Shootout";
+      return "Match period";
+    }
+
+    function soccerEventKind(play) {
+      const type = `${play?.type || ""} ${play?.text || ""}`.replace(/\s+/g, " ").trim().toLowerCase();
+      if (play?.scoring || /\b(?:goal|scores|scored|own goal)\b/.test(type)) {
+        return { kind: "goal", icon: "⚽", label: "Goal" };
+      }
+      if (/\b(?:red card|sent off|sending off|second yellow)\b/.test(type)) {
+        return { kind: "red-card", icon: "🟥", label: "Red card" };
+      }
+      if (/\byellow card\b/.test(type)) {
+        return { kind: "yellow-card", icon: "🟨", label: "Yellow card" };
+      }
+      if (/\b(?:substitution|substituted|substitute)\b/.test(type)) {
+        return { kind: "substitution", icon: "⇄", label: "Substitution" };
+      }
+      return null;
+    }
+
+    const soccerSports = new Set([
+      "soccer_epl",
+      "soccer_spain_la_liga",
+      "soccer_uefa_champs_league",
+      "soccer_usa_mls",
+      "soccer_italy_serie_a",
+      "soccer_germany_bundesliga",
+      "soccer_france_ligue_one"
+    ]);
+
+    function isSoccerSport(sport) {
+      return soccerSports.has(String(sport || ""));
+    }
+
+    function renderSoccerTeamStats(teams) {
+      const container = document.querySelector("#team-stats");
+      container.replaceChildren();
+      let foundStats = false;
+      for (const team of teams) {
+        const stats = soccerStatEntries(team.statistics || team.stats || team.teamStats);
+        if (!stats.length) continue;
+        foundStats = true;
+        const panel = element("section", "team-panel");
+        panel.append(element("h3", "", team.name));
+        for (const stat of stats) {
+          panel.append(element("div", "leader-row", `${soccerStatLabel(stat.label)}: ${stat.value}`));
+        }
+        container.append(panel);
+      }
+      if (!foundStats) {
+        container.append(element("p", "muted", "Team statistics are not available yet."));
+      }
+    }
+
+    function renderSoccerSquads(teams, state) {
+      const container = document.querySelector("#on-court");
+      container.replaceChildren();
+      for (const team of teams) {
+        const panel = element("section", "team-panel");
+        panel.append(element("h3", "", `${team.name} squad`));
+        const players = team.players || [];
+        if (!players.length) {
+          panel.append(element(
+            "p",
+            "muted",
+            state === "pre"
+              ? "Lineup details will appear when ESPN reports them."
+              : "Squad and lineup details are not available yet."
+          ));
+        } else {
+          for (const player of players) {
+            const row = element("div", "lineup-row");
+            const identity = element("span", "lineup-player");
+            identity.append(element("strong", "", player.name || "Player"));
+            const details = [];
+            if (player.starter === true) details.push("Starter");
+            if (player.appeared === true) {
+              const minutes = soccerStatEntries(player.stats).find(stat => stat.label === "MIN")?.value;
+              details.push(minutes ? `Appeared · ${minutes} min` : "Appeared");
+            } else if (player.appeared === false) {
+              details.push("Not appeared");
+            }
+            identity.append(element("span", "", details.join(" · ") || "Squad"));
+            row.append(identity);
+            panel.append(row);
+          }
+        }
+        container.append(panel);
+      }
+    }
+
+    function renderSoccerInjuries(data, teams) {
+      const section = document.querySelector("#injuries-panel");
+      const container = document.querySelector("#injuries");
+      container.replaceChildren();
+      const rows = [];
+      for (const injury of [
+        ...(Array.isArray(data.injuries) ? data.injuries : []),
+        ...teams.flatMap(team => (Array.isArray(team.injuries) ? team.injuries.map(injury => ({ ...injury, teamSide: injury.teamSide || team.homeAway })) : []))
+      ]) {
+        const player = injury.playerName || injury.athlete?.displayName || injury.athlete?.name ||
+          (typeof injury.athlete === "string" ? injury.athlete : "") ||
+          injury.player?.name || (typeof injury.player === "string" ? injury.player : "") || injury.name || "Player";
+        const team = teams.find(candidate =>
+          injury.teamSide === candidate.homeAway ||
+          (injury.teamId != null && String(injury.teamId) === String(candidate.id)) ||
+          (injury.teamName && String(injury.teamName).toLowerCase() === String(candidate.name).toLowerCase())
+        );
+        const status = injury.status || injury.type || injury.description || injury.details || "Status not reported";
+        const key = `${team?.id || ""}|${player}|${status}`;
+        if (!rows.some(row => row.key === key)) {
+          rows.push({ key, team, player, status });
+        }
+      }
+      section.hidden = rows.length === 0;
+      for (const group of [null, ...teams]) {
+        const injuries = rows.filter(row => group
+          ? row.team?.id === group.id
+          : !row.team);
+        if (!injuries.length) continue;
+        const panel = element("section", "team-panel");
+        panel.append(element("h3", "", group ? group.name : "Match injuries"));
+        for (const injury of injuries) {
+          panel.append(element("div", "leader-row", `${injury.player}: ${injury.status}`));
+        }
+        container.append(panel);
+      }
+    }
+
+    function renderSoccerEvents(data) {
+      const container = document.querySelector("#soccer-events");
+      container.replaceChildren();
+      if (!isSoccerSport(data.sport || game.sport)) return;
+      const plays = (data.plays || [])
+        .map(play => ({ play, event: soccerEventKind(play) }))
+        .filter(item => item.event)
+        .slice(0, 4);
+      for (const { play, event } of plays) {
+        const marker = element("span", `soccer-event ${event.kind}`);
+        const clock = [play.period, play.clock].filter(Boolean).join(" · ");
+        marker.setAttribute("aria-label", `${event.label}${clock ? `, ${clock}` : ""}${play.text ? `: ${play.text}` : ""}`);
+        marker.append(element("span", "soccer-event-icon", event.icon));
+        if (clock) marker.append(element("span", "", clock));
+        marker.append(element("span", "", event.label));
+        container.append(marker);
       }
     }
 
@@ -1684,7 +2016,9 @@
       const headerRow = element("tr");
       headerRow.append(element("th", "", "Team"));
       for (let period = 0; period < maxPeriods; period++) {
-        const label = activeSport === "baseball_mlb"
+        const label = isSoccerSport(activeSport)
+          ? ["1H", "2H", "ET1", "ET2", "PK"][period] || `P${period + 1}`
+          : activeSport === "baseball_mlb"
           ? `${period + 1}`
           : activeSport === "icehockey_nhl"
             ? ["P1", "P2", "P3", "OT", "SO"][period] || `OT${period - 2}`
@@ -1725,7 +2059,9 @@
         const scroll = element("div", "table-scroll");
         const table = element("table", "player-table");
         const labels = [...new Set(
-          teamPlayers.flatMap(player => (player.stats || []).map(stat => stat.label))
+          teamPlayers.flatMap(player => (isSoccerSport(activeSport)
+            ? soccerStatEntries(player.stats)
+            : player.stats || []).map(stat => stat.label))
         )];
         const header = element("tr");
         header.append(element("th", "", "Player"));
@@ -1784,19 +2120,23 @@
           "Pitching PC": "Pitch count"
         };
         for (const label of labels) {
-          const displayLabel = activeSport === "icehockey_nhl"
+          const displayLabel = isSoccerSport(activeSport)
+            ? label
+            : activeSport === "icehockey_nhl"
             ? hockeyLabels[label] || label
             : activeSport === "baseball_mlb"
               ? baseballLabels[label] || label
               : label;
-          header.append(element("th", "", displayLabel));
+          header.append(element("th", "", isSoccerSport(activeSport) ? soccerStatLabel(displayLabel) : displayLabel));
         }
         const thead = element("thead");
         thead.append(header);
         table.append(thead);
 
         const tbody = element("tbody");
-        const sortLabel = activeSport === "icehockey_nhl"
+        const sortLabel = isSoccerSport(activeSport)
+          ? labels.findIndex(label => /^(?:g|goals?)$/i.test(label.trim()))
+          : activeSport === "icehockey_nhl"
           ? labels.indexOf("G")
           : activeSport === "baseball_mlb"
             ? labels.indexOf("Batting H")
@@ -1815,7 +2155,10 @@
           const row = element("tr");
           const label = player.starter ? `${player.name} (starter)` : player.name;
           row.append(element("th", "", label));
-          const statsByLabel = new Map((player.stats || []).map(stat => [stat.label, stat.value]));
+          const playerStats = isSoccerSport(activeSport)
+            ? soccerStatEntries(player.stats)
+            : player.stats || [];
+          const statsByLabel = new Map(playerStats.map(stat => [stat.label, stat.value]));
           for (const statLabel of labels) {
             row.append(element("td", "", statsByLabel.get(statLabel) || "—"));
           }
@@ -1831,7 +2174,7 @@
     async function refreshGame() {
       if (isLoading) return;
       if (!game.sport || !game.date || !game.home || !game.away) {
-        errorElement.textContent = "This game link is missing matchup details. Go back and open the tracker from a supported NBA, WNBA, NHL, MLB, NFL, or college football game.";
+        errorElement.textContent = "This game link is missing matchup details. Go back and open the tracker from a supported game.";
         loading.textContent = "";
         return;
       }

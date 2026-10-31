@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { getSubscription, getUserData, listPushUsers, pushDataKey, updateUserData } from "./auth.mjs";
+import soccerSupport from "./soccer.js";
 
 const publicKey = (process.env.VAPID_PUBLIC || "").replace(/\s+/g, "");
 const privateKey = (process.env.VAPID_PRIVATE || "").replace(/\s+/g, "");
@@ -80,7 +81,7 @@ export async function sendTest(userKey) {
 // ---- Background checker -------------------------------------------------
 
 const pitcherStats = new Set(["PK", "PHA", "PER", "POUT"]);
-const normalize = name => String(name || "").toLowerCase().replace(/[^a-z]/g, "");
+const normalize = name => String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]/g, "");
 const isFootball = sport => sport === "americanfootball_nfl" || sport === "americanfootball_ncaaf";
 const statNames = {
   PTS: "points", REB: "rebounds", AST: "assists", G: "goals", A: "assists", SOG: "shots on goal", BLK: "blocks", SAV: "saves",
@@ -88,6 +89,7 @@ const statNames = {
   PER: "earned runs", POUT: "outs", PYD: "passing yards", PTD: "passing TDs", PCMP: "completions", PATT: "attempts", PINT: "interceptions",
   RYD: "rushing yards", RTD: "rushing TDs", RATT: "carries", REC: "receptions", RECYD: "receiving yards", RECTD: "receiving TDs"
 };
+Object.assign(statNames, { SH: "shots", SOT: "shots on target" });
 
 function findAthlete(game, name) {
   const wanted = normalize(name);
@@ -156,8 +158,12 @@ function injuryText(name, injury) {
 // Picks saved before Unders existed have no side and are Overs.
 export function trackerAlerts(tracker, previous, game, allowed = () => true) {
   const messages = [];
+  const soccer = soccerSupport.isSoccer(tracker.sport);
   const athlete = findAthlete(game, tracker.name);
   const stats = deriveStats(tracker.sport, tracker.stat, athlete);
+  if (soccer && (!athlete || stats[tracker.stat] === undefined || Number(game.period) > 2)) {
+    return { next: previous || { current: 0, done: false }, messages };
+  }
   const current = Number.parseInt(stats[tracker.stat], 10) || 0;
   const target = Number(tracker.target);
   const label = statNames[tracker.stat] || tracker.stat;
@@ -172,6 +178,13 @@ export function trackerAlerts(tracker, previous, game, allowed = () => true) {
   // A fouled-out player can't add to his line, so his Under is already safe.
   const lockedNow = under && fouls >= 6 && current < target;
   const next = { current, fouls, onCourt, injuryKey, hit: previous?.hit || false, close: previous?.close || false, done: false };
+  if (soccer) {
+    next.yellowCards = Number.parseInt(stats.YC, 10) || 0;
+    next.redCards = Number.parseInt(stats.RC, 10) || 0;
+    if (previous && allowed("foul") && (next.yellowCards > (previous.yellowCards || 0) || next.redCards > (previous.redCards || 0))) {
+      messages.push({ title: "Card update", body: `${tracker.name}: ${next.yellowCards} yellow, ${next.redCards} red cards.`, tag: `card-${tracker.key}` });
+    }
+  }
   if (under) next.locked = previous?.locked || false;
   if (previous) {
     if (current >= target && !next.hit) {
@@ -190,7 +203,7 @@ export function trackerAlerts(tracker, previous, game, allowed = () => true) {
       }
     }
     if (previous.current < target) {
-      if (game.state === "in" && athlete && onCourt !== previous.onCourt && allowed("court")) {
+      if (!soccer && game.state === "in" && athlete && onCourt !== previous.onCourt && allowed("court")) {
         messages.push({ title: "Court update", body: onCourt ? `${tracker.name} is on the court.` : `${tracker.name} went to the bench.`, tag: `court-${tracker.key}` });
       }
       if (fouls > previous.fouls && allowed("foul")) messages.push({ title: "Foul", body: `${tracker.name} committed a foul (${fouls} PF).`, tag: `foul-${tracker.key}` });
@@ -205,9 +218,11 @@ export function trackerAlerts(tracker, previous, game, allowed = () => true) {
   if (game.state === "post" && previous) {
     next.done = true;
     if (allowed("score")) {
-      if (under && !athlete) {
+      if ((under && !athlete) || (soccer && !athlete.appeared)) {
         // Sportsbooks refund props on players who don't play.
-        messages.push({ title: "↩️ Final — no action", body: `${tracker.name} didn't play, so Under ${line} ${label} is void.`, tag: `final-${tracker.key}` });
+        messages.push({ title: "↩️ Final — no action", body: soccer
+          ? `${tracker.name} didn't play. Check your sportsbook's void rules for this pick.`
+          : `${tracker.name} didn't play, so Under ${line} ${label} is void.`, tag: `final-${tracker.key}` });
       } else {
         const hit = under ? current < target : current >= target;
         messages.push({
@@ -289,8 +304,9 @@ async function checkUser({ userKey, data }, fetchGame) {
       for (const play of [...(game.plays || [])].filter(item => !previous.seen.has(item.id) && item.text).reverse()) {
         if (!normalize(play.text).includes(wanted)) continue;
         const detail = `${play.type} ${play.text}`;
-        const kind = /injur/i.test(detail) ? "injury" : /foul|technical|flagrant|ejected/i.test(detail) ? "foul" : "";
-        if (kind && allowed(kind)) messages.push({ title: kind === "injury" ? "Injury" : "Foul", body: play.text, tag: `play-${play.id}` });
+        const kind = soccerSupport.isSoccer(player.sport) ? soccerSupport.alertKind(play) :
+          /injur/i.test(detail) ? "injury" : /foul|technical|flagrant|ejected|yellow.?card|red.?card/i.test(detail) ? "foul" : "";
+        if (kind && allowed(kind)) messages.push({ title: kind === "injury" ? "Injury" : kind === "score" ? "Goal" : kind === "court" ? "Substitution" : "Foul / card", body: play.text, tag: `play-${play.id}` });
       }
     }
     userState.set(id, next);

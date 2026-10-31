@@ -47,7 +47,8 @@ function build(events, odds, options = {}) {
 
 test("each sport's first core market is the one guests can open", () => {
   assert.deepEqual(Object.keys(bestParlayMarkets).sort(), [
-    "americanfootball_ncaaf", "americanfootball_nfl", "baseball_mlb", "basketball_nba", "basketball_wnba", "icehockey_nhl"
+    "americanfootball_ncaaf", "americanfootball_nfl", "baseball_mlb", "basketball_nba", "basketball_wnba", "icehockey_nhl",
+    "soccer_epl", "soccer_france_ligue_one", "soccer_germany_bundesliga", "soccer_italy_serie_a", "soccer_spain_la_liga", "soccer_usa_mls"
   ]);
   assert.equal(bestParlayMarkets.basketball_nba[0], "player_points");
   assert.equal(bestParlayMarkets.icehockey_nhl[0], "player_points");
@@ -343,7 +344,7 @@ test("the live clock reads quarters, periods, innings and breaks", () => {
   assert.deepEqual(mlbClock(5, "Top 5th"), { label: "Top 5th", left: 5, unit: "inn", progress: 0.44, late: false });
   assert.deepEqual([mlbClock(3, "Mid 3rd").left, mlbClock(8, "End 8th").late, mlbClock(11, "Top 11th").left], [6.5, true, 0]);
   assert.equal(liveClock("basketball_nba", { state: "pre", period: 0, clock: "0.0" }), null);
-  assert.equal(liveClock("soccer_epl", { state: "in", period: 1, clock: "10:00" }), null);
+  assert.equal(liveClock("soccer_epl", { state: "in", period: 1, clock: "10:00" }).left, 80);
 });
 
 test("a live read shows his numbers, pace, fouls, minutes, bench competition and the score", () => {

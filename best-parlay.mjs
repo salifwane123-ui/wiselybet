@@ -2,6 +2,7 @@
 // in progress it is built from them alone, using each player's live box score; otherwise from the next few hours.
 // Pure functions only; server.mjs fetches, caches and guards the API quota.
 
+import soccerSupport from "./soccer.js";
 const minute = 60_000;
 const hour = 60 * minute;
 
@@ -14,6 +15,9 @@ export const bestParlayMarkets = {
   americanfootball_nfl: ["player_pass_yds", "player_rush_yds", "player_reception_yds"],
   americanfootball_ncaaf: ["player_pass_yds", "player_rush_yds", "player_reception_yds"]
 };
+for (const [key, league] of Object.entries(soccerSupport.leagues)) {
+  if (league.props) bestParlayMarkets[key] = soccerSupport.markets.map(([market]) => market);
+}
 
 // The sportsbooks offered in the app's sportsbook pickers.
 export const parlayBooks = new Set([
@@ -148,6 +152,12 @@ function clockMinutes(clock) {
 // share played, and whether it is too late for a new leg (overtime, extra innings or the final minutes).
 export function liveClock(sport, game) {
   if (game?.state !== "in") return null;
+  if (soccerSupport.isSoccer(sport)) {
+    const matchClock = soccerSupport.clock(game);
+    if (matchClock.remaining === null) return null;
+    return { label: matchClock.label, left: matchClock.remaining, unit: "min",
+      progress: Math.min(1, matchClock.elapsed / 90), late: matchClock.elapsed >= 85 || Number(game.period) > 2 };
+  }
   const period = Math.max(1, Math.floor(Number(game.period)) || 1);
   const detail = String(game.periodLabel || "").trim();
   if (sport === "baseball_mlb") {
@@ -186,6 +196,7 @@ function statReader(stats) {
 
 // The box-score number a market settles on (ESPN labels, as /api/live-game returns them).
 function liveStatValue(sport, market, stats) {
+  if (soccerSupport.isSoccer(sport)) return stats.number(soccerSupport.marketStats[market] || "");
   const sum = (...labels) => {
     let total = 0;
     for (const label of labels) {
@@ -348,6 +359,14 @@ function basketballRead({ sport, market, line, game, clock, found, stats, read, 
 // Other sports: his total so far blended with the line over the share of the game left (for a pitcher, over the
 // innings a starter usually has left in a six-inning outing).
 function gameRead({ sport, market, line, clock, found, stats, read, side = "over" }) {
+  if (soccerSupport.isSoccer(sport)) {
+    if (!found.athlete.appeared) return { skip: "unverified" };
+    if ((stats.number("RC") || 0) > 0 || (stats.number("SUBOUT") || 0) > 0) return { skip: "removed" };
+    return { read: { ...read, pace: "open", notes: [
+      { tone: "neutral", text: `${read.current} ${read.stat || soccerSupport.marketStats[market]} so far; ${read.leftText}.` },
+      { tone: "neutral", text: "Regulation time including stoppage time. No NBA pace or rotation forecast." }
+    ] }, bonus: 0 };
+  }
   const under = side === "under";
   const gap = Math.abs(read.teamScore - read.opponentScore);
   if (sport.startsWith("americanfootball") && gap >= 24 && clock.progress >= 0.75) return { skip: "blowout" };
@@ -407,7 +426,7 @@ export function liveRead({ sport, market, line, player, game, side = "over" }) {
     opponent: String(found.opponent?.abbreviation || ""),
     teamScore: Number.parseInt(found.team.score, 10) || 0,
     opponentScore: Number.parseInt(found.opponent?.score, 10) || 0,
-    stat: liveStatNames[market] || "",
+    stat: soccerSupport.isSoccer(sport) ? soccerSupport.marketStats[market] || "" : liveStatNames[market] || "",
     side,
     current,
     need

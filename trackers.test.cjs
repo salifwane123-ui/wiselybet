@@ -45,6 +45,8 @@ const timers = [];
 const sounds = [];
 // The page's own state; functions that reassign `trackers` or `parlays` update these properties.
 const context = {
+  soccerSupport: require("./soccer.js"),
+  isSoccer: require("./soccer.js").isSoccer,
   trackerSnapshots,
   trackers: [],
   parlays: [],

@@ -13,7 +13,8 @@
   <meta name="theme-color" content="#12150f">
   <meta name="description" content="Live odds, player props and a live pick tracker. Informational only; not betting advice.">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
-    <title>WiselyBet | Market Board</title>
+  <title>WiselyBet | Market Board</title>
+  <script src="/soccer.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -2993,6 +2994,12 @@
     };
     playerPropSports.basketball_wnba = { ...playerPropSports.basketball_nba, title: "WNBA player prop odds" };
     playerPropSports.americanfootball_ncaaf = { ...playerPropSports.americanfootball_nfl, title: "College football player prop odds" };
+    const { isSoccer } = soccerSupport;
+    supportedSports.push(...Object.keys(soccerSupport.leagues));
+    for (const [key, league] of Object.entries(soccerSupport.leagues)) {
+      playerPropSports[key] = { title: `${league.title} player props`, markets: league.props ? soccerSupport.markets : [],
+        unavailable: league.props ? "" : "Champions League player props are not currently covered by our odds provider. Match odds, live scores and the match center remain available." };
+    }
 
     function element(tag, className, text) {
       const node = document.createElement(tag);
@@ -3071,7 +3078,7 @@
         button.type = "button";
         button.dataset.sport = sport.key;
         button.setAttribute("aria-current", String(sport.key === sportSelect.value));
-        button.append(element("span", "sport-nav-icon", sportIcons[sport.key] || "•"));
+        button.append(element("span", "sport-nav-icon", isSoccer(sport.key) ? "⚽" : sportIcons[sport.key] || "•"));
         button.append(element("span", "sport-name", sport.title));
         button.addEventListener("click", () => {
           if (sportSelect.value === sport.key) return;
@@ -3093,7 +3100,7 @@
     }
 
     function normalizeTeamName(name) {
-      return String(name || "").toLocaleLowerCase().replace(/[^a-z]/g, "");
+      return String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z]/g, "");
     }
 
     function teamNamesMatch(first, second) {
@@ -3201,17 +3208,15 @@
         }
 
         if (
-          [
+          ([
             "basketball_nba",
             "basketball_wnba",
             "icehockey_nhl",
             "baseball_mlb",
             "americanfootball_nfl",
             "americanfootball_ncaaf"
-          ].includes(event.sport) &&
-          event.date &&
-          event.home.name &&
-          event.away.name
+          ].includes(event.sport) || isSoccer(event.sport)) &&
+          event.date && event.home.name && event.away.name
         ) {
           const gameLink = element("a");
           const gameDate = localDateKey(event.date);
@@ -3223,7 +3228,7 @@
           });
           gameLink.href = `/game?${params}`;
           gameLink.append(top, scoreLines);
-          const trackerTitle = event.sport === "baseball_mlb"
+          const trackerTitle = isSoccer(event.sport) ? `${soccerSupport.leagues[event.sport].title} match center` : event.sport === "baseball_mlb"
             ? "MLB live tracker"
             : event.sport === "basketball_wnba"
               ? "WNBA live tracker"
@@ -4579,7 +4584,7 @@
           "baseball_mlb",
           "americanfootball_nfl",
           "americanfootball_ncaaf"
-        ].includes(sportSelect.value)) {
+        ].includes(sportSelect.value) || isSoccer(sportSelect.value)) {
           const gameLink = element("a", "game-link");
           const linkQuery = new URLSearchParams({
             sport: sportSelect.value,
@@ -4592,7 +4597,7 @@
           gameLink.append(element(
             "span",
             "game-center-label",
-            ["basketball_nba", "basketball_wnba", "icehockey_nhl", "baseball_mlb", "americanfootball_nfl", "americanfootball_ncaaf"].includes(sportSelect.value) ? "Open game center" : "Open live tracker"
+            "Open game center"
           ));
           heading.append(gameLink);
         } else {
@@ -4683,7 +4688,7 @@
           }
           content.append(why);
           const insightDate = localDateKey(event.commence_time);
-          if (insightDate && sportSelect.value in { basketball_nba: 1, basketball_wnba: 1, icehockey_nhl: 1, baseball_mlb: 1, americanfootball_nfl: 1, americanfootball_ncaaf: 1 }) {
+          if (insightDate && (isSoccer(sportSelect.value) || sportSelect.value in { basketball_nba: 1, basketball_wnba: 1, icehockey_nhl: 1, baseball_mlb: 1, americanfootball_nfl: 1, americanfootball_ncaaf: 1 })) {
             loadMatchupInsight(sportSelect.value, insightDate, event.home_team, event.away_team).then(insight => {
               if (!insight) return;
               const text = describeHeat(insight, hot, cold, pct);
@@ -4735,8 +4740,10 @@
         const list = [];
         if (team.overall) list.push({ weight: 3, text: `${team.overall} on the season` });
         if (team.venue && team.venue !== "0-0") list.push({ weight: 1, text: `${team.venue} ${isHome ? "at home" : "on the road"}` });
-        if (team.lastFive.games >= 3) list.push({ weight: 3, text: `${team.lastFive.wins}-${team.lastFive.games - team.lastFive.wins} in their last ${team.lastFive.games}` });
-        if (team.streak && team.streak.count >= 2) list.push({ weight: 2, text: `${team.streak.count}-game ${team.streak.won ? "winning" : "losing"} streak` });
+        if (team.lastFive.games >= 3) list.push({ weight: 3, text: isSoccer(sportSelect.value)
+          ? `${team.lastFive.wins}W ${team.lastFive.draws || 0}D ${team.lastFive.games - team.lastFive.wins - (team.lastFive.draws || 0)}L in their last ${team.lastFive.games}`
+          : `${team.lastFive.wins}-${team.lastFive.games - team.lastFive.wins} in their last ${team.lastFive.games}` });
+        if (team.streak && team.streak.count >= 2) list.push({ weight: 2, text: `${team.streak.count}-game ${team.streak.draw ? "draw" : team.streak.won ? "winning" : "losing"} streak` });
         if (team.lastFive.games >= 3 && Math.abs(team.avgMargin) >= 3) list.push({ weight: 2, text: `${team.avgMargin > 0 ? "winning" : "losing"} by ${Math.abs(team.avgMargin).toFixed(1)} on average recently` });
         const out = team.injuries.filter(injury => /out|doubtful/i.test(injury.status));
         if (out.length) list.push({ weight: 2, text: `missing ${out.slice(0, 2).map(injury => injury.player).join(" and ")}${out.length > 2 ? ` (+${out.length - 2})` : ""}` });
@@ -5186,6 +5193,17 @@
       }
 
       playerPicksTitle.textContent = config.title;
+      if (config.unavailable) {
+        propEventSelect.replaceChildren();
+        propMarketSelect.replaceChildren();
+        propResultsElement.replaceChildren();
+        propStatusElement.className = "muted";
+        propStatusElement.textContent = config.unavailable;
+        propCountElement.textContent = "";
+        playerPropsRequestId += 1;
+        playerPropsHasLoaded = false;
+        return;
+      }
       propEventSelect.replaceChildren();
       const selectedDate = dateSelect.value || "all";
       const propEvents = events.filter(event =>
@@ -6058,11 +6076,11 @@
         .reverse();
       for (const play of newPlays) {
         if (!normalizeTeamName(play.text).includes(wanted)) continue;
-        if (/substitution|enters the game/i.test(`${play.type} ${play.text}`)) continue;
+        if (!isSoccer(player.sport) && /substitution|enters the game/i.test(`${play.type} ${play.text}`)) continue;
         const detail = `${play.type} ${play.text}`;
-        const kind = /injur/i.test(detail)
+        const kind = isSoccer(player.sport) ? soccerSupport.alertKind(play) : /injur/i.test(detail)
           ? "injury"
-          : /foul|technical|flagrant|ejected/i.test(detail)
+          : /foul|technical|flagrant|ejected|yellow.?card|red.?card/i.test(detail)
             ? "foul"
             : "";
         if (!kind) continue;
@@ -6179,6 +6197,7 @@
       PER: { label: "Pitcher earned runs", short: "ER" },
       POUT: { label: "Pitcher outs", short: "OUTS" }
     };
+    Object.assign(trackerStats, { SH: { label: "Shots", short: "SH" }, SOT: { label: "Shots on target", short: "SOT" } });
     const trackerStatsBySport = {
       basketball_nba: ["PTS", "REB", "AST"],
       icehockey_nhl: ["PTS", "G", "A", "SOG", "BLK", "SAV"],
@@ -6219,11 +6238,15 @@
     marketToTrackerStatBySport.basketball_wnba = marketToTrackerStatBySport.basketball_nba;
     marketToTrackerStatBySport.americanfootball_nfl = footballMarketStats;
     marketToTrackerStatBySport.americanfootball_ncaaf = footballMarketStats;
+    for (const key of Object.keys(soccerSupport.leagues)) {
+      trackerStatsBySport[key] = ["G", "A", "SH", "SOT", "SAV"];
+      marketToTrackerStatBySport[key] = soccerSupport.marketStats;
+    }
     const baseballPitcherStats = new Set(["PK", "PHA", "PER", "POUT"]);
     // Typical full-game output for a starter, used to project what is left.
     const baseballPriors = { H: 0.95, HR: 0.15, RBI: 0.55, R: 0.55, BB: 0.35, HRR: 2, PK: 5.3, PHA: 5.3, PER: 2.3, POUT: 16 };
     function sportEmoji(tracker) {
-      return tracker.sport === "icehockey_nhl" ? "🏒" : tracker.sport === "baseball_mlb" ? "⚾" : isFootballSport(tracker.sport) ? "🏈" : "🏀";
+      return isSoccer(tracker.sport) ? "⚽" : tracker.sport === "icehockey_nhl" ? "🏒" : tracker.sport === "baseball_mlb" ? "⚾" : isFootballSport(tracker.sport) ? "🏈" : "🏀";
     }
     // Over and Under picks share one stored threshold: target = floor(line) + 1, so the book line is target − 0.5.
     // An Over wins once the stat reaches the target. An Under loses the moment it does, and wins when the game ends
@@ -6249,6 +6272,7 @@
     // "won", "lost", "live" or "void". An Under is void when the game ends without him in the box score,
     // because sportsbooks refund props on players who don't play.
     function pickOutcome(tracker, snapshot) {
+      if (isSoccer(tracker.sport) && snapshot?.state === "post" && snapshot.found === false) return "void";
       const reached = (Number(snapshot?.current) || 0) >= Number(tracker.target);
       const finished = snapshot?.state === "post" || snapshot?.fouls >= 6;
       if (!isUnderPick(tracker)) return reached ? "won" : finished ? "lost" : "live";
@@ -7991,6 +8015,8 @@
     // Always-on performance read: his actual number, the time left and the bench cover.
     function performanceVerdict(tracker, snapshot, assessment) {
       const short = trackerStats[tracker.stat].short;
+      if (isSoccer(tracker.sport)) return { tone: assessment.level === "hit" ? "hype" : assessment.level === "far" ? "bad" : "idle",
+        title: snapshot.error ? "Data unavailable" : "Match update", text: assessment.text };
       if (isUnderPick(tracker)) {
         const line = pickLine(tracker.target);
         const outcome = pickOutcome(tracker, snapshot);
@@ -8025,6 +8051,12 @@
       const need = tracker.target - snapshot.current;
       const label = trackerStats[tracker.stat].label.toLowerCase();
       const name = tracker.name.split(" ").slice(-1)[0];
+      if (isSoccer(tracker.sport)) {
+        const outcome = pickOutcome(tracker, snapshot);
+        return { tone: outcome === "won" ? "hype" : outcome === "lost" ? "bad" : "idle",
+          short: outcome === "live" ? "Match in progress" : outcome,
+          text: `${tracker.name}: ${pickScore(tracker, snapshot.current)}. ${snapshot.periodLabel || "Match status unavailable"}. Soccer props use regulation time; no NBA pace or rotation forecast is applied.` };
+      }
       if (isUnderPick(tracker)) {
         const outcome = pickOutcome(tracker, snapshot);
         const line = pickLine(tracker.target);
@@ -8867,6 +8899,7 @@
     }
 
     function gameMinutesRemaining(game) {
+      if (isSoccer(game.sport)) return soccerSupport.clock(game).remaining;
       const hockey = game.sport === "icehockey_nhl";
       const periods = hockey ? 3 : 4;
       const length = hockey ? 20 : isFootballSport(game.sport) ? 15 : game.sport === "basketball_wnba" ? 10 : 12;
@@ -8879,6 +8912,7 @@
 
     // Playing-time assumptions per sport: usual minutes, share of game time he is on the floor/ice, full-game scale.
     function paceModel(tracker) {
+      if (isSoccer(tracker.sport)) return { base: 90, share: 1, full: 90, starter: 0, unit: "match minutes" };
       if (tracker.sport === "icehockey_nhl") {
         return tracker.stat === "SAV"
           ? { base: 60, share: 1, full: 60, starter: 55, unit: "ice time" }
@@ -9044,6 +9078,12 @@
     function assessTracker(tracker, snapshot) {
       const need = tracker.target - snapshot.current;
       const short = trackerStats[tracker.stat].short;
+      if (isSoccer(tracker.sport)) {
+        if (snapshot.error) return { level: "pending", text: snapshot.error };
+        const outcome = pickOutcome(tracker, snapshot);
+        return { level: outcome === "won" ? "hit" : outcome === "lost" ? "far" : "pending",
+          text: `${pickScore(tracker, snapshot.current)} · ${snapshot.periodLabel || "Awaiting match data"}. Regulation time only; no NBA pace forecast.` };
+      }
       if (isUnderPick(tracker)) {
         const outcome = pickOutcome(tracker, snapshot);
         if (outcome === "lost") return { level: "far", text: `Over the line — ${snapshot.current} ${short} busts the Under ${pickLine(tracker.target)}.` };
@@ -9248,6 +9288,7 @@
       const stats = {};
       for (const stat of athlete?.stats || []) stats[stat.label] = stat.value;
       const hockey = tracker.sport === "icehockey_nhl";
+      const soccer = isSoccer(tracker.sport);
       const baseball = tracker.sport === "baseball_mlb";
       if (baseball) {
         // ESPN baseball labels arrive as "Batting H" / "Pitching K"; keep only the role being tracked.
@@ -9285,13 +9326,18 @@
       const group = pos => (pos.includes("G") ? "G" : hockey ? (pos.includes("D") ? "D" : "F") : pos.includes("C") ? "C" : "F");
       const myTeam = game.teams.find(team => team.players.some(candidate => normalizeTeamName(candidate.name) === wanted));
       // Same-position teammates on the bench who already played: they can take his minutes.
-      const replacements = athlete && myTeam && !hockey && !baseball && !football
+      const replacements = athlete && myTeam && !hockey && !baseball && !football && !soccer
         ? myTeam.players
           .filter(candidate => candidate !== athlete && !candidate.onCourt &&
             group(candidate.position || "") === group(athlete.position || "") &&
             Number.parseFloat((candidate.stats || []).find(stat => stat.label === "MIN")?.value) > 0)
           .map(candidate => candidate.name)
         : [];
+      if (soccer && (!athlete || stats[tracker.stat] === undefined || soccerSupport.clock(game).remaining === null || Number(game.period) > 2)) {
+        trackerSnapshots.set(tracker.key, { ...(previous || { current: 0, stats: {} }),
+          error: Number(game.period) > 2 ? "Extra time: regulation-only player stats cannot be verified." : "Soccer player stats or match clock are not available yet.", state: game.state, periodLabel: game.periodLabel || "" });
+        return;
+      }
       const current = Number.parseInt(stats[tracker.stat], 10) || 0;
       const snapshot = {
         error: "",
@@ -9299,10 +9345,10 @@
         periodLabel: game.periodLabel || "",
         current,
         stats,
-        fouls: hockey || baseball || football ? 0 : Number.parseInt(stats.PF, 10) || 0,
-        onCourt: athlete ? (hockey || baseball || football || Boolean(athlete.onCourt)) : true,
+        fouls: hockey || baseball || football || soccer ? 0 : Number.parseInt(stats.PF, 10) || 0,
+        onCourt: athlete ? (soccer ? Boolean(athlete.onCourt) : hockey || baseball || football || Boolean(athlete.onCourt)) : true,
         inning: Number(game.period) || 0,
-        found: Boolean(athlete),
+        found: Boolean(athlete) && (!soccer || athlete.appeared === true),
         replacements,
         minutes: Number.parseFloat(stats.MIN) || 0,
         remaining: baseball ? baseballInningsLeft(game) : gameMinutesRemaining(game),
@@ -9314,6 +9360,11 @@
         trail: { ...(previous?.trail || {}) }
       };
       const under = isUnderPick(tracker);
+      if (soccer && previous && !previous.error) {
+        if (Number(stats.YC || 0) > Number(previous.stats?.YC || 0) || Number(stats.RC || 0) > Number(previous.stats?.RC || 0)) {
+          pushNotification("foul", `${tracker.name}: ${stats.YC || 0} yellow, ${stats.RC || 0} red cards.`);
+        }
+      }
       // Remember notable moments during the game for the end-of-game recap.
       if (snapshot.state === "in" && athlete) {
         const trail = snapshot.trail;
@@ -9333,7 +9384,7 @@
       const alsoFollowed = followedPlayers.some(item => normalizeTeamName(item.name) === wanted);
       if (previous && !previous.error && !tracker.demo && playerPicks[0] === tracker && !alsoFollowed &&
           playerPicks.some(item => !pickReached(item))) {
-        if (snapshot.state === "in" && athlete && snapshot.onCourt !== previous.onCourt) {
+        if (!soccer && snapshot.state === "in" && athlete && snapshot.onCourt !== previous.onCourt) {
           pushNotification("court", snapshot.onCourt ? `${tracker.name} is on the court.` : `${tracker.name} went to the bench.`);
         }
         if (snapshot.fouls > previous.fouls) {
@@ -9513,7 +9564,7 @@
         }
 
         const mini = element("ul", "tracker-mini");
-        const miniLabels = tracker.sport === "icehockey_nhl"
+        const miniLabels = isSoccer(tracker.sport) ? ["G", "A", "SH", "SOT", "YC", "RC"] : tracker.sport === "icehockey_nhl"
           ? (tracker.stat === "SAV" ? ["TOI", "SA", "GA", "SV", "SV%"] : ["TOI", "G", "A", "S", "PIM"])
           : isFootballSport(tracker.sport)
             ? (["PYD", "PTD", "PCMP", "PATT", "PINT"].includes(tracker.stat) ? ["PCMP", "PATT", "PYD", "PTD", "PINT"] : ["RATT", "RYD", "RTD", "REC", "RECYD"])
@@ -9541,9 +9592,9 @@
         clockChip.title = clock.tone === "live" ? "Live game clock" : clock.tone === "final" ? "Game over" : "Game start time";
         const gameRow = element("div", `tracker-game-row${snapshot.state === "in" ? " is-live" : ""}`);
         gameRow.append(clockChip);
-        if (snapshot.state === "in" && snapshot.found && snapshot.onCourt) {
+        if (snapshot.state === "in" && snapshot.found && snapshot.onCourt && !isSoccer(tracker.sport)) {
           const dot = element("span", "tracker-court-dot");
-          const here = tracker.sport === "icehockey_nhl" || tracker.sport === "baseball_mlb" || isFootballSport(tracker.sport) ? "In the game" : "On the court";
+          const here = isSoccer(tracker.sport) ? "In the match" : tracker.sport === "icehockey_nhl" || tracker.sport === "baseball_mlb" || isFootballSport(tracker.sport) ? "In the game" : "On the court";
           dot.title = here;
           dot.setAttribute("role", "img");
           dot.setAttribute("aria-label", `${tracker.name}: ${here.toLowerCase()}`);
@@ -10079,6 +10130,7 @@
     // Guests browse every game and price; only player props, the tracker and parlays need an account.
     // News window: ESPN headlines, injury reports and betting stories for the chosen sport.
     const newsSports = [["basketball_nba", "NBA"], ["icehockey_nhl", "NHL"], ["americanfootball_nfl", "NFL"], ["baseball_mlb", "MLB"], ["basketball_wnba", "WNBA"], ["americanfootball_ncaaf", "College football"]];
+    newsSports.push(...Object.entries(soccerSupport.leagues).map(([key, league]) => [key, league.title]));
     const newsFilters = [["all", "All"], ["injury", "Injuries"], ["betting", "Props & betting"], ["news", "Team news"], ["recap", "Game recaps"]];
     let newsOverlay = null;
     let newsTimer = null;
