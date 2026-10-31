@@ -9846,6 +9846,11 @@
       const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
       const say = text => { status.textContent = text; };
       const post = (path, body) => fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+      async function readReply(reply) {
+        const data = await reply.json();
+        if (!reply.ok) throw new Error(data.error || `Phone alert request failed (${reply.status}).`);
+        return data;
+      }
       const toKey = value => {
         const raw = atob(value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "="));
         return Uint8Array.from(raw, char => char.charCodeAt(0));
@@ -9856,46 +9861,71 @@
       }
       async function refresh() {
         if (!window.wiselyUser) { toggle.disabled = true; say("Sign in to get phone alerts."); return; }
-        if (!supported) {
+        if (!supported || (ios && !standalone)) {
           toggle.disabled = true;
           say(ios && !standalone ? "On iPhone: tap Share → Add to Home Screen, then open WiselyBet from the Home Screen to turn this on." : "This browser doesn't support phone alerts.");
           return;
         }
-        const sub = await currentSubscription().catch(() => null);
+        const sub = await currentSubscription();
         toggle.checked = Boolean(sub) && Notification.permission === "granted";
         testButton.hidden = !toggle.checked;
         say(Notification.permission === "denied" ? "Alerts are blocked. Allow notifications for this site in your phone settings." : toggle.checked ? "On. You'll get target, close-to-target, final, court, foul and injury alerts, even when the app is closed." : "Off.");
       }
       toggle.addEventListener("change", async () => {
+        const enabling = toggle.checked;
         toggle.disabled = true;
         try {
-          if (toggle.checked) {
-            const keyReply = await fetch("/api/push/key");
-            const { key } = await keyReply.json();
-            if (!key) throw new Error("Phone alerts aren't set up on the server yet.");
+          if (enabling) {
+            // Request permission directly from the tap, before any network await.
             if (await Notification.requestPermission() !== "granted") throw new Error("Permission was not granted.");
+            const { key } = await readReply(await fetch("/api/push/key"));
+            if (!key) throw new Error("Phone alerts aren't set up on the server yet.");
             const registration = await navigator.serviceWorker.ready;
-            const sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: toKey(key) });
+            let sub = await registration.pushManager.getSubscription();
+            const applicationServerKey = toKey(key);
+            const oldKey = sub?.options?.applicationServerKey;
+            if (sub && oldKey && (oldKey.byteLength !== applicationServerKey.byteLength ||
+                !Array.from(new Uint8Array(oldKey)).every((byte, index) => byte === applicationServerKey[index]))) {
+              await readReply(await post("/api/push/unsubscribe", { endpoint: sub.endpoint }));
+              if (!await sub.unsubscribe()) throw new Error("Could not remove the old phone subscription.");
+              sub = null;
+            }
+            if (!sub) sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
             const reply = await post("/api/push/subscribe", { subscription: sub.toJSON(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
-            if (!reply.ok) throw new Error((await reply.json().catch(() => ({}))).error || "Could not save the subscription.");
+            await readReply(reply);
           } else {
             const sub = await currentSubscription();
-            if (sub) { await post("/api/push/unsubscribe", { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+            if (sub) {
+              await readReply(await post("/api/push/unsubscribe", { endpoint: sub.endpoint }));
+              if (!await sub.unsubscribe()) throw new Error("Could not remove the phone subscription.");
+            }
           }
+          await refresh();
         } catch (caught) {
-          toggle.checked = !toggle.checked;
+          toggle.checked = !enabling;
+          testButton.hidden = !toggle.checked;
           say(caught.message || "Something went wrong.");
+        } finally {
           toggle.disabled = false;
-          return;
         }
-        toggle.disabled = false;
-        refresh();
       });
       testButton.addEventListener("click", async () => {
-        const reply = await post("/api/push/test");
-        say(reply.ok ? "Test sent — check your notifications." : "Could not send the test. Try turning alerts off and on.");
+        testButton.disabled = true;
+        try {
+          const { sent } = await readReply(await post("/api/push/test"));
+          if (!(sent > 0)) throw new Error("The test alert was not accepted by the push service.");
+          say("Test accepted by the push service — check your notifications.");
+        } catch (caught) {
+          say(caught.message || "Could not send the test alert.");
+        } finally {
+          testButton.disabled = false;
+        }
       });
-      refresh();
+      refresh().catch(caught => {
+        toggle.checked = false;
+        testButton.hidden = true;
+        say(caught.message || "Could not read phone alert settings.");
+      });
     })();
     renderHistory();
 

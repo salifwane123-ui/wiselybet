@@ -29,10 +29,9 @@ function validSubscription(sub) {
 }
 
 async function readList(userKey) {
-  try {
-    const list = JSON.parse((await getUserData(userKey))[pushDataKey] || "[]");
-    return Array.isArray(list) ? list : [];
-  } catch { return []; }
+  const list = JSON.parse((await getUserData(userKey))[pushDataKey] || "[]");
+  if (!Array.isArray(list)) throw new Error("Saved phone subscriptions are invalid.");
+  return list;
 }
 function writeList(userKey, list) {
   return updateUserData(userKey, { data: { [pushDataKey]: list.length ? JSON.stringify(list) : null } }, true);
@@ -61,6 +60,7 @@ async function deliver(userKey, list, payload) {
       alive.push(sub);
       sent++;
     } catch (caught) {
+      console.error("Push delivery failed:", caught.statusCode || caught.code || "unknown", caught.message);
       if (caught.statusCode !== 404 && caught.statusCode !== 410) alive.push(sub);
     }
   }
@@ -69,9 +69,11 @@ async function deliver(userKey, list, payload) {
 }
 
 export async function sendTest(userKey) {
+  if (!pushEnabled) throw Object.assign(new Error("Phone alerts are not set up on this server."), { status: 503 });
   const list = await readList(userKey);
   if (!list.length) throw Object.assign(new Error("This phone isn't subscribed yet."), { status: 400 });
   const sent = await deliver(userKey, list, { title: "WiselyBet", body: "Phone alerts are on. You'll get live updates here.", tag: "wb-test" });
+  if (!sent) throw Object.assign(new Error("The push service did not accept the test alert. Check the server logs and enable phone alerts again."), { status: 502 });
   return { sent };
 }
 
