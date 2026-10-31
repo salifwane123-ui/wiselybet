@@ -256,20 +256,20 @@ test("side filters return only Over or only Under legs", () => {
   assert.deepEqual(unders.legs.map(leg => [leg.player, leg.side]), [["Under Lean", "under"]]);
 });
 
-test("lowest-line mode chooses the smallest stat line even when its odds are longer", () => {
+test("lowest-line mode chooses 2 assists over 2.5 even when its odds are longer", () => {
   const rows = [
-    ["Multi Line", 10.5, ...prices(0.55)],
-    ["Multi Line", 20.5, ...prices(0.7)]
+    ["Assist Example", 2.5, ...prices(0.7)],
+    ["Assist Example", 2, ...prices(0.55)]
   ];
   const result = build([game("g1", now + hour)], {
     g1: eventOdds({
-      draftkings: { player_points: rows },
-      fanduel: { player_points: rows }
+      draftkings: { player_assists: rows },
+      fanduel: { player_assists: rows }
     })
   }, { rankBy: "lowest-line", sideFilter: "over" });
 
-  assert.deepEqual(result.legs.map(leg => [leg.line, leg.side]), [[10.5, "over"]]);
-  assert.ok(result.legs[0].price > 1 / (0.7 * 1.045));
+  assert.deepEqual(result.legs.map(leg => [leg.line, leg.side]), [[2, "over"]]);
+  assert.ok(result.legs[0].price > prices(0.7)[0]);
 });
 
 test("cross-sport aggregation ranks sides together and keeps sport identity", () => {
