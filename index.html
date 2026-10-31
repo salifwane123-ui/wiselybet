@@ -2112,7 +2112,12 @@
     .bp-select { width: auto; max-width: 100%; height: 30px; min-height: 0; padding: 0 4px 0 8px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: #121611; color: #e7f7b0; font-size: .74rem; font-weight: 700; color-scheme: dark; cursor: pointer; }
     .bp-select:hover { border-color: rgba(201,239,91,.6); }
     .bp-select[hidden] { display: none; }
-    .bp-sport-select { max-width: 135px; }
+    .bp-sport-select { flex: 1 1 100%; min-width: 0; margin: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 10px; }
+    .bp-sport-select legend { padding: 0 4px; color: var(--muted); font-size: .7rem; }
+    .bp-sport-options { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+    .bp-sport-option { display: inline-flex; align-items: center; gap: 5px; color: inherit; font-size: .74rem; cursor: pointer; }
+    .bp-sport-option input { width: 15px; height: 15px; min-height: 0; margin: 0; padding: 0; accent-color: #6a9a14; }
+    .bp-sport-option:has(input:disabled) { color: var(--muted); cursor: not-allowed; }
     .bp-side-select { max-width: 110px; }
     .bp-book-select { max-width: 175px; }
     .best-parlay.is-unset .bp-book-select, .bp-state-select.is-needed { border-color: #c9ef5b; box-shadow: 0 0 0 3px rgba(201,239,91,.14); }
@@ -2483,7 +2488,7 @@
               </div>
             </div>
             <div class="bp-pickers">
-              <select id="bp-sport-select" class="bp-select bp-sport-select" aria-label="Sport for parlay"></select>
+              <fieldset id="bp-sport-select" class="bp-sport-select"><legend>Sports for suggestions</legend><div class="bp-sport-options"></div></fieldset>
               <select id="bp-side-select" class="bp-select bp-side-select" aria-label="Player prop side"></select>
               <select id="bp-book" class="bp-select bp-book-select" aria-label="Your sportsbook"><option value="">Your sportsbook…</option></select>
               <select id="bp-state" class="bp-select bp-state-select" aria-label="Your state" hidden></select>
@@ -3898,10 +3903,22 @@
     };
     const twoWordNicknames = ["Red Sox", "White Sox", "Blue Jays", "Red Wings", "Golden Knights", "Maple Leafs", "Trail Blazers", "Blue Jackets"];
     function bestParlaySport() {
-      return settings.parlaySport === "all" || supportedSports.includes(settings.parlaySport) ? settings.parlaySport : "all";
+      const sports = bestParlaySports();
+      return sports.length === availableParlaySports().length ? "all" : sports.sort().join(",");
+    }
+    function availableParlaySports() {
+      return supportedSports.filter(sport => !isSoccer(sport) || soccerSupport.leagues[sport].props);
+    }
+    function bestParlaySports() {
+      const available = availableParlaySports();
+      if (Array.isArray(settings.parlaySports)) return available.filter(sport => settings.parlaySports.includes(sport));
+      return available.includes(settings.parlaySport) ? [settings.parlaySport] : available;
     }
     function parlaySportTitle(sport) {
+      if (!sport) return "No sports selected";
+      if (sport.includes(",")) return "Selected sports";
       if (sport === "all") return "All sports";
+      if (isSoccer(sport)) return soccerSupport.leagues[sport].title;
       return (playerPropSports[sport]?.title || sport).replace(/ player prop odds$/i, "");
     }
     function bestParlaySide() {
@@ -4077,12 +4094,7 @@
 
     // The book and state lists are declared further down, so the pickers fill on first render.
     function fillBestParlayPickers() {
-      if (bpSportSelect.options.length < supportedSports.length + 1) {
-        bpSportSelect.replaceChildren(
-          new Option("All sports", "all"),
-          ...supportedSports.map(sport => new Option(parlaySportTitle(sport), sport))
-        );
-      }
+      fillBestParlaySportCheckboxes();
       if (bpSideSelect.options.length !== 3) {
         bpSideSelect.replaceChildren(
           new Option("All sides", "all"),
@@ -4093,10 +4105,45 @@
       if (bpBookSelect.options.length < 2) bpBookSelect.append(...sportsbooks.map(book => new Option(book.title, book.key)));
       if (!bpLegsSelect.options.length) bpLegsSelect.append(...parlayLegCounts.map(count => new Option(`${count} legs`, String(count))));
       fillStateOptions(bpStateSelect);
-      bpSportSelect.value = bestParlaySport();
       bpSideSelect.value = bestParlaySide();
       bpBookSelect.value = bestParlayBook();
       bpLegsSelect.value = String(parlayLegTarget());
+    }
+
+    function fillBestParlaySportCheckboxes() {
+      const options = bpSportSelect.querySelector(".bp-sport-options");
+      const available = availableParlaySports();
+      if (!options.children.length) {
+        for (const [sport, title] of [["all", "All sports"], ...supportedSports.map(sport => [sport, parlaySportTitle(sport)])]) {
+          const label = element("label", "bp-sport-option");
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.dataset.sport = sport;
+          checkbox.disabled = sport !== "all" && !available.includes(sport);
+          label.append(checkbox, document.createTextNode(checkbox.disabled ? `${title} (props unavailable)` : title));
+          options.append(label);
+        }
+      }
+      const selected = bestParlaySports();
+      for (const checkbox of options.querySelectorAll("input")) {
+        checkbox.checked = checkbox.dataset.sport === "all" ? selected.length === available.length : selected.includes(checkbox.dataset.sport);
+        checkbox.indeterminate = checkbox.dataset.sport === "all" && selected.length > 0 && selected.length < available.length;
+      }
+    }
+    function changeBestParlaySports(checkbox) {
+      const sport = checkbox.dataset.sport;
+      const available = availableParlaySports();
+      if (checkbox.disabled || (sport !== "all" && !available.includes(sport))) return;
+      const selected = new Set(bestParlaySports());
+      if (sport === "all") settings.parlaySports = checkbox.checked ? available : [];
+      else {
+        if (checkbox.checked) selected.add(sport);
+        else selected.delete(sport);
+        settings.parlaySports = available.filter(key => selected.has(key));
+      }
+      saveSettings();
+      fillBestParlaySportCheckboxes();
+      void loadBestParlay();
     }
 
     async function loadBestParlay() {
@@ -4115,7 +4162,8 @@
       state.loading = true;
       if (!state.data) renderBestParlay();
       try {
-        const data = await getJson(`/api/best-parlay?sport=${encodeURIComponent(sport)}&side=${encodeURIComponent(side)}&book=${encodeURIComponent(book)}`);
+        const scope = sport.includes(",") ? `sport=all&sports=${encodeURIComponent(sport)}` : `sport=${encodeURIComponent(sport)}`;
+        const data = await getJson(`/api/best-parlay?${scope}&side=${encodeURIComponent(side)}&book=${encodeURIComponent(book)}`);
         if (request !== state.request) return;
         if (!Array.isArray(data?.legs)) throw new Error("We couldn't build a parlay right now. Please try again in a minute.");
         state.data = data;
@@ -4292,7 +4340,7 @@
     function drawBestParlay() {
       if (!bestParlayElement) return;
       const sport = bestParlaySport();
-      bestParlayElement.hidden = embedMode || !sport;
+      bestParlayElement.hidden = embedMode;
       if (bestParlayElement.hidden) {
         bpProgressBar.classList.remove("run");
         return;
@@ -4305,7 +4353,7 @@
       dropStaleRemovedToast(data);
       bpSportLabel.textContent = parlaySportTitle(sport);
       bpStateSelect.hidden = !stateSportsbooks.has(book);
-      bestParlayElement.classList.toggle("is-unset", !book);
+      bestParlayElement.classList.toggle("is-unset", !book || !sport);
       bestParlayElement.classList.toggle("has-legs", legs.length > 0);
       bestParlayElement.classList.toggle("is-single", legs.length === 1);
       bpScopeLabel.textContent = data?.scope === "mixed" ? "Mixed" : "Live";
@@ -4325,7 +4373,9 @@
       state.shown = legs.length ? { legs, data } : null;
       if (!legs.length) {
         bpViewport.dataset.dir = "none";
-        bpViewport.replaceChildren(removed.length
+        bpViewport.replaceChildren(!sport
+          ? bestParlayMessage("Select at least one sport", "Suggestions are paused. Enable a sport above to resume.")
+          : removed.length
           ? bestParlayAllRemovedSlide(removed)
           : book
             ? bestParlayEmptySlide(data, book)
@@ -4940,10 +4990,8 @@
         saveSettings();
         renderBestParlay();
       });
-      bpSportSelect.addEventListener("change", () => {
-        settings.parlaySport = bpSportSelect.value;
-        saveSettings();
-        void loadBestParlay();
+      bpSportSelect.addEventListener("change", event => {
+        if (event.target.matches('input[type="checkbox"]')) changeBestParlaySports(event.target);
       });
       bpSideSelect.addEventListener("change", () => {
         settings.parlaySide = bpSideSelect.value;
@@ -10455,7 +10503,8 @@
         settings = readSettings();
         applyTheme();
         applyVolume();
-        if (settings.parlayBook !== previous.parlayBook || settings.parlaySport !== previous.parlaySport || settings.parlaySide !== previous.parlaySide) void loadBestParlay();
+        if (settings.parlayBook !== previous.parlayBook || settings.parlaySport !== previous.parlaySport ||
+            JSON.stringify(settings.parlaySports) !== JSON.stringify(previous.parlaySports) || settings.parlaySide !== previous.parlaySide) void loadBestParlay();
         else if (["parlayState", "parlayLegs", "oddsFormat"].some(key => settings[key] !== previous[key])) renderBestParlay();
         if (settings.parlayState !== previous.parlayState) renderTrackers();
       } else if (event.key === historyKey) {

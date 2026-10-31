@@ -686,8 +686,10 @@ async function bestParlayFor(sport, book, premium, options = {}) {
   }
 }
 
-async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy = "strength") {
-  const key = `best-parlay:all|${book}|${premium ? "full" : "guest"}|${sideFilter}|${rankBy}`;
+async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy = "strength", selectedSports = Object.keys(bestParlayMarkets)) {
+  const sports = Object.keys(bestParlayMarkets).filter(sport => selectedSports.includes(sport));
+  const scope = sports.length === Object.keys(bestParlayMarkets).length ? "all" : [...sports].sort().join(",");
+  const key = `best-parlay:${scope}|${book}|${premium ? "full" : "guest"}|${sideFilter}|${rankBy}`;
   const lastGood = () => {
     const saved = parlayLastGood.get(key);
     return saved && Date.now() - Date.parse(saved.generatedAt) < parlayStaleMs ? { ...saved, stale: true } : null;
@@ -697,7 +699,7 @@ async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy 
   try {
     const results = [];
     const unavailable = [];
-    for (const sport of Object.keys(bestParlayMarkets)) {
+    for (const sport of sports) {
       try {
         results.push(await bestParlayFor(sport, book, premium, { maxGames: 2, includeScore: true, sideFilter, rankBy }));
       } catch (error) {
@@ -722,7 +724,7 @@ async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy 
     } : null;
     const liveLegs = merged.legs.filter(leg => leg.live).length;
     const value = {
-      sport: "all",
+      sport: scope,
       book,
       side: sideFilter,
       rankBy,
@@ -1293,7 +1295,12 @@ const server = createServer(async (request, response) => {
         return;
       }
       if (sport === "all") {
-        await sendJson(response, 200, await bestParlayForAllSports(book, premium, sideFilter, "lowest-line"));
+        const selectedSports = url.searchParams.has("sports") ? url.searchParams.get("sports").split(",") : Object.keys(bestParlayMarkets);
+        if (!selectedSports.length || selectedSports.some(key => !Object.hasOwn(bestParlayMarkets, key))) {
+          await sendJson(response, 400, { error: "Select at least one supported sport." });
+          return;
+        }
+        await sendJson(response, 200, await bestParlayForAllSports(book, premium, sideFilter, "lowest-line", selectedSports));
         return;
       }
       if (!Object.hasOwn(bestParlayMarkets, sport)) {

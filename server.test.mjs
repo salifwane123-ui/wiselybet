@@ -158,6 +158,14 @@ test("health check, legal pages, robots.txt and shared files are public", async 
   }
 });
 
+test("best parlay rejects empty and unsupported selected sports before fetching odds", async () => {
+  for (const sports of ["", "invalid", "basketball_nba,invalid"]) {
+    const reply = await get(`/api/best-parlay?sport=all&book=fanduel&sports=${encodeURIComponent(sports)}`);
+    assert.equal(reply.status, 400);
+    assert.equal((await reply.json()).error, "Select at least one supported sport.");
+  }
+});
+
 test("unknown addresses get the branded 404 page; API paths answer in JSON", async () => {
   let reply = await get("/no-such-page");
   assert.equal(reply.status, 404);
