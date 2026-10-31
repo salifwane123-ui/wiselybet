@@ -448,6 +448,7 @@ function quoteIsFresh(market, bookmaker, fetchedAt, limit = parlayRules.staleQuo
 // player key -> { player, lines: point -> { over, under } } for one book's market.
 function playerLines(market) {
   const players = new Map();
+  const alternate = String(market?.key || "").endsWith("_alternate");
   for (const outcome of market?.outcomes || []) {
     const side = String(outcome?.name || "").toLowerCase();
     const player = String(outcome?.description || "").trim();
@@ -459,7 +460,7 @@ function playerLines(market) {
     if (!players.has(key)) players.set(key, { player, lines: new Map() });
     const lines = players.get(key).lines;
     if (!lines.has(outcome.point)) lines.set(outcome.point, {});
-    lines.get(outcome.point)[side] = outcome;
+    lines.get(outcome.point)[side] = { ...outcome, alternate };
   }
   return players;
 }
@@ -589,6 +590,7 @@ export function buildBestParlay({
             market,
             line: main.point,
             side,
+            alternate: Boolean(outcome.alternate),
             price,
             probability: round4(probability),
             books: chances.length,

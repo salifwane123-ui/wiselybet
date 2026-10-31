@@ -3965,9 +3965,17 @@
       const candidates = pool.filter(item => !isBestParlayRemoved(item) && Number.isFinite(Number(item.price)) && Number(item.price) > 1);
       return { legs: candidates.slice(0, target), removed };
     }
-    function bestParlayLegText(leg, sport) {
+    function bestParlayOutcomeText(leg, sport) {
       const side = leg.side === "under" ? "Under" : "Over";
-      return `${leg.player} ${side} ${leg.line} ${propMarketPhrase(leg.sport || sport, leg.market)}`;
+      const market = propMarketPhrase(leg.sport || sport, leg.market);
+      const line = Number(leg.line);
+      if (leg.alternate && side === "Over" && Number.isFinite(line) && Math.abs(line % 1 - 0.5) < 1e-9) {
+        return `${Math.floor(line) + 1}+ ${market}`;
+      }
+      return `${side} ${leg.line} ${market}`;
+    }
+    function bestParlayLegText(leg, sport) {
+      return `${leg.player} ${bestParlayOutcomeText(leg, sport)}`;
     }
     function countText(count, one, many = `${one}s`) {
       return `${count} ${count === 1 ? one : many}`;
@@ -4097,11 +4105,10 @@
       const main = element("div", "bp-leg-main");
       const title = element("div", "bp-leg-title");
       const legSport = leg.sport || sport;
-      const side = leg.side === "under" ? "Under" : "Over";
       title.append(
         element("strong", "bp-player", leg.player),
         element("span", "bp-league", legSport === "all" ? "" : legSport.split("_").pop().toUpperCase()),
-        element("span", "bp-pick", `${side} ${leg.line} ${propMarketPhrase(legSport, leg.market)}`)
+        element("span", "bp-pick", bestParlayOutcomeText(leg, legSport))
       );
       const meta = element("div", "bp-meta");
       const matchup = `${teamNickname(leg.away, sport)} @ ${teamNickname(leg.home, sport)}`;
