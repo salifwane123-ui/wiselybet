@@ -8845,14 +8845,22 @@
       const cashed = Boolean(message?.text.startsWith("🔥"));
       if (tracker?.demo) queueSound(cashed ? playCashSound : playScoreSound, cashed ? 1100 : 450);
       else playOnce(`pop|${tracker?.eventId}|${name}|${stat}|${current}`, cashed);
+      const sharedParlays = tracker && !tracker.demo
+        ? parlays.filter(parlay => trackers.some(pick => !pick.demo && pick.parlay === parlay.id &&
+          pickIdentity(pick) === pickIdentity(tracker)))
+        : [];
+      const shared = sharedParlays.length > 1;
+      if (shared && !firstAnnouncement(`shared-pop|${pickIdentity(tracker)}|${current}`)) return;
       const tone = message?.tone || "hype";
       const under = isUnderPick(tracker);
       // Reaching the target cashes an Over but busts an Under, so only an Over turns into the big "cashed" pop.
       const big = cashed || (!under && tracker?.target > 0 && Number.isFinite(current) && current >= tracker.target);
       const pop = element("div", `score-pop${big ? " is-cashed" : ""}`);
       const parlay = parlays.find(item => item.id === tracker?.parlay);
-      const windowKey = parlay ? `parlay:${parlay.id}` : tracker ? `singles:${tracker.eventId}` : "";
-      pop.append(element("div", "score-pop-group", `${big ? "🏆 " : ""}${parlay ? parlay.name : "Single pick"}`));
+      const windowKey = shared ? `shared:${pickIdentity(tracker)}` : parlay ? `parlay:${parlay.id}` : tracker ? `singles:${tracker.eventId}` : "";
+      pop.append(element("div", "score-pop-group", `${big ? "🏆 " : ""}${shared
+        ? `Shared pick · ${sharedParlays.map(item => item.name).join(", ")}`
+        : parlay ? parlay.name : "Single pick"}`));
       const row = element("div", "score-pop-main");
       const unit = { PTS: points === 1 ? "point" : "points", REB: points === 1 ? "rebound" : "rebounds", AST: points === 1 ? "assist" : "assists" }[stat] || stat;
       const number = element("strong", "score-pop-num", `+${points}`);
@@ -8916,7 +8924,7 @@
       trackerScorePops.set(windowKey, pops);
       const target = [...trackerPanel.querySelectorAll(".tracker-window")]
         .find(item => item.dataset.windowKey === windowKey);
-      const stack = trackerPanelOpen && target?.open
+      const stack = !shared && trackerPanelOpen && target?.open
         ? target.querySelector(".tracker-window-events")
         : scoreStackElement;
       stack.append(pop);

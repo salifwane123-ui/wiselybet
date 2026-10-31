@@ -89,6 +89,88 @@ const page = runInNewContext(`${code}
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
+test("shared picks show one score animation above all tracking windows for each new score", () => {
+  function node(tag, className, textContent = "") {
+    return {
+      tag, className, textContent, children: [], parent: null, listeners: {},
+      style: { setProperty() {} }, classList: { add() {}, remove() {} },
+      append(...children) {
+        for (const child of children) {
+          if (child && typeof child === "object") {
+            child.remove();
+            child.parent = this;
+          }
+          this.children.push(child);
+        }
+      },
+      remove() {
+        if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this);
+        this.parent = null;
+      },
+      addEventListener(event, listener) { this.listeners[event] = listener; }
+    };
+  }
+  const announcements = new Set();
+  const scheduled = [];
+  const stack = node("div");
+  const events = node("div");
+  const groups = [{ dataset: { windowKey: "parlay:p1" }, open: true, querySelector: () => events }];
+  const first = { key: "a", name: "Player One", eventId: "game", stat: "PTS", side: "over", target: 20, parlay: "p1" };
+  const second = { ...first, key: "b", parlay: "p2" };
+  const single = { ...first, key: "c", parlay: "" };
+  const sounds = [];
+  const app = {
+    trackers: [first, second, single], parlays: [{ id: "p1", name: "Parlay 1" }, { id: "p2", name: "Parlay 2" }],
+    trackerScorePops: new Map(), trackerSnapshots: new Map(), trackerPanelOpen: true,
+    trackerPanel: { querySelectorAll: () => groups }, scoreStackElement: stack,
+    element: node, isUnderPick: page.isUnderPick, pickIdentity: page.pickIdentity,
+    firstAnnouncement(id) {
+      if (announcements.has(id)) return false;
+      announcements.add(id);
+      return true;
+    },
+    playOnce: (id, cashed) => sounds.push({ id, cashed }),
+    queueSound: noop, playCashSound: noop, playScoreSound: noop, burstSparks: noop,
+    sportEmoji: () => "", pickLine: value => value - 0.5,
+    window: { setTimeout: (fn, delay) => scheduled.push({ fn, delay }), requestAnimationFrame: noop }
+  };
+  runInNewContext(slice("    function showScorePop(", "    // Over keys keep their original shape"), app);
+  const show = (tracker, current, message = null) => app.showScorePop(tracker.name, 2, tracker.stat, message, tracker, current);
+  show(first, 12);
+  show(second, 12);
+  show(single, 12);
+  assert.equal(stack.children.length, 1);
+  assert.equal(events.children.length, 0);
+  assert.match(stack.children[0].children[0].textContent, /Shared pick.*Parlay 1, Parlay 2/);
+  assert.equal(app.trackerScorePops.size, 1);
+  // A redraw can only move window-specific pops, never this shared animation.
+  assert.equal(app.trackerScorePops.has("parlay:p1"), false);
+  assert.equal(app.trackerScorePops.has("parlay:p2"), false);
+  show(second, 14);
+  show(first, 14);
+  assert.equal(stack.children.length, 2);
+  show(first, 20);
+  show(second, 20, { text: "🔥 Hit", tone: "hype" });
+  assert.equal(stack.children.length, 3);
+  assert.equal(sounds.at(-1).cashed, true, "duplicate visual must not suppress cash-sound escalation");
+  stack.children[0].listeners.click();
+  assert.equal(stack.children.length, 2);
+  show(second, 12);
+  assert.equal(stack.children.length, 2, "dismissed score must not replay for another copy");
+  for (const timer of scheduled.filter(timer => timer.delay === 10000)) timer.fn();
+  assert.equal(stack.children.length, 0);
+  assert.equal(app.trackerScorePops.size, 0);
+  const differentGame = { ...first, key: "d", eventId: "other-game" };
+  app.trackers.push(differentGame);
+  show(differentGame, 12);
+  assert.equal(events.children.length, 1, "non-shared picks keep their window animation");
+  const rebound1 = { ...first, stat: "REB" }, rebound2 = { ...second, stat: "REB" };
+  app.trackers.push(rebound1, rebound2);
+  show(rebound1, 12);
+  show(rebound2, 12);
+  assert.equal(stack.children.length, 1, "a different tracked stat is a separate scoring event");
+});
+
 test("tracking window LIVE badge counts verified in-progress picks and disappears when none are live", () => {
   const source = slice("    function appendTrackerWindowLiveBadge(", "    function renderTrackers(");
   const snapshots = new Map([
