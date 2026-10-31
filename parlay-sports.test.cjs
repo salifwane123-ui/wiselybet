@@ -127,7 +127,7 @@ test("subset requests use canonical selected-sport signatures and only the selec
   assert.equal(calls[2], "baseball_mlb");
 });
 
-test("live-positive server response never fetches upcoming prices or falls back when fewer than two live legs qualify", async () => {
+test("live-performance server response never fetches upcoming prices or falls back when fewer than two live legs qualify", async () => {
   const calls = [];
   const events = [{ id: "live", live: true }, { id: "upcoming", live: false }];
   const c = {
@@ -140,13 +140,13 @@ test("live-positive server response never fetches upcoming prices or falls back 
     console
   };
   runInNewContext(slice(server, "async function buildParlayResponse(", "const easternDates"), c);
-  const result = await c.buildParlayResponse("basketball_nba", "fanduel", true, { rankBy: "live-positive" });
+  const result = await c.buildParlayResponse("basketball_nba", "fanduel", true, { rankBy: "live-performance" });
   assert.deepEqual(calls, ["live"]);
   assert.equal(result.scope, "live");
   assert.equal(result.legs.length, 1, "cross-sport aggregation can combine single qualifying legs");
   c.parlayLiveGame = async () => ({ state: "post" });
   calls.length = 0;
-  const empty = await c.buildParlayResponse("basketball_nba", "fanduel", true, { rankBy: "live-positive" });
+  const empty = await c.buildParlayResponse("basketball_nba", "fanduel", true, { rankBy: "live-performance" });
   assert.equal(empty.legs.length, 0);
   assert.equal(calls.length, 0);
 });
@@ -162,7 +162,7 @@ test("client pauses a live-positive parlay below two eligible legs, including af
   assert.equal(c.bestParlayLegsFor(data).legs.length, 0);
 });
 
-test("live-positive requests never return last-good fallback on provider failure or low quota", async () => {
+test("live-performance requests never return last-good fallback on provider failure or low quota", async () => {
   const c = {
     parlayRules: { maxGames: 8 }, parlayLastGood: new Map(), parlayStaleMs: 30 * 60_000,
     cachedValue: () => null, oddsQuotaLow: () => false,
@@ -170,11 +170,11 @@ test("live-positive requests never return last-good fallback on provider failure
     console: { error() {} }
   };
   runInNewContext(slice(server, "async function bestParlayFor(", "async function bestParlayForAllSports("), c);
-  const key = "best-parlay:basketball_nba|fanduel|full|8|plain|all|live-positive";
+  const key = "best-parlay:basketball_nba|fanduel|full|8|plain|all|live-performance";
   c.parlayLastGood.set(key, { generatedAt: new Date().toISOString(), scope: "live", legs: [{ price: 2 }] });
-  await assert.rejects(c.bestParlayFor("basketball_nba", "fanduel", true, { rankBy: "live-positive" }), error => error.status === 503);
+  await assert.rejects(c.bestParlayFor("basketball_nba", "fanduel", true, { rankBy: "live-performance" }), error => error.status === 503);
   c.oddsQuotaLow = () => true;
-  await assert.rejects(c.bestParlayFor("basketball_nba", "fanduel", true, { rankBy: "live-positive" }), error => error.status === 503);
+  await assert.rejects(c.bestParlayFor("basketball_nba", "fanduel", true, { rankBy: "live-performance" }), error => error.status === 503);
 });
 
 test("one qualifying live leg from each selected sport forms a cross-sport parlay", async () => {
@@ -190,10 +190,10 @@ test("one qualifying live leg from each selected sport forms a cross-sport parla
     console
   };
   runInNewContext(slice(server, "async function bestParlayForAllSports(", "const rateWindowMs"), c);
-  const result = await c.bestParlayForAllSports("fanduel", true, "all", "live-positive", ["basketball_nba", "icehockey_nhl"]);
+  const result = await c.bestParlayForAllSports("fanduel", true, "all", "live-performance", ["basketball_nba", "icehockey_nhl"]);
   assert.equal(result.legs.length, 2);
   assert.equal(result.scope, "live");
-  assert.deepEqual(seen, [{ sport: "basketball_nba", rankBy: "live-positive" }, { sport: "icehockey_nhl", rankBy: "live-positive" }]);
+  assert.deepEqual(seen, [{ sport: "basketball_nba", rankBy: "live-performance" }, { sport: "icehockey_nhl", rankBy: "live-performance" }]);
 });
 
 test("a failed refresh clears previous live suggestions", async () => {
@@ -207,4 +207,17 @@ test("a failed refresh clears previous live suggestions", async () => {
   await c.loadBestParlay();
   assert.equal(c.bestParlayState.data, null);
   assert.equal(c.bestParlayState.error, "Feed unavailable");
+});
+
+test("live-performance client accepts both odds signs but still pauses below two eligible live picks", () => {
+  const c = { parlayLegTarget: () => 8, bestParlayPool: data => data.legs, isBestParlayRemoved: leg => leg.removed,
+    liveLegRead: leg => leg.read };
+  runInNewContext(slice(html, "    function bestParlayLegsFor(", "    function bestParlayOutcomeText("), c);
+  const leg = { live: true, price: 1.5, read: { clock: "Q2" } };
+  const data = { rankBy: "live-performance", legs: [leg, { ...leg, price: 3 }, { ...leg, price: 1 }, { ...leg, live: false }] };
+  assert.equal(c.bestParlayLegsFor(data).legs.length, 2);
+  data.legs[1].removed = true;
+  assert.equal(c.bestParlayLegsFor(data).legs.length, 0);
+  assert.ok(server.includes('bestParlayForAllSports(book, premium, sideFilter, "live-performance", selectedSports)'));
+  assert.ok(server.includes('bestParlayFor(sport, book, premium, { sideFilter, rankBy: "live-performance" })'));
 });

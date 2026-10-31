@@ -523,10 +523,11 @@ function oddsQuotaLow() {
 
 async function parlayEventOdds(sport, event, book, premium, now, rankBy = "strength") {
   const endpoint = `sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(event.id)}/odds/`;
-  const ttl = rankBy === "live-positive" ? 60_000 : propsTtlMs(Date.parse(event.commence_time), now);
-  const keyFor = params => `parlay:${endpoint}:${JSON.stringify(params)}${rankBy === "live-positive" ? "|live-positive" : ""}`;
+  const liveOnly = ["live-positive", "live-performance"].includes(rankBy);
+  const ttl = liveOnly ? 60_000 : propsTtlMs(Date.parse(event.commence_time), now);
+  const keyFor = params => `parlay:${endpoint}:${JSON.stringify(params)}${liveOnly ? `|${rankBy}` : ""}`;
   const load = params => cached(keyFor(params), ttl, async () => ({ data: await requestOddsApi(endpoint, params), fetchedAt: Date.now() }));
-  const withAlternates = markets => ["lowest-line", "live-positive"].includes(rankBy)
+  const withAlternates = markets => ["lowest-line", "live-positive", "live-performance"].includes(rankBy)
     ? markets.flatMap(market => marketsWithoutAlternates.has(market) ? [market] : [market, `${market}_alternate`])
     : markets;
   const allMarkets = withAlternates(bestParlayMarkets[sport]).join(",");
@@ -549,6 +550,7 @@ async function parlayEventOdds(sport, event, book, premium, now, rankBy = "stren
 }
 
 async function buildParlayResponse(sport, book, premium, { maxGames = parlayRules.maxGames, includeScore = false, sideFilter = "all", rankBy = "strength" } = {}) {
+  const liveOnly = ["live-positive", "live-performance"].includes(rankBy);
   const injuriesTask = cached(`parlay-injuries:${sport}`, 10 * 60_000, () => fetchPlayerInjuries(sport)).then(injuredPlayers, () => null);
   const now = Date.now();
   const events = await fetchOddsApi(`sports/${encodeURIComponent(sport)}/events`, {});
@@ -564,7 +566,7 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
   };
 
   // Games past their listed start: ESPN says which are in progress, which haven't tipped off yet and which are over.
-  const started = selectSlate(events, now, rankBy === "live-positive" ? events.length : maxGames).events.filter(event => event.live);
+  const started = selectSlate(events, now, liveOnly ? events.length : maxGames).events.filter(event => event.live);
   const boxScores = await Promise.all(started.map(event =>
     cached(`parlay-live:${sport}:${event.id}`, 30_000, () => parlayLiveGame(sport, event)).catch(() => null)));
   const liveGames = new Map();
@@ -608,7 +610,7 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
       });
     } catch (error) {
       console.error("Live best parlay failed:", error.message);
-      if (rankBy === "live-positive") throw error;
+      if (liveOnly) throw error;
     }
     live = {
       games: liveEvents.length,
@@ -620,7 +622,7 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
     };
     if (liveResult && liveResult.legs.length >= parlayRules.minLiveLegs) return respond("live", liveEvents, liveResult, live);
   }
-  if (rankBy === "live-positive") {
+  if (liveOnly) {
     return respond("live", liveEvents, liveResult || { legs: [], alternates: [], bookGames: 0, injuredSkipped: 0, pricesAt: "" }, live);
   }
 
@@ -658,11 +660,11 @@ async function bestParlayFor(sport, book, premium, options = {}) {
   const maxGames = Number.isInteger(options.maxGames) ? options.maxGames : parlayRules.maxGames;
   const includeScore = options.includeScore === true;
   const sideFilter = options.sideFilter === "over" || options.sideFilter === "under" ? options.sideFilter : "all";
-  const rankBy = ["lowest-line", "live-positive"].includes(options.rankBy) ? options.rankBy : "strength";
+  const rankBy = ["lowest-line", "live-positive", "live-performance"].includes(options.rankBy) ? options.rankBy : "strength";
   const extraKey = maxGames === parlayRules.maxGames && !includeScore && sideFilter === "all" && rankBy === "strength" ? "" : `|${maxGames}|${includeScore ? "ranked" : "plain"}|${sideFilter}|${rankBy}`;
   const key = `best-parlay:${sport}|${book}|${premium ? "full" : "guest"}${extraKey}`;
   const lastGood = () => {
-    if (rankBy === "live-positive") return null;
+    if (["live-positive", "live-performance"].includes(rankBy)) return null;
     const saved = parlayLastGood.get(key);
     // A live parlay's clock and score age quickly, so it is only reused for a few minutes.
     const maxAge = saved?.scope === "live" ? 5 * 60_000 : parlayStaleMs;
@@ -696,7 +698,7 @@ async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy 
   const scope = sports.length === Object.keys(bestParlayMarkets).length ? "all" : [...sports].sort().join(",");
   const key = `best-parlay:${scope}|${book}|${premium ? "full" : "guest"}|${sideFilter}|${rankBy}`;
   const lastGood = () => {
-    if (rankBy === "live-positive") return null;
+    if (["live-positive", "live-performance"].includes(rankBy)) return null;
     const saved = parlayLastGood.get(key);
     return saved && Date.now() - Date.parse(saved.generatedAt) < parlayStaleMs ? { ...saved, stale: true } : null;
   };
@@ -734,7 +736,7 @@ async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy 
       book,
       side: sideFilter,
       rankBy,
-      scope: rankBy === "live-positive" ? "live" : liveLegs === merged.legs.length && liveLegs ? "live" : liveLegs ? "mixed" : results.some(result => result.scope === "next") ? "next" : "soon",
+      scope: ["live-positive", "live-performance"].includes(rankBy) ? "live" : liveLegs === merged.legs.length && liveLegs ? "live" : liveLegs ? "mixed" : results.some(result => result.scope === "next") ? "next" : "soon",
       markets: [...new Set(results.flatMap(result => result.markets || []))],
       games: results.reduce((sum, result) => sum + (result.games || 0), 0),
       bookGames: results.reduce((sum, result) => sum + (result.bookGames || 0), 0),
@@ -1306,14 +1308,14 @@ const server = createServer(async (request, response) => {
           await sendJson(response, 400, { error: "Select at least one supported sport." });
           return;
         }
-        await sendJson(response, 200, await bestParlayForAllSports(book, premium, sideFilter, "live-positive", selectedSports));
+        await sendJson(response, 200, await bestParlayForAllSports(book, premium, sideFilter, "live-performance", selectedSports));
         return;
       }
       if (!Object.hasOwn(bestParlayMarkets, sport)) {
         await sendJson(response, 400, { error: "Best parlays are not available for this sport." });
         return;
       }
-      await sendJson(response, 200, await bestParlayFor(sport, book, premium, { sideFilter, rankBy: "live-positive" }));
+      await sendJson(response, 200, await bestParlayFor(sport, book, premium, { sideFilter, rankBy: "live-performance" }));
       return;
     }
 

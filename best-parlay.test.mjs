@@ -396,6 +396,73 @@ test("live-positive rejects stale, pregame and unverified quote timestamps", () 
   assert.equal(build([event], { live: missing }, options).legs.length, 0);
 });
 
+test("live-performance mixes odds signs and ranks court performance above price alone", () => {
+  const strong = hooper("Strong Player", { MIN: 22, PTS: 18, PF: 0, FG: "7-11" });
+  const weak = hooper("Weak Player", { MIN: 18, PTS: 16, PF: 3, FG: "5-15" }, { onCourt: false });
+  const bench = [hooper("Bench One", { MIN: 8 }, { starter: false }), hooper("Bench Two", { MIN: 6 }, { starter: false })];
+  const box = hoopsGame(2, "0.0", [side("HOME", 50, [strong, weak, ...bench]), side("AWAY", 48, [])], "Halftime");
+  const options = { sport: "basketball_nba", rankBy: "live-performance", sideFilter: "over",
+    liveGames: new Map([["live", box]]) };
+  const result = build([game("live", now - hour, true)], { live: eventOdds({
+    draftkings: { player_points: [["Strong Player", 25.5, 2, 1.9], ["Weak Player", 25.5, 1.9, 2]] }
+  }) }, options);
+  assert.equal(result.legs.length, 2);
+  assert.deepEqual(result.legs.map(leg => leg.player), ["Strong Player", "Weak Player"]);
+  assert.ok(result.legs[0].probability < result.legs[1].probability, "live signals change market-only ordering");
+  assert.ok(result.legs[0].rankingScore > result.legs[1].rankingScore);
+  assert.ok(result.legs[0].read.remainingMinutes > result.legs[1].read.remainingMinutes);
+  assert.ok(result.legs.every(leg => leg.read.notes.some(note => /Substitute readiness/.test(note.text))));
+  assert.ok(result.legs[0].read.responsibility > 0);
+  for (const price of [1.01, 10]) {
+    const anyPrice = build([game("live", now - hour, true)], { live: eventOdds({
+      draftkings: { player_points_alternate: [["Strong Player", 25.5, price, 1.9]] }
+    }) }, options);
+    assert.equal(anyPrice.legs[0].price, price);
+    assert.equal(anyPrice.legs[0].alternate, true);
+  }
+  for (const state of ["pre", "post", ""]) {
+    assert.equal(build([game("live", now - hour, true)], { live: eventOdds({
+      draftkings: { player_points: [["Strong Player", 25.5, 1.9, 2]] }
+    }) }, { ...options, liveGames: new Map([["live", { ...box, state }]]) }).legs.length, 0);
+  }
+});
+
+test("performance read rewards clean fouls and less bench competition, reverses exposure for Unders", () => {
+  const read = (fouls, benchCount, sideFilter = "over") => liveRead({
+    sport: "basketball_nba", market: "player_points", line: 25.5, player: "Role Player", side: sideFilter, performance: true,
+    game: hoopsGame(2, "0.0", [side("HOME", 50, [
+      hooper("Role Player", { MIN: 20, PTS: sideFilter === "under" ? 6 : 18, PF: fouls }),
+      ...Array.from({ length: benchCount }, (_, index) => hooper(`Bench ${index}`, { MIN: 10 }, { starter: false }))
+    ]), side("AWAY", 48, [])], "Halftime")
+  });
+
+  test("soccer performance uses observed involvement without inventing a court or substitution forecast", () => {
+    const player = (name, shots, extra = []) => ({ name, appeared: true, stats: [
+      { label: "SH", value: String(shots) }, { label: "YC", value: "1" }, ...extra
+    ] });
+    const box = { state: "in", period: 2, clock: "65'", teams: [
+      side("HOME", 1, [player("Role Player", 2), player("Other Player", 1)]), side("AWAY", 1, [])
+    ] };
+    const options = { sport: "soccer_epl", market: "player_shots", line: 3.5, player: "Role Player", game: box, performance: true };
+    const result = liveRead(options);
+    assert.ok(result.bonus > 0);
+    assert.equal(result.read.projected, undefined);
+    assert.ok(result.read.notes.some(note => /yellow cards/.test(note.text)));
+    assert.ok(result.read.notes.some(note => /substitute readiness.*not available/.test(note.text)));
+    box.teams[0].players[0].stats.push({ label: "SUBOUT", value: "1" });
+    assert.equal(liveRead(options).skip, "removed");
+  });
+  assert.ok(read(0, 0).bonus > read(3, 0).bonus);
+  assert.ok(read(0, 0).bonus > read(0, 2).bonus);
+  assert.ok(read(3, 0, "under").bonus > read(0, 0, "under").bonus);
+  assert.equal(read(4, 0).skip, "fouls");
+  const incomplete = hoopsGame(2, "0.0", [side("HOME", 50, [{
+    name: "Role Player", stats: [{ label: "PTS", value: "18" }, { label: "MIN", value: "20" }]
+  }]), side("AWAY", 48, [])], "Halftime");
+  assert.equal(liveRead({ sport: "basketball_nba", market: "player_points", line: 25.5, player: "Role Player",
+    game: incomplete, performance: true }).skip, "unverified", "missing foul data must not mean zero fouls");
+});
+
 test("live Unders favor below-line pace and reject crossed lines, pushes and above-line pace", () => {
   const read = (points, line = 25.5) => liveRead({
     sport: "basketball_nba", market: "player_points", side: "under", line, player: "Jalen Brunson",
