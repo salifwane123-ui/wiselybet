@@ -116,3 +116,22 @@ test("dropdown sport changes update the Soccer selection and preserve the full s
   assert.equal(app.toggle.attributes["aria-current"], "false");
   assert.equal(setup({ leagues: false }).group, null);
 });
+
+test("sport button colors override generic hover styles and retain readable contrast", () => {
+  assert.ok(html.includes('#soccer-league-panel .soccer-league-choice:hover:not(:disabled)'));
+  assert.ok(html.includes('#sport-navigation .sport-nav-button[aria-current="true"]:hover:not(:disabled)'));
+  const luminance = hex => {
+    const channels = hex.match(/[\da-f]{2}/gi).map(value => {
+      const channel = Number.parseInt(value, 16) / 255;
+      return channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+    });
+    return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+  };
+  for (const [text, background] of [
+    ["edf2e8", "263420"], ["e1f2c9", "2b3d20"],
+    ["26331f", "edf3e5"], ["29420f", "e3edcf"]
+  ]) {
+    const values = [luminance(text), luminance(background)].sort((a, b) => b - a);
+    assert.ok((values[0] + .05) / (values[1] + .05) >= 4.5);
+  }
+});
