@@ -1396,8 +1396,8 @@
     .toast-action .toast-text { flex: 1 1 auto; min-width: 0; line-height: 1.4; overflow-wrap: anywhere; }
     .toast.toast-action::after { animation: none; }
     .toast.toast-action.is-running::after { animation: toast-timer 10s linear forwards; }
-    .toast.kind-tracked { border-color: rgba(201,239,91,.42); }
-    .toast.kind-tracked::before, .toast.kind-tracked::after { background: #c9ef5b; }
+    .toast.kind-tracked, .toast.kind-removed { border-color: rgba(201,239,91,.42); }
+    .toast.kind-tracked::before, .toast.kind-tracked::after, .toast.kind-removed::before, .toast.kind-removed::after { background: #c9ef5b; }
     .toast-undo { flex: 0 0 auto; min-height: 0; padding: 5px 13px; border: 1px solid rgba(201,239,91,.45); border-radius: 99px; background: rgba(201,239,91,.1); color: #dff3a6; font-size: .76rem; font-weight: 800; line-height: 1.2; }
     .toast-undo:hover:not(:disabled) { border-color: #c9ef5b; background: rgba(201,239,91,.22); color: #f2f7e6; }
     #notification-feed li.is-new { animation: feed-in .6s ease-out both, feed-flash 1.6s ease-out; }
@@ -1571,7 +1571,7 @@
     html[data-theme="light"] .site-footer a { color: #3d6208; }
     html[data-theme="light"] #bell-panel, html[data-theme="light"] .toast { border-color: rgba(77,122,11,.4); background-color: #fff; color: #1b2418; box-shadow: 0 14px 34px rgba(40,58,22,.2); }
     html[data-theme="light"] .toast { background-image: linear-gradient(105deg, transparent 35%, rgba(120,170,30,.22) 48%, transparent 60%); }
-    html[data-theme="light"] .toast.kind-tracked::before, html[data-theme="light"] .toast.kind-tracked::after { background: #6f9a1a; }
+    html[data-theme="light"] .toast.kind-tracked::before, html[data-theme="light"] .toast.kind-tracked::after, html[data-theme="light"] .toast.kind-removed::before, html[data-theme="light"] .toast.kind-removed::after { background: #6f9a1a; }
     html[data-theme="light"] .toast-undo { border-color: rgba(77,122,11,.45); background: rgba(120,170,30,.1); color: #2f4d08; }
     html[data-theme="light"] .toast-undo:hover:not(:disabled) { border-color: #4d7a0b; background: rgba(120,170,30,.2); color: #1b2418; }
     html[data-theme="light"] #bell-badge { box-shadow: 0 0 0 2px #fff; }
@@ -1666,7 +1666,7 @@
     .settings-head { border-radius: 14px 14px 0 0; border-bottom-color: rgba(201,239,91,.22); }
     .settings-body section { border-bottom-style: dashed; border-bottom-color: rgba(201,239,91,.14); }
     @media print { #settings-panel { display: none !important; } }
-    @media print { #tracker-dock, #toast-stack, #simulate-alert, #bell-wrap, #settings-wrap, #age-gate, #app-banner { display: none !important; } }
+    @media print { #tracker-dock, #toast-stack, #bp-notice, #simulate-alert, #bell-wrap, #settings-wrap, #age-gate, #app-banner { display: none !important; } }
     #to-top { display: none; }
     @media (max-width: 560px) {
       /* App bar: title + bell/settings on top, one swipeable row of quick actions below */
@@ -1990,7 +1990,7 @@
       box-shadow: 0 8px 20px rgba(0,0,0,.12), inset 0 1px rgba(255,255,255,.03);
     }
     .best-parlay[hidden] { display: none; }
-    .bp-inner { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "ticker" "stats" "actions" "details"; }
+    .bp-inner { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "ticker" "notice" "stats" "actions" "details"; }
     .bp-head { display: flex; grid-area: head; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; padding: 9px 10px 9px 12px; }
     .bp-brand { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; min-width: 0; }
     .bp-icon { display: grid; flex: 0 0 auto; width: 26px; height: 26px; place-items: center; border-radius: 7px; background: rgba(201,239,91,.12); color: #c9ef5b; }
@@ -2019,6 +2019,9 @@
     .bp-viewport[data-dir="prev"] .bp-slide.is-active { animation-name: bp-in-prev; }
     .bp-viewport[data-dir="prev"] .bp-slide.is-leaving { animation-name: bp-out-prev; }
     .bp-viewport[data-dir="none"] .bp-slide.is-active { animation: none; }
+    /* A removed leg drops away over the one taking its place */
+    .bp-slide.is-removed { visibility: visible; opacity: 1; pointer-events: none; animation: bp-out-removed .32s ease-in both; }
+    @keyframes bp-out-removed { to { opacity: 0; transform: translateY(-8px) scale(.97); } }
     @keyframes bp-in-next { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
     @keyframes bp-out-next { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-28px); } }
     @keyframes bp-in-prev { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
@@ -2031,7 +2034,7 @@
     .bp-nav .icon-play { fill: currentColor; stroke-width: 1.2; }
     .bp-nav .icon-play, .best-parlay.is-paused .bp-nav .icon-pause { display: none; }
     .best-parlay.is-paused .bp-nav .icon-play { display: block; }
-    .bp-leg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "num main odds"; align-items: center; gap: 4px 10px; min-width: 0; }
+    .bp-leg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "num main odds remove"; align-items: center; gap: 4px 10px; min-width: 0; }
     .bp-num { display: grid; grid-area: num; width: 24px; height: 24px; place-items: center; border-radius: 50%; background: rgba(201,239,91,.14); color: #d9f58a; font-size: .7rem; font-weight: 850; font-variant-numeric: tabular-nums; }
     .bp-leg-main { grid-area: main; min-width: 0; }
     .bp-leg-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 7px; min-width: 0; line-height: 1.3; }
@@ -2063,6 +2066,11 @@
     .bp-leg-link:hover { border-color: #c9ef5b; background: rgba(201,239,91,.12); }
     .bp-leg-link.is-tracked { border-color: rgba(201,239,91,.6); background: rgba(201,239,91,.14); color: #c9ef5b; }
     .bp-leg-link.is-tracked:hover { background: rgba(201,239,91,.24); }
+    /* Takes the player out of the parlay. The outline sits inside, since the slides clip anything past their edge. */
+    .bp-remove { display: grid; grid-area: remove; width: 26px; height: 26px; min-height: 0; place-items: center; margin-left: -4px; padding: 0; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--muted); }
+    .bp-remove:hover:not(:disabled) { border-color: rgba(255,120,120,.3); background: rgba(255,92,92,.1); color: #ff9a9a; }
+    .bp-remove:focus-visible { outline-offset: -2px; }
+    .bp-remove svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
     .bp-message { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 40px; color: var(--muted); font-size: .76rem; line-height: 1.4; }
     .bp-message strong { color: #eef6dc; font-weight: 750; }
     .bp-retry { height: 28px; min-height: 0; padding: 0 11px; border: 1px solid rgba(201,239,91,.32); border-radius: 8px; background: transparent; color: #dff3a6; font-size: .72rem; }
@@ -2072,6 +2080,14 @@
     .bp-loading .skeleton:first-child { height: 24px; border-radius: 50%; }
     .bp-loading .skeleton:nth-child(2) { height: 34px; }
     .best-parlay:not(.has-legs) .bp-controls, .best-parlay:not(.has-legs) .bp-stats, .best-parlay:not(.has-legs) .bp-actions, .best-parlay:not(.has-legs) .bp-progress, .best-parlay.is-single .bp-controls, .best-parlay.is-single .bp-progress, .best-parlay.is-expanded .bp-progress { display: none; }
+    /* "Removed …" with Undo sits under the slides, so it never covers them or their controls; it folds away when done */
+    .bp-notice { display: grid; grid-area: notice; justify-items: start; min-width: 0; }
+    .best-parlay:not(.has-legs) .bp-notice { display: none; }
+    .bp-notice .toast { gap: 10px; margin: 0 12px 10px; padding: 4px 4px 4px 14px; border-color: rgba(201,239,91,.24); border-radius: 8px; background: rgba(201,239,91,.06); box-shadow: none; color: #e7eedf; font-size: .74rem; animation: bp-notice-in .28s ease-out; }
+    .bp-notice .toast.leaving { animation: bp-notice-out .3s ease-in forwards; }
+    .bp-notice .toast-undo { padding: 4px 11px; font-size: .72rem; }
+    @keyframes bp-notice-in { from { max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; opacity: 0; } to { max-height: 120px; } }
+    @keyframes bp-notice-out { from { max-height: var(--toast-h, 120px); } to { max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; border-width: 0; opacity: 0; } }
     .bp-stats { display: flex; grid-area: stats; flex-wrap: wrap; align-items: center; gap: 6px 18px; min-width: 0; margin: 0; padding: 8px 12px; border-top: 1px solid rgba(225,233,229,.08); }
     .bp-stat { display: grid; gap: 1px; min-width: 0; }
     .bp-stat dt { color: var(--muted); font-size: .58rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
@@ -2092,8 +2108,10 @@
     .bp-details[hidden] { display: none; }
     .bp-leg-list { display: grid; margin: 0; padding: 0; list-style: none; }
     .bp-leg-list > li { padding: 8px 0; border-bottom: 1px solid rgba(225,233,229,.06); }
-    .bp-leg-list .bp-leg { grid-template-areas: "num main odds" "num main link"; }
-    .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds" "num main link" ". why why"; }
+    .bp-leg-list > li.is-new { animation: bp-new 1.8s ease-out; }
+    @keyframes bp-new { from { background-color: rgba(201,239,91,.16); } }
+    .bp-leg-list .bp-leg { grid-template-areas: "num main odds remove" "num main link remove"; }
+    .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds remove" "num main link remove" ". why why why"; }
     /* Why a live leg made the parlay: one line per check, colored by how it reads for the Over */
     .bp-why { display: flex; grid-area: why; flex-wrap: wrap; gap: 2px 16px; margin: 3px 0 0; padding: 0; color: var(--muted); font-size: .68rem; line-height: 1.45; list-style: none; }
     .bp-why li { position: relative; padding-left: 11px; }
@@ -2122,16 +2140,16 @@
     }
     /* Tablets: the totals and the betslip button share a row under the slides */
     @container bp (min-width: 640px) {
-      .bp-inner { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head head" "ticker ticker" "stats actions" "details details"; }
+      .bp-inner { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head head" "ticker ticker" "notice notice" "stats actions" "details details"; }
       .bp-sub { display: block; }
       .bp-actions { padding: 8px 12px; border-top: 1px solid rgba(225,233,229,.08); }
       .bp-open { flex: 0 1 auto; }
-      .bp-leg-list .bp-leg { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "num main odds link"; }
-      .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds link" ". why why why"; }
+      .bp-leg-list .bp-leg { grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas: "num main odds link remove"; }
+      .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds link remove" ". why why why why"; }
     }
     /* Wide screens: totals sit beside the title, the betslip button beside the slides */
     @container bp (min-width: 1100px) {
-      .bp-inner { grid-template-areas: "head stats" "ticker actions" "details details"; }
+      .bp-inner { grid-template-areas: "head stats" "ticker actions" "notice notice" "details details"; }
       .bp-stats { justify-content: flex-end; gap: 6px 22px; padding: 8px 14px; border-top: 0; }
       .bp-actions { padding: 0 12px 0 14px; border-left: 1px solid rgba(225,233,229,.08); }
     }
@@ -2167,13 +2185,18 @@
     html[data-theme="light"] .bp-tool:hover:not(:disabled), html[data-theme="light"] .bp-leg-link:hover { border-color: #4d7a0b; background: rgba(120,170,30,.12); color: #1b2418; }
     html[data-theme="light"] .bp-leg-link.is-tracked { border-color: #4d7a0b; background: rgba(120,170,30,.16); color: #3b6106; }
     html[data-theme="light"] .bp-leg-link.is-tracked:hover { background: rgba(120,170,30,.26); color: #1b2418; }
+    html[data-theme="light"] .bp-remove { color: #6b7568; }
+    html[data-theme="light"] .bp-remove:hover:not(:disabled) { border-color: rgba(180,35,24,.25); background: rgba(200,40,40,.07); color: #b42318; }
+    html[data-theme="light"] .bp-notice .toast { border-color: rgba(77,122,11,.26); background: rgba(120,170,30,.08); box-shadow: none; color: #1b2418; }
+    html[data-theme="light"] .bp-leg-list > li.is-new { animation-name: bp-new-light; }
+    @keyframes bp-new-light { from { background-color: rgba(120,170,30,.18); } }
     html[data-theme="light"] .bp-progress i { background: rgba(77,122,11,.65); }
     @media (max-width: 560px) {
       .best-parlay { grid-area: deals; margin: 10px 13px 0; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .bp-slide.is-active, .bp-slide.is-leaving { animation: none; }
-      .bp-slide.is-leaving { visibility: hidden; opacity: 0; }
+      .bp-slide.is-active, .bp-slide.is-leaving, .bp-slide.is-removed, .bp-notice .toast, .bp-notice .toast.leaving { animation: none; }
+      .bp-slide.is-leaving, .bp-slide.is-removed { visibility: hidden; opacity: 0; }
       .bp-open, .bp-more svg { transition: none; }
       .bp-scope::before { animation: none; }
       .bp-progress, #bp-pause { display: none; }
@@ -2233,6 +2256,7 @@
               <button type="button" id="bp-pause" class="bp-nav" aria-label="Pause slides"><svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg></button>
             </div>
           </div>
+          <div id="bp-notice" class="bp-notice" aria-live="polite"></div>
           <dl id="bp-stats" class="bp-stats"></dl>
           <div class="bp-actions">
             <button type="button" id="bp-more" class="bp-more" aria-expanded="false" aria-controls="bp-details">All legs <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
@@ -2831,11 +2855,12 @@
     const bpSportLabel = document.querySelector("#bp-sport");
     const bpScopeLabel = document.querySelector("#bp-scope");
     const bpSubText = document.querySelector("#bp-sub");
+    const bpNotice = document.querySelector("#bp-notice");
     const bpStats = document.querySelector("#bp-stats");
     const bpMoreButton = document.querySelector("#bp-more");
     const bpOpenLink = document.querySelector("#bp-open");
     const bpDetails = document.querySelector("#bp-details");
-    const bestParlayState = { sport: "", book: "", data: null, error: "", loading: false, request: 0, loadedAt: 0, index: 0, activeKey: "", renderedAt: 0, leaveTimer: 0, swipedAt: 0, shown: null };
+    const bestParlayState = { sport: "", book: "", data: null, error: "", loading: false, request: 0, loadedAt: 0, index: 0, activeKey: "", renderedAt: 0, leaveTimer: 0, swipedAt: 0, removedAt: 0, shown: null };
     // Show at most 6 live matches; scroll the list when there are more.
     function fitLiveGamesHeight() {
       liveGamesElement.style.maxHeight = "";
@@ -3432,6 +3457,60 @@
     function bestParlayLegKey(leg) {
       return `${leg.eventId}|${leg.player}|${leg.market}`;
     }
+    // Players the user took out of the best parlay stay out for the rest of that game, in every tab:
+    // "event id|player" -> when to forget it, 12 hours after the start (or after the removal, once the game is on).
+    const bestParlayRemovedKey = "courtside.bpRemoved.v1";
+    const bestParlayRemovedMs = 12 * 60 * 60_000;
+    function readBestParlayRemoved() {
+      const removed = new Map();
+      try {
+        const stored = JSON.parse(localStorage.getItem(bestParlayRemovedKey) || "{}");
+        for (const [key, until] of Object.entries(stored || {})) {
+          if (Number(until) > Date.now()) removed.set(key, Number(until));
+        }
+      } catch { /* storage unavailable or unreadable */ }
+      return removed;
+    }
+    let bestParlayRemoved = readBestParlayRemoved();
+    function syncBestParlayRemoved() {
+      bestParlayRemoved = readBestParlayRemoved();
+    }
+    function saveBestParlayRemoved() {
+      for (const [key, until] of bestParlayRemoved) {
+        if (!(until > Date.now())) bestParlayRemoved.delete(key);
+      }
+      try {
+        localStorage.setItem(bestParlayRemovedKey, JSON.stringify(Object.fromEntries(bestParlayRemoved)));
+      } catch { /* storage unavailable */ }
+    }
+    function bestParlayPlayerKey(leg) {
+      return `${leg.eventId}|${normalizeName(leg.player)}`;
+    }
+    function isBestParlayRemoved(leg) {
+      return bestParlayRemoved.get(bestParlayPlayerKey(leg)) > Date.now();
+    }
+    function rememberBestParlayRemoved(leg) {
+      const start = Date.parse(leg.start);
+      bestParlayRemoved.set(bestParlayPlayerKey(leg), Math.max(Number.isFinite(start) ? start : 0, Date.now()) + bestParlayRemovedMs);
+      saveBestParlayRemoved();
+    }
+    // Brings these players back; returns how many were out.
+    function forgetBestParlayRemoved(keys) {
+      let restored = 0;
+      for (const key of keys) {
+        if (bestParlayRemoved.delete(key)) restored += 1;
+      }
+      if (restored) saveBestParlayRemoved();
+      return restored;
+    }
+    // Every leg on offer, best first: the parlay's own legs, then the alternates in line for a removed player's spot.
+    function bestParlayPool(data) {
+      return data ? [...data.legs, ...(Array.isArray(data.alternates) ? data.alternates : [])] : [];
+    }
+    function bestParlayLegsFor(data, target) {
+      const pool = bestParlayPool(data);
+      return { legs: pool.filter(leg => !isBestParlayRemoved(leg)).slice(0, target), removed: pool.filter(isBestParlayRemoved) };
+    }
     function bestParlayLegText(leg, sport) {
       return `${leg.player} Over ${leg.line} ${propMarketPhrase(sport, leg.market)}`;
     }
@@ -3533,7 +3612,7 @@
       const state = bestParlayState;
       if (state.loading || document.hidden || !bestParlaySport() || !bestParlayBook()) return;
       // Live picks, or games that have started, change by the minute.
-      const live = state.data?.live || (state.data?.legs || []).some(legStarted);
+      const live = state.data?.live || bestParlayPool(state.data).some(legStarted);
       if (Date.now() - state.loadedAt > (live ? bestParlayLiveRefreshMs : bestParlayRefreshMs)) void loadBestParlay();
     }
 
@@ -3588,6 +3667,14 @@
         why.append(...notes.map(note => element("li", note.tone === "good" || note.tone === "warn" ? `bp-why-${note.tone}` : "", note.text)));
         row.append(why);
       }
+      // Takes the player out; the next-best leg fills the spot. "All legs" puts each leg's betslip link before it.
+      const remove = element("button", "bp-remove");
+      remove.type = "button";
+      remove.title = `Remove ${leg.player} from the parlay`;
+      remove.setAttribute("aria-label", remove.title);
+      remove.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg>';
+      remove.addEventListener("click", () => removeBestParlayLeg(leg, remove));
+      row.append(remove);
       return row;
     }
 
@@ -3630,7 +3717,48 @@
       return bestParlayMessage("No legs pass our checks right now.", `Each leg needs a ${title} price, the same line at 2+ sportsbooks and a 50%+ hit chance. Check back soon.`);
     }
 
+    function bestParlayAllRemovedSlide(removed) {
+      const one = removed.length === 1;
+      const slide = bestParlayMessage(one ? "You removed the only pick." : `You removed all ${removed.length} picks.`, "New picks show up as the games and prices change.");
+      const button = element("button", "bp-retry", one ? "Bring it back" : "Bring them back");
+      button.type = "button";
+      button.title = `Bring back ${removed.map(leg => leg.player).join(", ")}`;
+      button.addEventListener("click", () => restoreBestParlayPlayers(removed.map(bestParlayPlayerKey), button));
+      slide.querySelector(".bp-message").append(button);
+      return slide;
+    }
+
+    // Refreshes rebuild the slides and the legs list, so the keyboard is put back on the same control.
     function renderBestParlay() {
+      const spot = bestParlayFocusSpot();
+      drawBestParlay();
+      restoreBestParlayFocus(spot);
+    }
+
+    function bestParlayFocusSpot() {
+      const active = document.activeElement;
+      const area = active && [bpViewport, bpDetails].find(item => item && item !== active && item.contains(active));
+      if (!area) return null;
+      const holder = active.closest("[data-key]");
+      const scope = holder && area.contains(holder) ? holder : area;
+      const kind = active.tagName.toLowerCase() + [...active.classList].filter(name => name.startsWith("bp-")).map(name => `.${name}`).join("");
+      return { area, key: scope === area ? "" : holder.dataset.key, kind, index: [...scope.querySelectorAll(kind)].indexOf(active) };
+    }
+
+    function restoreBestParlayFocus(spot) {
+      if (!spot || bestParlayElement.contains(document.activeElement)) return;
+      const scope = spot.key ? [...spot.area.querySelectorAll("[data-key]")].find(item => item.dataset.key === spot.key) : spot.area;
+      const same = scope?.querySelectorAll(spot.kind)[Math.max(0, spot.index)];
+      // A leg that left the parlay hands the focus to the slide showing now.
+      const fallback = spot.area === bpViewport ? bpViewport.querySelector(".bp-slide.is-active button") : null;
+      for (const target of [same, fallback]) {
+        if (!target) continue;
+        target.focus({ preventScroll: true });
+        if (document.activeElement === target) return;
+      }
+    }
+
+    function drawBestParlay() {
       if (!bestParlayElement) return;
       const sport = bestParlaySport();
       bestParlayElement.hidden = embedMode || !sport;
@@ -3642,7 +3770,8 @@
       const state = bestParlayState;
       const book = bestParlayBook();
       const data = state.data?.sport === sport && state.data.book === book ? state.data : null;
-      const legs = data ? data.legs.slice(0, parlayLegTarget()) : [];
+      const { legs, removed } = bestParlayLegsFor(data, parlayLegTarget());
+      dropStaleRemovedToast(data);
       bpSportLabel.textContent = sport.split("_").pop().toUpperCase();
       bpStateSelect.hidden = !stateSportsbooks.has(book);
       bestParlayElement.classList.toggle("is-unset", !book);
@@ -3660,9 +3789,11 @@
       state.shown = legs.length ? { legs, data } : null;
       if (!legs.length) {
         bpViewport.dataset.dir = "none";
-        bpViewport.replaceChildren(book
-          ? bestParlayEmptySlide(data, book)
-          : bestParlayMessage("Choose your sportsbook", "and we'll build the best player-prop parlay from the games on now at its odds, ready to open in your betslip."));
+        bpViewport.replaceChildren(removed.length
+          ? bestParlayAllRemovedSlide(removed)
+          : book
+            ? bestParlayEmptySlide(data, book)
+            : bestParlayMessage("Choose your sportsbook", "and we'll build the best player-prop parlay from the games on now at its odds, ready to open in your betslip."));
         bpStats.replaceChildren();
         bpDetails.replaceChildren();
         setBestParlayExpanded(false);
@@ -3682,7 +3813,7 @@
       bpViewport.replaceChildren(...slides);
       const kept = slides.findIndex(slide => slide.dataset.key === state.activeKey);
       showBestParlaySlide(kept >= 0 ? kept : Math.min(state.index, slides.length - 1), "none");
-      renderBestParlayStats(legs, data);
+      renderBestParlayStats(legs, data, removed.length);
       const links = bestParlayLinks(legs, book);
       const title = sportsbookTitle(book);
       if (links.href) {
@@ -3700,11 +3831,11 @@
         : links.carried
           ? `Opens ${title} with ${links.carried} of ${legs.length} picks in the betslip. Add the rest from "All legs".`
           : `Opens ${title} in a new tab. Add each leg from "All legs" or search for the players.`) + follows;
-      renderBestParlayDetails(legs, data, links.direct);
+      renderBestParlayDetails(legs, data, links.direct, removed);
       state.renderedAt = Date.now();
     }
 
-    function renderBestParlayStats(legs, data) {
+    function renderBestParlayStats(legs, data, removedCount = 0) {
       const target = parlayLegTarget();
       const odds = legs.reduce((product, leg) => product * leg.price, 1);
       const chance = legs.reduce((product, leg) => product * leg.probability, 1);
@@ -3719,8 +3850,11 @@
       const count = document.createDocumentFragment();
       count.append(String(legs.length));
       if (legs.length < target) count.append(element("small", "", ` of ${target}`));
+      const short = removedCount
+        ? `Only ${countText(legs.length, "leg")} left after you removed ${countText(removedCount, "player")}`
+        : `Only ${countText(legs.length, "leg")} ${legs.length === 1 ? "passes" : "pass"} our checks right now`;
       const items = [
-        stat("bp-stat-legs", "Legs", count, legs.length < target ? `Only ${legs.length} legs pass our checks right now` : ""),
+        stat("bp-stat-legs", "Legs", count, legs.length < target ? short : ""),
         stat("bp-stat-odds", "Odds", formatAmericanOdds(odds), `Parlay odds at ${sportsbookTitle(data.book)}, before any boosts`),
         stat("bp-stat-pays", "$10 pays", formatPayout(10 * odds), "Total return on a $10 stake, including the stake"),
         stat("bp-stat-chance", "Hit chance", formatParlayChance(chance), `About 1 in ${Math.max(1, Math.round(1 / chance)).toLocaleString("en-US")}. Every leg must hit.`)
@@ -3749,12 +3883,13 @@
       return { direct, href: slip || home || fallback, label, carried: slip ? carried.length : 0 };
     }
 
-    function renderBestParlayDetails(legs, data, direct) {
+    function renderBestParlayDetails(legs, data, direct, removed = []) {
       const { sport, book } = data;
       const title = sportsbookTitle(book);
       const list = element("ol", "bp-leg-list");
       legs.forEach((leg, index) => {
         const item = element("li");
+        item.dataset.key = bestParlayLegKey(leg);
         const row = createBestParlayLeg(leg, index + 1, sport, book, true);
         const href = direct[index] || resolveBookLink(leg.marketLink) || resolveBookLink(leg.eventLink);
         if (href) {
@@ -3766,7 +3901,7 @@
           link.dataset.player = leg.player;
           link.dataset.identity = bestParlayPicks([leg], sport)[0]?.identity || "";
           followOnOpen(link, () => followBestParlay([leg], data, false));
-          row.append(link);
+          row.querySelector(".bp-remove").before(link);
         }
         item.append(row);
         list.append(item);
@@ -3784,6 +3919,13 @@
       copy.type = "button";
       copy.addEventListener("click", () => void copyBestParlay(legs, data, copy));
       tools.append(copy);
+      if (removed.length) {
+        const restore = element("button", "bp-tool bp-restore", `Restore ${countText(removed.length, "removed player")}`);
+        restore.type = "button";
+        restore.title = `Bring back ${removed.map(leg => leg.player).join(", ")}`;
+        restore.addEventListener("click", () => restoreBestParlayPlayers(removed.map(bestParlayPlayerKey), restore));
+        tools.append(restore);
+      }
       const notes = element("ul", "bp-notes");
       const note = (text, warn = false) => notes.append(element("li", warn ? "bp-note-warn" : "", text));
       if (stateSportsbooks.has(book) && !bettingStateName(settings.parlayState)) {
@@ -3826,6 +3968,77 @@
       note("21+ only. Gambling problem? Call 1-800-GAMBLER.");
       bpDetails.replaceChildren(list, tools, notes);
       syncBestParlayTracked();
+    }
+
+    // Takes a player out of the best parlay; the legs below move up and the next-best alternate fills the last spot.
+    function removeBestParlayLeg(leg, button) {
+      const state = bestParlayState;
+      // The next leg's ✕ lands where this one was, so a double click must not take out two players.
+      if (!state.shown || Date.now() - state.removedAt < 400) return;
+      state.removedAt = Date.now();
+      const focused = document.activeElement === button;
+      const row = button.closest(".bp-leg-list > li");
+      const position = row ? [...row.parentElement.children].indexOf(row) : -1;
+      const ghost = row ? null : button.closest(".bp-slide");
+      const before = new Set(state.shown.legs.map(bestParlayLegKey));
+      rememberBestParlayRemoved(leg);
+      renderBestParlay();
+      const legs = state.shown?.legs || [];
+      const replacement = legs.find(item => !before.has(bestParlayLegKey(item))) || null;
+      if (replacement) markNewBestParlayLegs([bestParlayLegKey(replacement)]);
+      // From the slides: the removed leg drops away while the next one slides in.
+      if (ghost) {
+        if (legs.length) showBestParlaySlide(state.index, "next");
+        else bpViewport.dataset.dir = "next";
+        delete ghost.dataset.key;
+        ghost.classList.remove("is-active", "is-leaving");
+        ghost.classList.add("is-removed");
+        ghost.setAttribute("aria-hidden", "true");
+        ghost.inert = true;
+        bpViewport.append(ghost);
+        window.setTimeout(() => ghost.remove(), 400);
+      }
+      if (focused) {
+        const rows = bpDetails.querySelectorAll(".bp-leg-list > li");
+        const next = row && rows.length ? rows[Math.min(position, rows.length - 1)].querySelector(".bp-remove") : null;
+        (next || bpViewport.querySelector(".bp-slide.is-active button"))?.focus();
+      }
+      showRemovedToast(leg, replacement);
+    }
+
+    // Brings removed players back to their usual spots and shows the first of them in the slides.
+    function restoreBestParlayPlayers(keys, source = null) {
+      const state = bestParlayState;
+      const focused = Boolean(source) && document.activeElement === source;
+      const inDetails = Boolean(source) && bpDetails.contains(source);
+      if (!forgetBestParlayRemoved(keys)) return;
+      const wanted = new Set(keys);
+      const back = bestParlayPool(state.data).filter(leg => wanted.has(bestParlayPlayerKey(leg)));
+      if (back.length) state.activeKey = bestParlayLegKey(back[0]);
+      renderBestParlay();
+      const shown = new Set((state.shown?.legs || []).map(bestParlayLegKey));
+      const returned = back.map(bestParlayLegKey).filter(key => shown.has(key));
+      markNewBestParlayLegs(returned);
+      if (removedToast?.isShowing()) {
+        const left = removedToast.entries.filter(entry => bestParlayRemoved.has(entry.key));
+        if (!left.length) removedToast.dismiss();
+        else if (left.length < removedToast.entries.length) {
+          removedToast.entries = left;
+          removedToast.update(removedToastText(left.map(entry => entry.player)));
+        }
+      }
+      if (focused) {
+        const row = inDetails ? [...bpDetails.querySelectorAll(".bp-leg-list > li")].find(item => item.dataset.key === returned[0]) : null;
+        (row?.querySelector(".bp-remove") || bpViewport.querySelector(".bp-slide.is-active button"))?.focus();
+      }
+    }
+
+    // Flashes legs that just joined the list in "All legs".
+    function markNewBestParlayLegs(keys) {
+      const wanted = new Set(keys);
+      for (const item of bpDetails.querySelectorAll(".bp-leg-list > li")) {
+        if (wanted.has(item.dataset.key)) item.classList.add("is-new");
+      }
     }
 
     // Opening a pick or the whole parlay at the sportsbook also tracks it, as a parlay set to that sportsbook.
@@ -3928,7 +4141,7 @@
       return { parlay, created, added, picks };
     }
 
-    // A short note that the picks are in the tracker, with Undo. Only the latest one is kept: { toast, parlayId, dismiss }.
+    // A short note that the picks are in the tracker, with Undo. Only the latest one is kept: { parlayId, ...showActionToast }.
     let trackedToast = null;
 
     function followOnOpen(link, follow) {
@@ -3951,10 +4164,58 @@
       }, 0);
     }
 
+    // A note with an optional Undo, which gets its button, in the corner or in the given place (stack).
+    // Returns { toast, dismiss, update(text), isShowing }.
+    function showActionToast(text, kind, onUndo = null, stack = toastStackElement) {
+      const toast = element("div", `toast toast-action ${kind}`);
+      const label = element("span", "toast-text", text);
+      toast.append(label);
+      let timer = 0;
+      // The 10 seconds start over each time the page is shown, so the note is still there after the sportsbook tab.
+      const onVisibility = () => {
+        window.clearTimeout(timer);
+        toast.classList.remove("is-running");
+        if (document.hidden) return;
+        void toast.offsetWidth;
+        toast.classList.add("is-running");
+        timer = window.setTimeout(dismiss, 10_000);
+      };
+      const isShowing = () => toast.isConnected && !toast.classList.contains("leaving");
+      const dismiss = () => {
+        window.clearTimeout(timer);
+        document.removeEventListener("visibilitychange", onVisibility);
+        if (!isShowing()) return;
+        // Notes that fold away start from their own height.
+        toast.style.setProperty("--toast-h", `${toast.offsetHeight}px`);
+        toast.classList.add("leaving");
+        window.setTimeout(() => toast.remove(), 300);
+      };
+      let undo = null;
+      if (onUndo) {
+        undo = element("button", "toast-undo", "Undo");
+        undo.type = "button";
+        undo.setAttribute("aria-label", `Undo: ${text}`);
+        undo.addEventListener("click", () => {
+          dismiss();
+          onUndo(undo);
+        });
+        toast.append(undo);
+      }
+      const update = next => {
+        label.textContent = next;
+        undo?.setAttribute("aria-label", `Undo: ${next}`);
+        onVisibility();
+      };
+      stack.append(toast);
+      while (stack.children.length > 4) stack.firstChild.remove();
+      document.addEventListener("visibilitychange", onVisibility);
+      onVisibility();
+      return { toast, dismiss, update, isShowing };
+    }
+
     // opened: tracking opened the tracker, so Undo closes it again.
     function showTrackedToast({ parlay, created, added, picks }, whole, opened) {
-      const showing = trackedToast?.toast.isConnected && !trackedToast.toast.classList.contains("leaving");
-      if (!added.length && showing && trackedToast.parlayId === parlay.id) return;
+      if (!added.length && trackedToast?.isShowing() && trackedToast.parlayId === parlay.id) return;
       const size = countText(trackers.filter(item => item.parlay === parlay.id && !item.demo).length, "pick");
       let text;
       if (!added.length) {
@@ -3967,46 +4228,47 @@
       } else {
         text = `Added ${countText(added.length, "pick")} to ${parlay.name} (${size})`;
       }
-      const toast = element("div", "toast toast-action kind-tracked");
-      toast.append(element("span", "toast-text", text));
-      let timer = 0;
-      // The 10 seconds start over each time the page is shown, so the note is still there after the sportsbook tab.
-      const onVisibility = () => {
-        window.clearTimeout(timer);
-        toast.classList.remove("is-running");
-        if (document.hidden) return;
-        void toast.offsetWidth;
-        toast.classList.add("is-running");
-        timer = window.setTimeout(dismiss, 10_000);
-      };
-      const dismiss = () => {
-        window.clearTimeout(timer);
-        document.removeEventListener("visibilitychange", onVisibility);
-        if (!toast.isConnected || toast.classList.contains("leaving")) return;
-        toast.classList.add("leaving");
-        window.setTimeout(() => toast.remove(), 300);
-      };
-      if (added.length) {
-        const undo = element("button", "toast-undo", "Undo");
-        undo.type = "button";
-        undo.setAttribute("aria-label", `Undo: ${text}`);
-        undo.addEventListener("click", () => {
-          dismiss();
-          const current = parlays.find(item => item.id === parlay.id);
-          if (created && current) deleteParlay(current, { removePicks: true });
-          else added.forEach(key => {
-            if (trackers.some(item => item.key === key)) removeTracker(key);
-          });
-          if (opened && trackerPanelOpen) setTrackerPanelOpen(false);
+      const undo = () => {
+        const current = parlays.find(item => item.id === parlay.id);
+        if (created && current) deleteParlay(current, { removePicks: true });
+        else added.forEach(key => {
+          if (trackers.some(item => item.key === key)) removeTracker(key);
         });
-        toast.append(undo);
-      }
+        if (opened && trackerPanelOpen) setTrackerPanelOpen(false);
+      };
       trackedToast?.dismiss();
-      trackedToast = { toast, parlayId: parlay.id, dismiss };
-      toastStackElement.append(toast);
-      while (toastStackElement.children.length > 4) toastStackElement.firstChild.remove();
-      document.addEventListener("visibilitychange", onVisibility);
-      onVisibility();
+      trackedToast = { ...showActionToast(text, "kind-tracked", added.length ? undo : null), parlayId: parlay.id };
+    }
+
+    // Who was taken out of the best parlay, with Undo, under the slides. Removals while the note is up join it, so one
+    // Undo brings them all back: { entries: [{ key, player }], ...showActionToast }.
+    let removedToast = null;
+
+    function removedToastText(players, replacement = null) {
+      if (players.length === 1) return replacement ? `Removed ${players[0]}, replaced by ${replacement.player}` : `Removed ${players[0]} from the best parlay`;
+      if (players.length === 2) return `Removed ${players[0]} and ${players[1]} from the best parlay`;
+      return `Removed ${players.length} players from the best parlay`;
+    }
+
+    function showRemovedToast(leg, replacement) {
+      const entry = { key: bestParlayPlayerKey(leg), player: leg.player };
+      if (removedToast?.isShowing()) {
+        removedToast.entries = [...removedToast.entries.filter(item => item.key !== entry.key), entry];
+        removedToast.update(removedToastText(removedToast.entries.map(item => item.player)));
+        return;
+      }
+      removedToast?.dismiss();
+      const batch = { entries: [entry] };
+      removedToast = Object.assign(batch, showActionToast(removedToastText([leg.player], replacement), "kind-removed", undo => {
+        restoreBestParlayPlayers(batch.entries.map(item => item.key), undo);
+      }, bpNotice));
+    }
+
+    // Undo has nothing to bring back once none of the note's players are on offer, e.g. in another sport.
+    function dropStaleRemovedToast(data) {
+      if (!data || !removedToast?.isShowing()) return;
+      const offered = new Set(bestParlayPool(data).map(bestParlayPlayerKey));
+      if (!removedToast.entries.some(entry => offered.has(entry.key))) removedToast.dismiss();
     }
 
     // Marks the Track button and each leg's link once those picks are in a parlay at this sportsbook.
@@ -4149,7 +4411,7 @@
       bpProgressBar.addEventListener("animationend", () => {
         // A game that tipped off since the last render gets its LIVE badge before the next slide.
         const since = bestParlayState.renderedAt;
-        if (bestParlayState.data?.legs.some(leg => { const start = Date.parse(leg.start); return start > since && start <= Date.now(); })) renderBestParlay();
+        if (bestParlayState.shown?.legs.some(leg => { const start = Date.parse(leg.start); return start > since && start <= Date.now(); })) renderBestParlay();
         stepBestParlay(1);
       });
       const ticker = bestParlayElement.querySelector(".bp-ticker");
@@ -4164,6 +4426,8 @@
         else if (event.key === "ArrowRight") stepBestParlay(1);
         else return;
         event.preventDefault();
+        // Focus moves with the slides, from the ✕ of the leg sliding away to the ✕ of the leg now showing.
+        if (event.target.closest?.(".bp-remove")) bpViewport.querySelector(".bp-slide.is-active .bp-remove")?.focus();
       });
       let swipe = null;
       bpViewport.addEventListener("pointerdown", event => {
@@ -9540,6 +9804,9 @@
         if (settings.parlayState !== previous.parlayState) renderTrackers();
       } else if (event.key === historyKey) {
         renderHistory();
+      } else if (event.key === bestParlayRemovedKey) {
+        syncBestParlayRemoved();
+        renderBestParlay();
       }
     });
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {

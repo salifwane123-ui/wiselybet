@@ -23,6 +23,8 @@ export const parlayBooks = new Set([
 
 export const parlayRules = {
   maxLegs: 8,
+  // The next-best legs sent along, so a player the user removes is replaced right away.
+  alternateLegs: 8,
   maxGames: 8,
   liveWindow: 5 * hour,
   upcomingWindow: 12 * hour,
@@ -447,12 +449,13 @@ const round4 = value => Math.round(value * 10_000) / 10_000;
 // Each leg is the book's own main-line Over for a player the market leans towards: the hit chance is the average
 // no-vig Over chance of every book quoting that same line (at least two), and the book's price must not be far
 // below fair. Injured players are left out, a player appears once, and legs are spread across games: every game's
-// best leg first, strongest first, then every game's second-best leg, and so on.
+// best leg first, strongest first, then every game's second-best leg, and so on. The order carries on past
+// `maxLegs` into `alternates`, the next-best legs that stand in for any the user removes.
 // With `liveGames` (event id -> /api/live-game data), games in progress are read live: quotes must be minutes old,
 // the book's own line can stand alone, each leg carries the player's live read, and players in form rank higher.
 export function buildBestParlay({
   events = [], oddsByEvent = new Map(), book, markets = [], injured = new Set(), maxLegs = parlayRules.maxLegs,
-  sport = "", liveGames = null
+  alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null
 }) {
   const games = [];
   const skipped = new Set();
@@ -540,21 +543,23 @@ export function buildBestParlay({
       if (Number.isFinite(fetchedAt)) pricesAt = Math.min(pricesAt, fetchedAt);
     }
   }
-  const legs = [];
+  const ranked = [];
   const used = new Set();
-  for (let round = 0; legs.length < maxLegs; round += 1) {
+  const wanted = maxLegs + Math.max(0, alternateLegs);
+  for (let round = 0; ranked.length < wanted; round += 1) {
     const picks = games.map(list => list[round]).filter(Boolean);
     if (!picks.length) break;
     for (const leg of picks.sort(byStrength)) {
       const key = normalizePlayerName(leg.player);
-      if (used.has(key) || legs.length >= maxLegs) continue;
+      if (used.has(key) || ranked.length >= wanted) continue;
       used.add(key);
       const { score, ...shown } = leg;
-      legs.push(shown);
+      ranked.push(shown);
     }
   }
   const result = {
-    legs,
+    legs: ranked.slice(0, maxLegs),
+    alternates: ranked.slice(maxLegs),
     bookGames,
     injuredSkipped: skipped.size,
     pricesAt: Number.isFinite(pricesAt) ? new Date(pricesAt).toISOString() : ""

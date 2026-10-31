@@ -28,7 +28,9 @@ const code = [
   slice("    const historyKey = ", "    function historyRecord()"),
   slice("    function paceModel(tracker) {", "    function baseballRead("),
   slice("    // Copies of a pick in several parlays pop for the same play", "    // Sparks and confetti flying out"),
-  slice("    // Opening a pick or the whole parlay at the sportsbook also tracks it", "    // A short note that the picks are in the tracker, with Undo.")
+  slice("    // Opening a pick or the whole parlay at the sportsbook also tracks it", "    // A short note that the picks are in the tracker, with Undo."),
+  slice("    function normalizeName(", "    function normalizeSignalName("),
+  slice("    // Players the user took out of the best parlay", "    function bestParlayLegText(")
 ].join("\n");
 const trackerSnapshots = new Map();
 const storage = new Map();
@@ -69,7 +71,8 @@ const context = {
 const page = runInNewContext(`${code}
 ({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead,
    pickIdentity, pickSlot, pickCopyIn, addTracker, assignParlay, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
-   playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds });`, context);
+   playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
+   forgetBestParlayRemoved, syncBestParlayRemoved });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -516,4 +519,44 @@ test("picks opened at the sportsbook keep their price there for the payout", () 
   assert.equal(page.parlayWinOdds(parlay, [priced]), 1.87);
   // A leg without a price means no payout figure, rather than a wrong one.
   assert.equal(page.parlayWinOdds(parlay, [priced, unpriced]), null);
+});
+
+test("a player taken out of the best parlay stays out for his game, and an alternate fills his spot", () => {
+  const removedKey = "courtside.bpRemoved.v1";
+  const hours = count => count * 60 * 60_000;
+  const names = ({ legs, removed }) => plain([legs.map(leg => leg.player), removed.map(leg => leg.player)]);
+  const data = { legs: [brunson, tatum], alternates: [hart] };
+  assert.deepEqual(names(page.bestParlayLegsFor(data, 2)), [["Jalen Brunson", "Jayson Tatum"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [brunson] }, 2)), [["Jalen Brunson"], []]);
+
+  // His game already started, so he stays out for 12 hours from now. Every market of his goes, in every tab.
+  assert.ok(clock > Date.parse(brunson.start));
+  page.rememberBestParlayRemoved(brunson);
+  assert.equal(page.bestParlayPlayerKey(brunson), "e1|jalenbrunson");
+  assert.deepEqual(JSON.parse(storage.get(removedKey)), { "e1|jalenbrunson": clock + hours(12) });
+  assert.deepEqual(names(page.bestParlayLegsFor(data, 2)), [["Jayson Tatum", "Josh Hart"], ["Jalen Brunson"]]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data, 1)), [["Jayson Tatum"], ["Jalen Brunson"]]);
+  const assists = { ...brunson, market: "player_assists", line: 6.5 };
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [assists], alternates: [] }, 2)), [[], ["Jalen Brunson"]]);
+  // The same name in another game is still in.
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [{ ...brunson, eventId: "e2" }] }, 2)), [["Jalen Brunson"], []]);
+
+  // Before tip-off, the 12 hours count from the start.
+  const later = { ...hart, eventId: "e3", start: new Date(clock + hours(2)).toISOString() };
+  page.rememberBestParlayRemoved(later);
+  assert.equal(JSON.parse(storage.get(removedKey))["e3|joshhart"], clock + hours(14));
+
+  // Another tab reads the same list; it's forgotten once the time is up.
+  page.syncBestParlayRemoved();
+  assert.deepEqual(names(page.bestParlayLegsFor(data, 2)), [["Jayson Tatum", "Josh Hart"], ["Jalen Brunson"]]);
+  clock += hours(13);
+  page.syncBestParlayRemoved();
+  assert.deepEqual(names(page.bestParlayLegsFor(data, 2)), [["Jalen Brunson", "Jayson Tatum"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [later] }, 2)), [[], ["Josh Hart"]]);
+
+  // Restoring brings him back and returns how many came back.
+  assert.equal(page.forgetBestParlayRemoved(["e3|joshhart", "e1|nobody"]), 1);
+  assert.equal(page.forgetBestParlayRemoved(["e3|joshhart"]), 0);
+  assert.deepEqual(names(page.bestParlayLegsFor({ legs: [later] }, 2)), [["Josh Hart"], []]);
+  assert.deepEqual(JSON.parse(storage.get(removedKey)), {});
 });

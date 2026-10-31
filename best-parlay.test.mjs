@@ -206,6 +206,13 @@ test("one leg per player, spread across games strongest first", () => {
   assert.deepEqual(result.legs.map(leg => leg.player), ["A One", "C One", "B One", "A Two", "B Two"]);
   assert.equal(result.legs[0].market, "player_rebounds");
   assert.deepEqual(build(events, odds, { maxLegs: 4 }).legs.map(leg => leg.player), ["A One", "C One", "B One", "A Two"]);
+  assert.deepEqual(result.alternates, []);
+  // The order carries on into the alternates that stand in for legs the user removes.
+  const short = build(events, odds, { maxLegs: 2 });
+  assert.deepEqual(short.legs.map(leg => leg.player), ["A One", "C One"]);
+  assert.deepEqual(short.alternates.map(leg => leg.player), ["B One", "A Two", "B Two"]);
+  assert.ok(short.alternates.every(leg => leg.eventId && !("score" in leg)));
+  assert.deepEqual(build(events, odds, { maxLegs: 2, alternateLegs: 1 }).alternates.map(leg => leg.player), ["B One"]);
   // Guests only get the first market, so the assists-only game drops out.
   const guest = build(events, odds, { markets: [nba[0]] });
   assert.deepEqual(guest.legs.map(leg => leg.player), ["A One", "B One", "A Two", "B Two"]);

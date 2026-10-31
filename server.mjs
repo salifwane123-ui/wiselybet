@@ -553,6 +553,7 @@ async function buildParlayResponse(sport, book, premium) {
     games: slateEvents.length,
     bookGames: result.bookGames,
     legs: result.legs,
+    alternates: result.alternates || [],
     injuryCheck: Boolean(injured),
     injuredSkipped: result.injuredSkipped,
     pricesAt: result.pricesAt,
