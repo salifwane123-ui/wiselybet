@@ -10009,6 +10009,18 @@
       summary.append(badge);
     }
 
+    function orderedParlayTrackers(legs) {
+      const priority = tracker => {
+        const snapshot = trackerSnapshots.get(tracker.key);
+        const outcome = pickOutcome(tracker, snapshot);
+        if (outcome === "won") return 3;
+        if (snapshot?.state === "in" && !snapshot.error && outcome === "live") return 0;
+        if (outcome === "live" && (!snapshot?.state || snapshot.state === "pre")) return 1;
+        return 2;
+      };
+      return [...legs].sort((a, b) => priority(a) - priority(b));
+    }
+
     function renderTrackers() {
       // Keep animating while the user is editing a target: remember the field and restore it after the redraw.
       const focused = document.activeElement;
@@ -10216,7 +10228,7 @@
         const legsKey = legs.map(item => item.key).sort().join("|");
         if (parlay.report && parlay.report.key === legsKey) group.append(createParlayReportBox(parlay));
         if (legs.length) {
-          for (const tracker of legs) {
+          for (const tracker of orderedParlayTrackers(legs)) {
             const card = cards[trackers.indexOf(tracker)];
             const matchup = element("p", "tracker-leg-game", `${sportEmoji(tracker)} ${tracker.away} @ ${tracker.home}`);
             card.querySelector(".tracker-game-row").prepend(matchup);

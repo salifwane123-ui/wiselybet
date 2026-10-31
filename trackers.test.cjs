@@ -127,6 +127,37 @@ test("tracking window LIVE badge counts verified in-progress picks and disappear
   assert.ok(html.includes("appendTrackerWindowLiveBadge(summary, singles.filter(item => item.eventId === tracker.eventId));"));
 });
 
+test("parlay cards sort live unresolved picks, upcoming picks, other results, then hits without changing saved order", () => {
+  const snapshots = new Map([
+    ["hit-live", { state: "in", current: 25 }],
+    ["upcoming", { state: "pre", current: 0 }],
+    ["live-over", { state: "in", current: 10 }],
+    ["hit-final", { state: "post", current: 22 }],
+    ["live-under", { state: "in", current: 10 }],
+    ["lost", { state: "post", current: 5 }],
+    ["under-lost", { state: "in", current: 25 }],
+    ["under-won", { state: "post", current: 10 }],
+    ["void", { state: "post", current: 0, found: false }],
+    ["error", { state: "in", current: 10, error: "Unavailable" }]
+  ]);
+  const app = { trackerSnapshots: snapshots, pickOutcome: page.pickOutcome };
+  runInNewContext(slice("    function orderedParlayTrackers(", "    function renderTrackers("), app);
+  const keys = ["hit-live", "upcoming", "live-over", "hit-final", "live-under", "lost",
+    "under-lost", "under-won", "void", "unknown", "error"];
+  const legs = keys.map(key => ({ key, target: 20, sport: "basketball_nba",
+    side: key.includes("under") || key === "void" ? "under" : "over" }));
+  assert.deepEqual(Array.from(app.orderedParlayTrackers(legs), leg => leg.key), [
+    "live-over", "live-under", "upcoming", "unknown", "lost", "under-lost", "void", "error",
+    "hit-live", "hit-final", "under-won"
+  ]);
+  assert.deepEqual(legs.map(leg => leg.key), keys);
+  snapshots.set("live-over", { state: "in", current: 20 });
+  assert.equal(app.orderedParlayTrackers(legs).at(-1).key, "under-won");
+  assert.ok(app.orderedParlayTrackers(legs).findIndex(leg => leg.key === "live-over") >
+    app.orderedParlayTrackers(legs).findIndex(leg => leg.key === "upcoming"));
+  assert.ok(slice("    function renderTrackers(", "      const singles = ").includes("for (const tracker of orderedParlayTrackers(legs))"));
+});
+
 test("on-court indicator sits before the player name and retains its live visibility rules", () => {
   const source = slice('        if (snapshot.state === "in" && snapshot.found && snapshot.onCourt && !isSoccer(tracker.sport)) {', "        head.append(gameRow, top);");
   for (const [sport, snapshot, visible] of [
