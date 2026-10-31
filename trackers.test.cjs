@@ -89,6 +89,35 @@ const page = runInNewContext(`${code}
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
+test("on-court indicator sits before the player name and retains its live visibility rules", () => {
+  const source = slice('        if (snapshot.state === "in" && snapshot.found && snapshot.onCourt && !isSoccer(tracker.sport)) {', "        head.append(gameRow, top);");
+  for (const [sport, snapshot, visible] of [
+    ["basketball_nba", { state: "in", found: true, onCourt: true }, true],
+    ["basketball_wnba", { state: "in", found: true, onCourt: true }, true],
+    ["basketball_nba", { state: "in", found: true, onCourt: false }, false],
+    ["basketball_nba", { state: "post", found: true, onCourt: true }, false],
+    ["basketball_nba", { state: "pre", found: true, onCourt: true }, false],
+    ["basketball_nba", { state: "in", found: false, onCourt: true }, false],
+    ["soccer_epl", { state: "in", found: true, onCourt: true }, false]
+  ]) {
+    const name = { textContent: "Test Player" };
+    const top = { children: [name], prepend(node) { this.children.unshift(node); } };
+    runInNewContext(source, {
+      snapshot, tracker: { name: "Test Player", sport }, top,
+      isSoccer: context.isSoccer, isFootballSport: context.isFootballSport,
+      element: (tag, className) => ({ tag, className, attributes: {}, setAttribute(key, value) { this.attributes[key] = value; } })
+    });
+    assert.equal(top.children.length, visible ? 2 : 1);
+    if (visible) {
+      assert.equal(top.children[0].className, "tracker-court-dot");
+      assert.equal(top.children[0].attributes["aria-label"], "Test Player: on the court");
+      assert.equal(top.children[1], name);
+    }
+  }
+  assert.ok(html.includes(".tracker-top > .tracker-court-dot { flex: 0 0 8px; }"));
+  assert.ok(!html.includes(".tracker-game-row .tracker-court-dot"));
+});
+
 const over = { key: "over", name: "Test Player", sport: "basketball_nba", stat: "PTS", target: 25 };
 const under = { ...over, key: "under", side: "under" };
 const live = (extra = {}) => ({ state: "in", current: 12, found: true, minutes: 20, remaining: 20, fouls: 2, injury: null, replacements: [], ...extra });
