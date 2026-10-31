@@ -96,6 +96,7 @@
     .baseball-field-lines { display: none; }
     .football-field-lines { display: none; }
     .hockey-rink-lines { display: none; }
+    .play-stage, .play-caption, .court-note-plays { display: none; }
     .court-card.baseball-scoreboard .court {
       border-color: #9cbd82;
       background:
@@ -103,7 +104,6 @@
         repeating-linear-gradient(115deg, #33744f 0 76px, #3c8257 77px 152px);
     }
     .court-card.baseball-scoreboard .court svg { stroke: rgba(255, 245, 217, .88); }
-    .court-card.baseball-scoreboard .basketball-court-lines { display: none; }
     .court-card.baseball-scoreboard .baseball-field-lines { display: block; }
     .court-card.football-scoreboard .court {
       border-color: #9cbd82;
@@ -116,7 +116,6 @@
       );
     }
     .court-card.football-scoreboard .court svg { stroke: rgba(235, 248, 218, .76); }
-    .court-card.football-scoreboard .basketball-court-lines,
     .court-card.football-scoreboard .baseball-field-lines { display: none; }
     .court-card.football-scoreboard .football-field-lines { display: block; }
     .court-card.football-scoreboard .court-score { border-color: rgba(220, 244, 218, .22); }
@@ -128,7 +127,6 @@
         repeating-linear-gradient(90deg, #eaf5fb 0, #eaf5fb 88px, #f8fcff 89px, #f8fcff 176px);
     }
     .court-card.hockey-scoreboard .court svg { stroke: rgba(57, 91, 119, .72); }
-    .court-card.hockey-scoreboard .basketball-court-lines,
     .court-card.hockey-scoreboard .baseball-field-lines,
     .court-card.hockey-scoreboard .football-field-lines { display: none; }
     .court-card.hockey-scoreboard .hockey-rink-lines { display: block; }
@@ -162,6 +160,86 @@
     .game-clock strong { display: block; font-size: 1.15rem; }
     .game-clock span { color: #aab3c5; font-size: .85rem; }
     .court-note { margin: 10px 0 0; font-size: .85rem; }
+
+    /* Basketball: the scoreboard sits above a to-scale floor where each new play is acted out. */
+    .court-card.basketball-scoreboard .court {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      min-height: 0;
+      padding: 14px 14px 12px;
+      border-color: #2c3546;
+      background: radial-gradient(ellipse at 50% 0%, #29334a 0%, #141a26 72%);
+    }
+    .court-card.basketball-scoreboard .court-score { width: min(680px, 100%); padding: 14px 18px; }
+    .court-card.basketball-scoreboard .score { font-size: clamp(1.9rem, 6vw, 3.1rem); }
+    .court-card.basketball-scoreboard .team-score img { width: 42px; height: 42px; }
+    .court-card.basketball-scoreboard .play-stage {
+      position: relative;
+      display: block;
+      width: min(100%, 820px);
+      aspect-ratio: 952 / 512;
+      border-radius: 6px;
+      background:
+        repeating-linear-gradient(180deg, transparent 0 21px, rgba(96, 48, 16, .16) 21px 22px),
+        linear-gradient(90deg, #c2855a, #cd9469 50%, #c2855a);
+      box-shadow: 0 0 0 1px rgba(80, 40, 15, .25), inset 0 0 40px rgba(80, 40, 15, .22), 0 10px 26px rgba(0, 0, 0, .35);
+    }
+    .court-card.basketball-scoreboard .court-note-plays { display: inline; }
+    .play-stage .court-plan { stroke: none; }
+    .court-lines { fill: none; stroke: rgba(255, 239, 213, .85); stroke-width: 3; }
+    .court-paint { fill: rgba(122, 52, 22, .3); fill-opacity: .32; }
+    .court-paint-label { fill: rgba(255, 246, 230, .72); stroke: none; font: 900 26px Inter, "Segoe UI", system-ui, sans-serif; letter-spacing: 4px; }
+    .court-board { stroke: #fff; stroke-width: 5; }
+    .court-rim { stroke: #ff7a2f; stroke-width: 3.5; }
+    .court-shot-made { stroke: #fff; stroke-width: 2.5; }
+    .court-shot-miss { fill: none; stroke-width: 4.5; stroke-linecap: round; }
+    .court-shot-miss-under { fill: none; stroke: rgba(255, 255, 255, .85); stroke-width: 8; stroke-linecap: round; }
+    .court-ball circle { fill: #f28a2e; stroke: #6b2d0b; stroke-width: 2; }
+    .court-ball path { fill: none; stroke: #6b2d0b; stroke-width: 1.6; }
+    .court-ball-shadow { fill: rgba(40, 18, 6, .45); stroke: none; }
+    .court-ring { fill: none; stroke-width: 3; }
+    .court-callout {
+      fill: #fff;
+      stroke-width: 7px;
+      stroke-linejoin: round;
+      paint-order: stroke;
+      font: 900 30px Inter, "Segoe UI", system-ui, sans-serif;
+      letter-spacing: 1px;
+      filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .55));
+    }
+    .court-callout.banner { font-size: 40px; stroke-width: 9px; }
+    .court-card.basketball-scoreboard .play-caption {
+      display: flex;
+      align-items: baseline;
+      gap: 6px 9px;
+      width: min(100%, 820px);
+      min-height: 2.5em;
+      margin: 0;
+      padding: 7px 12px;
+      border-radius: 9px;
+      background: rgba(16, 21, 34, .88);
+      color: #edf2f8;
+      font-size: .86rem;
+      line-height: 1.4;
+    }
+    .play-caption-team {
+      flex: none;
+      padding: 1px 7px;
+      border-radius: 5px;
+      background: var(--team-accent, #3a4658);
+      color: #fff;
+      font-size: .7rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
+    }
+    .play-caption-clock { flex: none; color: #d7ed9f; font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .play-caption-text { min-width: 0; }
+    .play-caption.fresh { animation: play-caption-in .35s ease-out; }
+    @keyframes play-caption-in { from { opacity: .2; transform: translateY(4px); } }
+    @media (prefers-reduced-motion: reduce) { .play-caption.fresh { animation: none; } }
 
     .section-heading { align-items: baseline; margin-bottom: 12px; }
     h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2rem); }
@@ -394,6 +472,11 @@
       .team-score img { width: 38px; height: 38px; }
       .game-clock { min-width: 88px; }
       .court-card, .panel { padding: 12px; }
+      .court-card.basketball-scoreboard .court { gap: 8px; padding: 8px; }
+      .court-card.basketball-scoreboard .court-score { padding: 10px 6px; }
+      .court-card.basketball-scoreboard .team-score img { width: 34px; height: 34px; }
+      .court-card.basketball-scoreboard .play-caption { padding: 6px 9px; font-size: .8rem; }
+      .court-paint-label { font-size: 36px; }
     }
     html[data-theme="light"] { filter: invert(1) hue-rotate(180deg); background: #111; }
     html[data-theme="light"] img, html[data-theme="light"] video, html[data-theme="light"] iframe { filter: invert(1) hue-rotate(180deg); }
@@ -420,17 +503,6 @@
 
   <section class="court-card" aria-label="Live game scoreboard">
     <div class="court">
-      <svg class="basketball-court-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
-        <rect x="4" y="4" width="892" height="372" rx="3"></rect>
-        <line x1="450" y1="4" x2="450" y2="376"></line>
-        <circle cx="450" cy="190" r="62"></circle>
-        <rect x="4" y="110" width="165" height="160"></rect>
-        <rect x="731" y="110" width="165" height="160"></rect>
-        <path d="M169 86 A120 120 0 0 1 169 294"></path>
-        <path d="M731 86 A120 120 0 0 0 731 294"></path>
-        <circle cx="74" cy="190" r="9"></circle>
-        <circle cx="826" cy="190" r="9"></circle>
-      </svg>
       <svg class="baseball-field-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
         <rect x="4" y="4" width="892" height="372" rx="3"></rect>
         <path d="M450 340 L610 215 L450 90 L290 215 Z"></path>
@@ -487,10 +559,43 @@
           <span id="home-score" class="score">—</span>
         </div>
       </div>
+      <!-- A 94 × 50 ft floor at 10 units per foot; the away team shoots at the left hoop, the home team at the right. -->
+      <div class="play-stage" aria-hidden="true">
+        <svg class="court-plan" viewBox="-6 -6 952 512" preserveAspectRatio="none">
+          <g class="court-lines">
+            <rect id="court-paint-away" class="court-paint" x="0" y="170" width="190" height="160"></rect>
+            <rect id="court-paint-home" class="court-paint" x="750" y="170" width="190" height="160"></rect>
+            <rect x="0" y="0" width="940" height="500" rx="2"></rect>
+            <line x1="470" y1="0" x2="470" y2="500"></line>
+            <circle cx="470" cy="250" r="60"></circle>
+            <circle cx="470" cy="250" r="20"></circle>
+            <g class="court-end">
+              <circle cx="190" cy="250" r="60"></circle>
+              <path d="M0 30 H142 A237.5 237.5 0 0 1 142 470 H0"></path>
+              <path d="M52.5 210 A40 40 0 0 1 52.5 290"></path>
+              <line class="court-board" x1="40" y1="220" x2="40" y2="280"></line>
+              <circle class="court-rim" cx="52.5" cy="250" r="7.5"></circle>
+            </g>
+            <g class="court-end" transform="matrix(-1 0 0 1 940 0)">
+              <circle cx="190" cy="250" r="60"></circle>
+              <path d="M0 30 H142 A237.5 237.5 0 0 1 142 470 H0"></path>
+              <path d="M52.5 210 A40 40 0 0 1 52.5 290"></path>
+              <line class="court-board" x1="40" y1="220" x2="40" y2="280"></line>
+              <circle class="court-rim" cx="52.5" cy="250" r="7.5"></circle>
+            </g>
+          </g>
+          <text id="court-label-away" class="court-paint-label" transform="translate(20 250) rotate(-90)" text-anchor="middle" dominant-baseline="central"></text>
+          <text id="court-label-home" class="court-paint-label" transform="translate(920 250) rotate(90)" text-anchor="middle" dominant-baseline="central"></text>
+          <g class="court-shots"></g>
+          <g class="court-action"></g>
+        </svg>
+      </div>
+      <p class="play-caption" aria-hidden="true"></p>
     </div>
     <p class="court-note muted">
       Live scoreboard—not a video stream.
       Live scoreboard data is provided by ESPN and refreshes about every 15 seconds.
+      <span class="court-note-plays">Each new play is re-created on the court from ESPN’s play-by-play, so spots are approximate.</span>
     </p>
   </section>
 
@@ -554,6 +659,7 @@
       away: query.get("away") || ""
     };
     const refreshButton = document.querySelector("#refresh");
+    document.querySelector(".court-card").classList.toggle("basketball-scoreboard", isBasketballSport(game.sport));
     const loading = document.querySelector("#loading");
     const errorElement = document.querySelector("#error");
     const updatesElement = document.querySelector("#updates");
@@ -635,6 +741,7 @@
       document.querySelector(".court-card").classList.toggle("baseball-scoreboard", isBaseball);
       document.querySelector(".court-card").classList.toggle("football-scoreboard", isFootball);
       document.querySelector(".court-card").classList.toggle("hockey-scoreboard", isHockey);
+      document.querySelector(".court-card").classList.toggle("basketball-scoreboard", isBasketballSport(activeSport));
       document.querySelector(".court-card").setAttribute(
         "aria-label",
         isBaseball
@@ -743,6 +850,7 @@
       else if (isBaseball) renderBaseballSituation(data.situation, [away, home], data.state);
       else renderOnCourt([away, home], data.state);
       renderPlayByPlay(data.plays || [], data.state);
+      renderCourtPlays(data, { away, home });
       renderPlayerStats([away, home]);
       document.querySelector("#updated-at").textContent =
         `Updated ${new Date(data.updatedAt).toLocaleTimeString()}`;
@@ -1039,6 +1147,524 @@
             : `${play.awayScore}–${play.homeScore}`
         ));
         list.append(row);
+      }
+    }
+
+    // Live court: where ESPN's basketball plays land on a 94 × 50 ft floor drawn at 10 units per foot.
+    function isBasketballSport(sport) {
+      return !sport || String(sport).startsWith("basketball");
+    }
+
+    function otherTeamSide(teamSide) {
+      return teamSide === "home" ? "away" : teamSide === "away" ? "home" : "";
+    }
+
+    // The away team attacks the left hoop all game and the home team the right, matching the scoreboard.
+    function courtEnd(teamSide) {
+      return teamSide === "home" ? "right" : "left";
+    }
+
+    function hoopSpot(end) {
+      return { x: end === "right" ? 887.5 : 52.5, y: 250 };
+    }
+
+    // ESPN spots are in feet: x across the floor (0–50) and y out from the attacked hoop, whose rim sits near y 1.
+    function courtSpot(end, x, y) {
+      const depth = Math.min(88, Math.max(-4.5, Number(y) - 1));
+      const across = Math.min(49.5, Math.max(0.5, Number(x)));
+      return end === "right"
+        ? { x: 887.5 - 10 * depth, y: 500 - 10 * across }
+        : { x: 52.5 + 10 * depth, y: 10 * across };
+    }
+
+    function clampToFloor(point) {
+      return {
+        x: Math.min(926, Math.max(14, point.x)),
+        y: Math.min(486, Math.max(14, point.y))
+      };
+    }
+
+    function playHash(play) {
+      let hash = 2166136261;
+      for (const char of String(play?.id || play?.text || "")) {
+        hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+      }
+      return (hash >>> 0) / 4294967296;
+    }
+
+    function playTypeText(play) {
+      return String(play?.type || "").replace(/\s+/g, " ").trim().toLowerCase();
+    }
+
+    function playKind(play) {
+      const type = playTypeText(play);
+      if (type.includes("free throw")) return "freethrow";
+      if (type.includes("no shot")) return "other";
+      if (type.includes("rebound")) return "rebound";
+      if (type.includes("substitution")) return "sub";
+      if (type.includes("timeout")) return "timeout";
+      if (/end (of )?(period|game|quarter|half)/.test(type)) return "period";
+      if (/jump ?ball/.test(type)) return "jumpball";
+      if (play?.shot) return "shot";
+      if (/turnover|traveling|double dribble|backcourt|palming|discontinue|offensive goaltending/.test(type)) return "turnover";
+      if (/foul|charge|technical|flagrant|goaltend|defensive 3|violation|delay/.test(type)) return "foul";
+      if (/shot|jumper|layup|dunk|tip|hook|alley|finger roll/.test(type)) return "shot";
+      if (/\bsteals?\b/i.test(String(play?.text || ""))) return "turnover";
+      return "other";
+    }
+
+    function playMade(play) {
+      return Boolean(play?.scoring) || /\bmakes\b/i.test(String(play?.text || ""));
+    }
+
+    function whistleLabel(play) {
+      const type = playTypeText(play);
+      if (type.includes("technical")) return "TECHNICAL";
+      if (type.includes("flagrant")) return "FLAGRANT";
+      if (type.includes("charge")) return "CHARGE";
+      if (type.includes("goaltend")) return "GOALTEND";
+      if (type.includes("violation") || type.includes("delay")) return "VIOLATION";
+      return "FOUL";
+    }
+
+    // The team whose attack a play's spot is measured for, i.e. which hoop the play happened at.
+    // Defensive rebounds and defensive fouls are credited to the defending team, so they use the opponent's end.
+    function attackingSide(play, kind = playKind(play)) {
+      const side = play?.teamSide === "home" || play?.teamSide === "away" ? play.teamSide : "";
+      if (!side) return "";
+      const type = playTypeText(play);
+      if (kind === "shot" || kind === "freethrow" || kind === "turnover") return side;
+      if (type.includes("offensive") || type.includes("charge")) return side;
+      if (kind === "rebound" || kind === "foul") return otherTeamSide(side);
+      return side;
+    }
+
+    function shotFeet(play) {
+      const text = String(play?.text || "");
+      const match = text.match(/(\d+)-foot/i);
+      if (match) return Number(match[1]);
+      if (/three point/i.test(text)) return 24;
+      return /jump|pullup|fade|hook|step back/.test(playTypeText(play)) ? 15 : 1;
+    }
+
+    // Spot for a shot with no ESPN location: its distance from the text, at a stable angle per play.
+    function shotSpotFromText(end, play) {
+      const feet = shotFeet(play);
+      const angle = (playHash(play) - 0.5) * 2.4;
+      return courtSpot(end, 25 + feet * Math.sin(angle), 1 + feet * Math.cos(angle));
+    }
+
+    // A rebound carries the missed shot's spot; the board is grabbed between there and the rim.
+    function reboundSpot(play) {
+      const attack = attackingSide(play, "rebound");
+      if (!attack) return null;
+      const end = courtEnd(attack);
+      const hoop = hoopSpot(end);
+      const located = Number.isFinite(play.x) && Number.isFinite(play.y);
+      const shot = located ? courtSpot(end, play.x, play.y) : shotSpotFromText(end, { id: play.id, text: "8-foot" });
+      const dx = shot.x - hoop.x;
+      const dy = shot.y - hoop.y;
+      const length = Math.hypot(dx, dy);
+      if (length < 1) return { x: hoop.x + (end === "right" ? -55 : 55), y: hoop.y };
+      const reach = Math.min(90, Math.max(35, length * 0.5));
+      return clampToFloor({ x: hoop.x + dx / length * reach, y: hoop.y + dy / length * reach });
+    }
+
+    function playSpot(play, kind = playKind(play)) {
+      const attack = attackingSide(play, kind);
+      if (!attack) return null;
+      const end = courtEnd(attack);
+      if (kind === "freethrow") return courtSpot(end, 25, 14.75);
+      if (kind === "rebound") return reboundSpot(play);
+      if (Number.isFinite(play.x) && Number.isFinite(play.y)) return courtSpot(end, play.x, play.y);
+      if (kind === "shot") return shotSpotFromText(end, play);
+      return null;
+    }
+
+    // Acting plays out on the floor
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const courtPlan = document.querySelector(".court-plan");
+    const courtShotsLayer = courtPlan.querySelector(".court-shots");
+    const courtActionLayer = courtPlan.querySelector(".court-action");
+    const playCaption = document.querySelector(".play-caption");
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+    const COURT_SHOT_LIMIT = 16;
+    const COURT_QUEUE_LIMIT = 6;
+    const courtPlays = { key: null, seen: new Set(), charted: new Set(), queue: [], loaded: false, running: false };
+
+    function courtPause(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function courtMotionAllowed() {
+      return !document.hidden && !reducedMotion.matches && typeof courtPlan.animate === "function";
+    }
+
+    // Phones show the floor at a third of its size, so the ball, rings, callouts and shot marks grow to stay readable.
+    function courtZoom() {
+      const width = courtPlan.getBoundingClientRect().width;
+      return width ? Math.min(1.6, Math.max(1, 560 / width)) : 1;
+    }
+
+    function courtColor(teamSide) {
+      const color = String(updateTeamsBySide[teamSide]?.color || "").replace(/^#/, "");
+      if (/^[\da-f]{6}$/i.test(color)) return `#${color}`;
+      return teamSide === "home" ? "#d2493f" : teamSide === "away" ? "#3c79d8" : "#1d2433";
+    }
+
+    function svgEl(tag, attributes = {}, parent = courtActionLayer) {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+      parent.append(node);
+      return node;
+    }
+
+    function placeAt(point, scale = 1) {
+      return `translate(${point.x.toFixed(1)}px, ${point.y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
+    }
+
+    function placeNode(node, point, scale = 1) {
+      node.setAttribute("transform", `translate(${point.x.toFixed(1)} ${point.y.toFixed(1)}) scale(${scale})`);
+    }
+
+    function animateNode(node, keyframes, options) {
+      return node.animate(keyframes, { fill: "forwards", ...options }).finished.catch(() => {});
+    }
+
+    function newBall(point) {
+      const zoom = courtZoom();
+      const shadow = svgEl("ellipse", { class: "court-ball-shadow", rx: 12 * zoom, ry: 5 * zoom });
+      const ball = svgEl("g", { class: "court-ball" });
+      const body = svgEl("g", { transform: `scale(${zoom})` }, ball);
+      svgEl("circle", { r: 12 }, body);
+      svgEl("path", { d: "M-12 0 H12 M0 -12 V12 M-8 -9 Q-2 0 -8 9 M8 -9 Q2 0 8 9" }, body);
+      placeNode(shadow, point);
+      placeNode(ball, point);
+      return { ball, shadow, point };
+    }
+
+    // The ball travels along the floor while it lifts toward the viewer, with its shadow left on the floor.
+    function flyBall(parts, to, { duration = 800, lift = 0, delay = 0 } = {}) {
+      const from = parts.point;
+      const ballFrames = [];
+      const shadowFrames = [];
+      for (let step = 0; step <= 16; step++) {
+        const t = step / 16;
+        const arc = 4 * t * (1 - t);
+        const point = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+        ballFrames.push({
+          offset: t,
+          transform: placeAt({ x: point.x, y: point.y - lift * arc }, 1 + 0.45 * arc * Math.min(1, lift / 80))
+        });
+        shadowFrames.push({ offset: t, transform: placeAt(point, 1 - 0.35 * arc), opacity: 1 - 0.4 * arc });
+      }
+      parts.point = to;
+      return Promise.all([
+        animateNode(parts.ball, ballFrames, { duration, delay }),
+        animateNode(parts.shadow, shadowFrames, { duration, delay })
+      ]);
+    }
+
+    function sinkBall(parts) {
+      const frames = [
+        { transform: placeAt(parts.point, 1), opacity: 1 },
+        { transform: placeAt(parts.point, 0.55), opacity: 0 }
+      ];
+      return Promise.all([
+        animateNode(parts.ball, frames, { duration: 360, easing: "ease-in" }),
+        animateNode(parts.shadow, frames, { duration: 360, easing: "ease-in" })
+      ]);
+    }
+
+    function pulse(point, color, { delay = 0, duration = 700, from = 0.4, to = 2.6, width = 3 } = {}) {
+      const ring = svgEl("circle", { class: "court-ring", r: 14 * courtZoom(), "vector-effect": "non-scaling-stroke" });
+      ring.style.stroke = color;
+      ring.style.strokeWidth = width;
+      ring.style.opacity = 0;
+      placeNode(ring, point, from);
+      return animateNode(ring, [
+        { transform: placeAt(point, from), opacity: 1 },
+        { transform: placeAt(point, to), opacity: 0 }
+      ], { duration, delay, easing: "ease-out" });
+    }
+
+    function callout(label, point, color, { delay = 0, hold = 900, banner = false } = {}) {
+      const zoom = courtZoom();
+      const size = (banner ? 40 : 30) * zoom;
+      const half = Math.min(460, label.length * size * 0.36 + 12);
+      const spot = {
+        x: Math.min(940 - half, Math.max(half, point.x)),
+        y: Math.min(494 - size / 2, Math.max(size / 2 + 6, point.y))
+      };
+      const text = svgEl("text", {
+        class: `court-callout${banner ? " banner" : ""}`,
+        "text-anchor": "middle",
+        "dominant-baseline": "central"
+      });
+      text.textContent = label;
+      // Light team colors read better as the letters themselves, outlined in dark.
+      const [red, green, blue] = [1, 3, 5].map(index => parseInt(color.slice(index, index + 2), 16) || 0);
+      const light = 0.299 * red + 0.587 * green + 0.114 * blue > 150;
+      text.style.fill = light ? color : "#fff";
+      text.style.stroke = light ? "#1d2433" : color;
+      text.style.fontSize = `${size}px`;
+      text.style.strokeWidth = `${(banner ? 9 : 7) * zoom}px`;
+      text.style.opacity = 0;
+      placeNode(text, spot);
+      return animateNode(text, [
+        { offset: 0, transform: placeAt({ x: spot.x, y: spot.y + 12 }, 0.6), opacity: 0 },
+        { offset: 0.14, transform: placeAt(spot, 1.08), opacity: 1 },
+        { offset: 0.22, transform: placeAt(spot, 1), opacity: 1 },
+        { offset: 0.84, transform: placeAt(spot, 1), opacity: 1 },
+        { offset: 1, transform: placeAt({ x: spot.x, y: spot.y - 16 }, 1), opacity: 0 }
+      ], { duration: hold + 500, delay, easing: "ease-out" });
+    }
+
+    // A fading chart of the most recent shots: team-colored dots for makes, crosses for misses.
+    function chartShot(play, spot, made, animate = false) {
+      if (!spot || courtPlays.charted.has(play.id)) return;
+      courtPlays.charted.add(play.id);
+      const color = courtColor(play.teamSide);
+      const zoom = courtZoom();
+      const marker = svgEl("g", { class: "court-shot" }, courtShotsLayer);
+      placeNode(marker, spot, zoom);
+      if (made) {
+        svgEl("circle", { class: "court-shot-made", r: 9 }, marker).style.fill = color;
+      } else {
+        const cross = "M-7 -7 L7 7 M7 -7 L-7 7";
+        svgEl("path", { class: "court-shot-miss-under", d: cross }, marker);
+        svgEl("path", { class: "court-shot-miss", d: cross }, marker).style.stroke = color;
+      }
+      const markers = [...courtShotsLayer.children];
+      markers.slice(0, Math.max(0, markers.length - COURT_SHOT_LIMIT)).forEach(node => node.remove());
+      [...courtShotsLayer.children].reverse().forEach((node, index) => {
+        node.style.opacity = String(Math.max(0.3, 1 - index * 0.05));
+      });
+      if (animate) {
+        animateNode(marker, [{ transform: placeAt(spot, 0.2 * zoom) }, { transform: placeAt(spot, zoom) }], {
+          duration: 260,
+          easing: "cubic-bezier(.3, 1.6, .5, 1)"
+        });
+      }
+    }
+
+    function setCaption(play, fresh = false) {
+      playCaption.replaceChildren();
+      if (!play) return;
+      if (typeof play === "string") {
+        playCaption.append(element("span", "play-caption-text muted", play));
+      } else {
+        const team = updateTeamsBySide[play.teamSide];
+        if (team) {
+          const chip = element("span", "play-caption-team", team.abbreviation || team.name);
+          chip.style.setProperty("--team-accent", courtColor(play.teamSide));
+          playCaption.append(chip);
+        }
+        const clock = [play.period, play.clock].filter(Boolean).join(" · ");
+        if (clock) playCaption.append(element("span", "play-caption-clock", clock));
+        playCaption.append(element("span", "play-caption-text", play.text));
+      }
+      if (fresh) {
+        playCaption.classList.remove("fresh");
+        void playCaption.offsetWidth;
+        playCaption.classList.add("fresh");
+      }
+    }
+
+    function settleCourtPlay(play, caption = false) {
+      if (playKind(play) === "shot") chartShot(play, playSpot(play, "shot"), playMade(play));
+      if (caption) setCaption(play);
+    }
+
+    async function actOutPlay(play) {
+      const kind = playKind(play);
+      const side = play.teamSide === "home" || play.teamSide === "away" ? play.teamSide : "";
+      const color = courtColor(side);
+      const attack = attackingSide(play, kind);
+      const end = courtEnd(attack);
+      const hoop = hoopSpot(end);
+      const intoCourt = end === "right" ? -1 : 1;
+      const spot = playSpot(play, kind);
+      const hash = playHash(play);
+      const type = playTypeText(play);
+      setCaption(play, true);
+      courtActionLayer.replaceChildren();
+
+      if ((kind === "shot" || kind === "freethrow") && spot) {
+        const ball = newBall(spot);
+        const made = playMade(play);
+        const distance = Math.hypot(spot.x - hoop.x, spot.y - hoop.y);
+        const close = kind === "shot" && (distance < 45 || /dunk|layup|tip|alley|putback|finger roll/.test(type));
+        pulse(spot, color, { duration: 500, to: 2 });
+        await courtPause(220);
+        if (kind === "shot" && /\bblocks\b/i.test(play.text)) {
+          const defender = courtColor(otherTeamSide(side));
+          const block = { x: spot.x + (hoop.x - spot.x) * 0.4, y: spot.y + (hoop.y - spot.y) * 0.4 };
+          await flyBall(ball, block, { duration: 360, lift: 26 });
+          pulse(block, defender, { duration: 600, to: 2.8 });
+          callout("BLOCK", { x: block.x, y: block.y - 50 }, defender);
+          const length = Math.max(1, distance);
+          const sideways = hash < 0.5 ? -1 : 1;
+          const deflect = clampToFloor({
+            x: block.x + (-(hoop.y - spot.y) / length) * 90 * sideways - (hoop.x - spot.x) / length * 30,
+            y: block.y + ((hoop.x - spot.x) / length) * 90 * sideways - (hoop.y - spot.y) / length * 30
+          });
+          await flyBall(ball, deflect, { duration: 520, lift: 22 });
+          chartShot(play, spot, false, true);
+          await courtPause(700);
+          return;
+        }
+        const lift = close ? 22 : kind === "freethrow" ? 70 : Math.min(130, 45 + distance * 0.35);
+        await flyBall(ball, hoop, { duration: close ? 430 : Math.min(1250, 650 + distance * 1.5), lift });
+        if (kind === "shot") chartShot(play, spot, made, true);
+        const label = { x: hoop.x + intoCourt * 100, y: hoop.y - 72 };
+        if (made) {
+          const points = play.points || (kind === "freethrow" ? 1 : /three point/i.test(play.text) ? 3 : 2);
+          pulse(hoop, color, { duration: 650, to: 3 });
+          pulse(hoop, color, { duration: 650, delay: 160, to: 4.4 });
+          callout(`+${points}`, label, color);
+          await sinkBall(ball);
+          await courtPause(900);
+        } else {
+          pulse(hoop, "#ff7a2f", { duration: 500, to: 2.2 });
+          callout("MISS", label, "#1d2433");
+          const angle = (hash - 0.5) * 2.2;
+          const bounce = clampToFloor({ x: hoop.x + intoCourt * Math.cos(angle) * 75, y: hoop.y + Math.sin(angle) * 75 });
+          await flyBall(ball, bounce, { duration: 520, lift: 34 });
+          await courtPause(700);
+        }
+        return;
+      }
+
+      if (kind === "rebound" && spot) {
+        const ball = newBall(hoop);
+        await flyBall(ball, spot, { duration: 560, lift: 42 });
+        pulse(spot, color, { duration: 650, to: 2.6 });
+        await callout(type.includes("offensive") ? "O-REB" : "REB", { x: spot.x, y: spot.y - 50 }, color);
+        return;
+      }
+
+      if (kind === "turnover" && attack) {
+        const where = spot || courtSpot(end, 10 + hash * 30, 16 + hash * 10);
+        const steal = /\bsteals?\b/i.test(play.text);
+        const labelColor = steal ? courtColor(otherTeamSide(side)) : color;
+        const ball = newBall(where);
+        pulse(where, labelColor, { duration: 700, to: 2.8 });
+        callout(steal ? "STEAL" : "TURNOVER", { x: where.x, y: where.y - 50 }, labelColor);
+        await courtPause(380);
+        await flyBall(ball, clampToFloor({ x: where.x + intoCourt * 170, y: where.y + (hash - 0.5) * 90 }), {
+          duration: 760,
+          lift: steal ? 0 : 12
+        });
+        await courtPause(500);
+        return;
+      }
+
+      if (kind === "foul") {
+        const where = spot || (attack ? courtSpot(end, 17 + hash * 16, 13 + hash * 8) : { x: 470, y: 250 });
+        pulse(where, "#ffd84a", { duration: 600, to: 2.4, width: 4 });
+        pulse(where, "#ffd84a", { duration: 600, delay: 260, to: 3.2, width: 4 });
+        await callout(whistleLabel(play), { x: where.x, y: where.y - 50 }, color);
+        return;
+      }
+
+      if (kind === "sub" && side) {
+        await callout("SUB", side === "home" ? { x: 705, y: 462 } : { x: 235, y: 462 }, color, { hold: 600 });
+        return;
+      }
+
+      if (kind === "timeout") {
+        const team = updateTeamsBySide[side];
+        await callout(team ? `${team.abbreviation || team.name} TIMEOUT`.toUpperCase() : "TIMEOUT", { x: 470, y: 250 }, color, {
+          banner: true,
+          hold: 1300
+        });
+        return;
+      }
+
+      if (kind === "period") {
+        const label = type.includes("game") ? "FINAL" : `END OF ${String(play.period || "period").toUpperCase()}`;
+        await callout(label, { x: 470, y: 250 }, "#1d2433", { banner: true, hold: 1600 });
+        return;
+      }
+
+      if (kind === "jumpball") {
+        const ball = newBall({ x: 470, y: 250 });
+        callout("JUMP BALL", { x: 470, y: 150 }, color, { hold: 900 });
+        await flyBall(ball, { x: 470, y: 250 }, { duration: 900, lift: 110 });
+        await courtPause(400);
+        return;
+      }
+
+      await courtPause(900);
+    }
+
+    async function runCourtQueue() {
+      if (courtPlays.running) return;
+      courtPlays.running = true;
+      try {
+        while (courtPlays.queue.length) {
+          const play = courtPlays.queue.shift();
+          if (!courtMotionAllowed()) {
+            settleCourtPlay(play, true);
+            continue;
+          }
+          try {
+            await actOutPlay(play);
+          } catch (error) {
+            console.warn("Could not act out a play on the court.", error);
+          }
+          settleCourtPlay(play);
+          if (courtPlays.queue.length) await courtPause(400);
+        }
+      } finally {
+        courtPlays.running = false;
+      }
+    }
+
+    function queueCourtPlays(plays) {
+      courtPlays.queue.push(...plays);
+      while (courtPlays.queue.length > COURT_QUEUE_LIMIT) settleCourtPlay(courtPlays.queue.shift(), true);
+      runCourtQueue();
+    }
+
+    // New plays from each refresh are acted out in order; on first load the recent shots are only charted.
+    function renderCourtPlays(data, teams) {
+      if (!isBasketballSport(data.sport || game.sport)) return;
+      try {
+        const key = String(data.eventId || `${game.date}|${game.away}|${game.home}`);
+        if (key !== courtPlays.key) {
+          Object.assign(courtPlays, { key, seen: new Set(), charted: new Set(), queue: [], loaded: false });
+          courtShotsLayer.replaceChildren();
+          courtActionLayer.replaceChildren();
+          setCaption(null);
+        }
+        for (const side of ["away", "home"]) {
+          document.querySelector(`#court-paint-${side}`).style.fill = courtColor(side);
+          document.querySelector(`#court-label-${side}`).textContent = teams[side]?.abbreviation || "";
+        }
+
+        const plays = (data.plays || []).filter(play => play.id && play.text).reverse();
+        const fresh = plays.filter(play => !courtPlays.seen.has(play.id));
+        fresh.forEach(play => courtPlays.seen.add(play.id));
+        if (!courtPlays.loaded) {
+          if (!plays.length) {
+            setCaption(data.state === "pre"
+              ? "Plays will appear on the court once the game tips off."
+              : "Waiting for ESPN’s play-by-play…");
+            courtPlays.loaded = data.state === "pre";
+            return;
+          }
+          courtPlays.loaded = true;
+          const latest = fresh.pop();
+          fresh.forEach(play => settleCourtPlay(play));
+          if (latest && data.state === "in") queueCourtPlays([latest]);
+          else if (latest) settleCourtPlay(latest, true);
+          return;
+        }
+        if (fresh.length) queueCourtPlays(fresh);
+      } catch (error) {
+        console.warn("Could not update the live court.", error);
       }
     }
 

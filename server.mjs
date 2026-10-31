@@ -395,18 +395,29 @@ async function fetchLiveGame(sport, date, home, away) {
   const plays = playsWithSides
     .slice(-25)
     .reverse()
-    .map(({ play, teamSide }) => ({
-      id: String(play.id || play.sequenceNumber || ""),
-      period: play.period?.displayValue || "",
-      clock: play.clock?.displayValue || "",
-      type: play.type?.text || "",
-      text: play.text || "",
-      teamId: String(play.team?.id || play.teamId || ""),
-      teamSide,
-      awayScore: play.awayScore ?? null,
-      homeScore: play.homeScore ?? null,
-      scoring: Boolean(play.scoringPlay)
-    }))
+    .map(({ play, teamSide }) => {
+      // ESPN's basketball spot, in feet: x across the floor (0–50), y out from the attacked hoop (rim ≈ y 1).
+      // Plays without a spot carry a huge negative sentinel instead.
+      const x = Number(play.coordinate?.x);
+      const y = Number(play.coordinate?.y);
+      const located = play.coordinate && Number.isFinite(x) && Number.isFinite(y) && Math.abs(x) <= 200 && Math.abs(y) <= 200;
+      return {
+        id: String(play.id || play.sequenceNumber || ""),
+        period: play.period?.displayValue || "",
+        clock: play.clock?.displayValue || "",
+        type: play.type?.text || "",
+        text: play.text || "",
+        teamId: String(play.team?.id || play.teamId || ""),
+        teamSide,
+        awayScore: play.awayScore ?? null,
+        homeScore: play.homeScore ?? null,
+        scoring: Boolean(play.scoringPlay),
+        shot: Boolean(play.shootingPlay),
+        points: Number(play.scoreValue) || 0,
+        x: located ? x : null,
+        y: located ? y : null
+      };
+    })
     .filter(play => play.text);
   return {
     sport,
