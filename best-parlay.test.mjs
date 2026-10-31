@@ -239,6 +239,22 @@ test("one leg per player, spread across games strongest first", () => {
   assert.equal(guest.bookGames, 2);
 });
 
+test("side filters return only Over or only Under legs", () => {
+  const rows = [
+    ["Over Lean", 20.5, ...prices(0.6)],
+    ["Under Lean", 16.5, ...prices(0.4)]
+  ];
+  const odds = {
+    g1: eventOdds({ draftkings: { player_points: rows }, fanduel: { player_points: rows } })
+  };
+
+  const overs = build([game("g1", now + hour)], odds, { sideFilter: "over" });
+  const unders = build([game("g1", now + hour)], odds, { sideFilter: "under" });
+
+  assert.deepEqual(overs.legs.map(leg => [leg.player, leg.side]), [["Over Lean", "over"]]);
+  assert.deepEqual(unders.legs.map(leg => [leg.player, leg.side]), [["Under Lean", "under"]]);
+});
+
 test("cross-sport aggregation ranks sides together and keeps sport identity", () => {
   const result = combineBestParlays([
     {

@@ -2030,6 +2030,7 @@
     .bp-select:hover { border-color: rgba(201,239,91,.6); }
     .bp-select[hidden] { display: none; }
     .bp-sport-select { max-width: 135px; }
+    .bp-side-select { max-width: 110px; }
     .bp-book-select { max-width: 175px; }
     .best-parlay.is-unset .bp-book-select, .bp-state-select.is-needed { border-color: #c9ef5b; box-shadow: 0 0 0 3px rgba(201,239,91,.14); }
     .bp-ticker { display: grid; grid-area: ticker; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; padding: 9px 8px 10px 12px; border-top: 1px solid rgba(225,233,229,.08); }
@@ -2266,6 +2267,7 @@
             </div>
             <div class="bp-pickers">
               <select id="bp-sport-select" class="bp-select bp-sport-select" aria-label="Sport for parlay"></select>
+              <select id="bp-side-select" class="bp-select bp-side-select" aria-label="Player prop side"></select>
               <select id="bp-book" class="bp-select bp-book-select" aria-label="Your sportsbook"><option value="">Your sportsbook…</option></select>
               <select id="bp-state" class="bp-select bp-state-select" aria-label="Your state" hidden></select>
               <select id="bp-legs" class="bp-select" aria-label="Number of legs"></select>
@@ -2827,6 +2829,7 @@
       oddsFormat: "american",
       theme: "dark",
       parlaySport: "all",
+      parlaySide: "all",
       parlayBook: "",
       parlayState: "",
       parlayLegs: 8
@@ -2880,6 +2883,7 @@
     const bpProgressBar = document.querySelector("#bp-progress-bar");
     const bpPauseButton = document.querySelector("#bp-pause");
     const bpSportSelect = document.querySelector("#bp-sport-select");
+    const bpSideSelect = document.querySelector("#bp-side-select");
     const bpBookSelect = document.querySelector("#bp-book");
     const bpStateSelect = document.querySelector("#bp-state");
     const bpLegsSelect = document.querySelector("#bp-legs");
@@ -3451,6 +3455,9 @@
       if (sport === "all") return "All sports";
       return (playerPropSports[sport]?.title || sport).replace(/ player prop odds$/i, "");
     }
+    function bestParlaySide() {
+      return ["all", "over", "under"].includes(settings.parlaySide) ? settings.parlaySide : "all";
+    }
     function bestParlayBook() {
       return sportsbookTitles.has(settings.parlayBook) ? settings.parlayBook : "";
     }
@@ -3617,9 +3624,17 @@
           ...supportedSports.map(sport => new Option(parlaySportTitle(sport), sport))
         );
       }
+      if (bpSideSelect.options.length !== 3) {
+        bpSideSelect.replaceChildren(
+          new Option("All sides", "all"),
+          new Option("Over only", "over"),
+          new Option("Under only", "under")
+        );
+      }
       if (bpBookSelect.options.length < 2) bpBookSelect.append(...sportsbooks.map(book => new Option(book.title, book.key)));
       fillStateOptions(bpStateSelect);
       bpSportSelect.value = bestParlaySport();
+      bpSideSelect.value = bestParlaySide();
       bpBookSelect.value = bestParlayBook();
       bpLegsSelect.value = String(parlayLegTarget());
     }
@@ -3628,8 +3643,9 @@
       if (!bestParlayElement || embedMode) return;
       const state = bestParlayState;
       const sport = bestParlaySport();
+      const side = bestParlaySide();
       const book = bestParlayBook();
-      if (state.sport !== sport || state.book !== book) Object.assign(state, { sport, book, data: null, error: "", index: 0 });
+      if (state.sport !== sport || state.side !== side || state.book !== book) Object.assign(state, { sport, side, book, data: null, error: "", index: 0 });
       const request = ++state.request;
       if (!sport || !book) {
         state.loading = false;
@@ -3639,7 +3655,7 @@
       state.loading = true;
       if (!state.data) renderBestParlay();
       try {
-        const data = await getJson(`/api/best-parlay?sport=${encodeURIComponent(sport)}&book=${encodeURIComponent(book)}`);
+        const data = await getJson(`/api/best-parlay?sport=${encodeURIComponent(sport)}&side=${encodeURIComponent(side)}&book=${encodeURIComponent(book)}`);
         if (request !== state.request) return;
         if (!Array.isArray(data?.legs)) throw new Error("We couldn't build a parlay right now. Please try again in a minute.");
         state.data = data;
@@ -3825,7 +3841,7 @@
       fillBestParlayPickers();
       const state = bestParlayState;
       const book = bestParlayBook();
-      const data = state.data?.sport === sport && state.data.book === book ? state.data : null;
+      const data = state.data?.sport === sport && state.data.side === bestParlaySide() && state.data.book === book ? state.data : null;
       const { legs, removed } = bestParlayLegsFor(data, parlayLegTarget());
       dropStaleRemovedToast(data);
       bpSportLabel.textContent = parlaySportTitle(sport);
@@ -4462,6 +4478,11 @@
       bpLegsSelect.value = String(parlayLegTarget());
       bpSportSelect.addEventListener("change", () => {
         settings.parlaySport = bpSportSelect.value;
+        saveSettings();
+        void loadBestParlay();
+      });
+      bpSideSelect.addEventListener("change", () => {
+        settings.parlaySide = bpSideSelect.value;
         saveSettings();
         void loadBestParlay();
       });
@@ -9957,7 +9978,7 @@
         settings = readSettings();
         applyTheme();
         applyVolume();
-        if (settings.parlayBook !== previous.parlayBook || settings.parlaySport !== previous.parlaySport) void loadBestParlay();
+        if (settings.parlayBook !== previous.parlayBook || settings.parlaySport !== previous.parlaySport || settings.parlaySide !== previous.parlaySide) void loadBestParlay();
         else if (["parlayState", "parlayLegs", "oddsFormat"].some(key => settings[key] !== previous[key])) renderBestParlay();
         if (settings.parlayState !== previous.parlayState) renderTrackers();
       } else if (event.key === historyKey) {
