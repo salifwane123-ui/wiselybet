@@ -72,7 +72,7 @@ const page = runInNewContext(`${code}
 ({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead,
    pickIdentity, pickSlot, pickCopyIn, addTracker, assignParlay, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
    playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
-   forgetBestParlayRemoved, syncBestParlayRemoved });`, context);
+   forgetBestParlayRemoved, syncBestParlayRemoved, trackerClock });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -105,6 +105,27 @@ test("an Under loses at the target, wins below it and is void if he didn't play"
   assert.equal(page.pickOutcome(under, live({ current: 12, fouls: 6 })), "won");
   assert.equal(page.pickOutcome(under, { state: "post", current: 0, found: false }), "void");
   assert.equal(page.pickOutcome(under, { state: "post", current: 25, found: true }), "lost");
+});
+
+test("each pick shows its game clock, the final or when the game starts", () => {
+  const now = Date.parse("2025-01-15T00:00:00Z");
+  const at = minutes => ({ ...over, date: new Date(now + minutes * 60_000).toISOString() });
+  const time = minutes => new Date(now + minutes * 60_000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const clockFor = (tracker, snapshot) => plain(page.trackerClock(tracker, snapshot, now));
+  assert.deepEqual(clockFor(at(-30), { state: "in", periodLabel: "1:29 - 2nd" }), { tone: "live", text: "1:29 - 2nd" });
+  assert.deepEqual(clockFor(at(-30), { state: "in", periodLabel: "" }), { tone: "live", text: "Live" });
+  assert.deepEqual(clockFor(at(-180), { state: "post", periodLabel: "Final/OT" }), { tone: "final", text: "Final/OT" });
+  assert.deepEqual(clockFor(at(-180), { state: "post", periodLabel: "" }), { tone: "final", text: "Final" });
+  assert.deepEqual(clockFor(at(60), { state: "pre", periodLabel: "Postponed" }), { tone: "alert", text: "Postponed" });
+  assert.deepEqual(clockFor({ ...over }, { state: "" }), { tone: "pre", text: "Start time TBD" });
+  assert.deepEqual(clockFor(at(-2), { state: "pre", periodLabel: "" }), { tone: "pre", text: `Starting soon · ${time(-2)}` });
+  const soon = clockFor(at(90), { state: "pre" });
+  assert.equal(soon.tone, "soon");
+  assert.ok(soon.text.endsWith(`${time(90)} · in 1h 30m`), soon.text);
+  assert.ok(clockFor(at(45), {}).text.endsWith(`${time(45)} · in 45m`));
+  const later = clockFor(at(3 * 24 * 60), { state: "pre" });
+  assert.equal(later.tone, "pre");
+  assert.ok(later.text.endsWith(` · ${time(3 * 24 * 60)}`) && !later.text.includes(" in "), later.text);
 });
 
 test("goals and scores read as Over or Under", () => {

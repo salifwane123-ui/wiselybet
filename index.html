@@ -1309,6 +1309,16 @@
     /* Card header: the matchup and player sit on a slightly raised band so each pick is easy to scan */
     .tracker-card-head { margin: -8px -10px 7px; padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05); }
     .tracker-card-head .tracker-leg-game { margin: 0 0 3px; color: #bcc5d1; font-size: .62rem; }
+    .tracker-game-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 3px 8px; margin: 0 0 4px; }
+    .tracker-card-head .tracker-game-row .tracker-leg-game { min-width: 0; margin: 0; }
+    .tracker-clock { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.08); color: #d5dbe3; font-size: .62rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tracker-clock.is-live { background: rgba(255,77,77,.16); color: #ffb0b0; }
+    .tracker-clock.is-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #ff4d4d; animation: tracker-clock-pulse 1.4s ease-in-out infinite; }
+    .tracker-clock.is-soon { background: rgba(201,239,91,.14); color: #e7f7b0; }
+    .tracker-clock.is-final { color: #aab3c2; }
+    .tracker-clock.is-alert { background: rgba(255,210,122,.16); color: #ffd27a; }
+    @keyframes tracker-clock-pulse { 50% { opacity: .3; } }
+    @media (prefers-reduced-motion: reduce) { .tracker-clock.is-live::before { animation: none; } }
     .tracker-card-head .tracker-top h3 { color: #f4f6f9; font-size: .84rem; font-weight: 800; letter-spacing: -.005em; line-height: 1.3; }
     .tracker-card-head .tracker-stat-tag { margin-left: 6px; padding: 1px 7px; background: rgba(255,255,255,.1); color: #d5dbe3; vertical-align: 1px; }
     .tracker-card-head .tracker-remove { padding: 2px 8px; border-color: rgba(255,255,255,.14); color: #c3cad4; }
@@ -1612,6 +1622,12 @@
     html[data-theme="light"] .tracker-remove { border-color: rgba(40,58,22,.25); color: #5b6658; }
     html[data-theme="light"] .tracker-card-head { border-bottom-color: rgba(40,58,22,.1); background: rgba(40,58,22,.045); }
     html[data-theme="light"] .tracker-card-head .tracker-leg-game { color: #46523f; }
+    html[data-theme="light"] .tracker-clock { background: rgba(40,58,22,.08); color: #34402d; }
+    html[data-theme="light"] .tracker-clock.is-live { background: #fdeaea; color: #b92b2b; }
+    html[data-theme="light"] .tracker-clock.is-live::before { background: #d64545; }
+    html[data-theme="light"] .tracker-clock.is-soon { background: #e3f0c6; color: #34540a; }
+    html[data-theme="light"] .tracker-clock.is-final { color: #5b6658; }
+    html[data-theme="light"] .tracker-clock.is-alert { background: #fff1d6; color: #8a5a00; }
     html[data-theme="light"] .tracker-card-head .tracker-top h3 { color: #17200f; }
     html[data-theme="light"] .tracker-card-head .tracker-stat-tag { background: rgba(40,58,22,.1); color: #34402d; }
     html[data-theme="light"] .tracker-card-head .tracker-remove { border-color: rgba(40,58,22,.25); color: #46523f; }
@@ -7838,7 +7854,7 @@
         };
         trackers.push(demo);
         trackerSnapshots.set(demo.key, {
-          error: "", state: "in", current: 0, stats: { MIN: "6", PTS: "0", REB: "1", AST: "0", PF: "0" },
+          error: "", state: "in", periodLabel: "Q2 12:00", current: 0, stats: { MIN: "6", PTS: "0", REB: "1", AST: "0", PF: "0" },
           fouls: 0, minutes: 6, remaining: 36, injury: null, pendingDelta: 0, hitNotified: false
         });
         demoStepIndex = 0;
@@ -7849,6 +7865,7 @@
       const previous = trackerSnapshots.get(demo.key);
       const snapshot = {
         ...previous,
+        periodLabel: step.when,
         current: step.current,
         minutes: step.minutes,
         remaining: step.remaining,
@@ -8785,6 +8802,28 @@
       return `${whole}:${String(seconds === 60 ? 59 : seconds).padStart(2, "0")}`;
     }
 
+    // The game clock on each pick: the live period and clock, the final, or when the game starts (with a countdown).
+    function trackerClock(tracker, snapshot, now = Date.now()) {
+      const label = String(snapshot?.periodLabel || "").trim();
+      if (snapshot?.state === "in") return { tone: "live", text: label || "Live" };
+      if (snapshot?.state === "post") return { tone: "final", text: /^final/i.test(label) ? label : "Final" };
+      if (/postponed|delayed|canceled|cancelled|suspended/i.test(label)) return { tone: "alert", text: label };
+      const start = Date.parse(tracker.date);
+      if (!Number.isFinite(start)) return { tone: "pre", text: "Start time TBD" };
+      const when = new Date(start);
+      const time = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const midnight = value => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+      const days = Math.round((midnight(when) - midnight(new Date(now))) / 86400000);
+      const day = days === 0 ? "Today" : days === 1 ? "Tomorrow" : when.toLocaleDateString([], { weekday: "short", month: "numeric", day: "numeric" });
+      const left = Math.ceil((start - now) / 60000);
+      if (left <= 0) return { tone: "pre", text: snapshot?.state === "pre" ? `Starting soon · ${time}` : `${day} · ${time}` };
+      if (left < 12 * 60) {
+        const hours = Math.floor(left / 60);
+        return { tone: "soon", text: `${day} ${time} · in ${hours ? `${hours}h ${String(left % 60).padStart(2, "0")}m` : `${left}m`}` };
+      }
+      return { tone: "pre", text: `${day} · ${time}` };
+    }
+
     // Baseball is projected per inning: batters from a typical full-game rate, pitchers from outs and pitch pace.
     function baseballInningsLeft(game) {
       if (game.state === "post") return 0;
@@ -9164,6 +9203,7 @@
       const snapshot = {
         error: "",
         state: game.state,
+        periodLabel: game.periodLabel || "",
         current,
         stats,
         fouls: hockey || baseball || football ? 0 : Number.parseInt(stats.PF, 10) || 0,
@@ -9410,7 +9450,12 @@
         const verdictBox = element("div", `tracker-verdict tone-${verdictInfo.tone}`);
         verdictBox.append(element("strong", "", verdictInfo.title), element("p", "", verdictInfo.text));
         const head = element("header", "tracker-card-head");
-        head.append(top);
+        const clock = trackerClock(tracker, snapshot);
+        const clockChip = element("span", `tracker-clock is-${clock.tone}`, clock.text);
+        clockChip.title = clock.tone === "live" ? "Live game clock" : clock.tone === "final" ? "Game over" : "Game start time";
+        const gameRow = element("div", "tracker-game-row");
+        gameRow.append(clockChip);
+        head.append(gameRow, top);
         card.append(head);
         if (snapshot.state !== "post") card.append(createParlayPicker(tracker));
         const legParlay = parlays.find(item => item.id === tracker.parlay);
@@ -9485,7 +9530,7 @@
           for (const tracker of legs) {
             const card = cards[trackers.indexOf(tracker)];
             const matchup = element("p", "tracker-leg-game", `${sportEmoji(tracker)} ${tracker.away} @ ${tracker.home}`);
-            card.querySelector(".tracker-card-head").prepend(matchup);
+            card.querySelector(".tracker-game-row").prepend(matchup);
             group.append(card);
           }
         } else {
