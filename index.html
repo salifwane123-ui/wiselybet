@@ -1270,7 +1270,7 @@
     .tracker-card:last-child { margin-bottom: 0; }
     .tracker-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
     .tracker-top h3 { min-width: 0; margin: 0; overflow: hidden; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
-    .tracker-court-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #ff3b3b; box-shadow: 0 0 6px #ff3b3b; vertical-align: middle; animation: court-dot-pulse 1.6s ease-in-out infinite; }
+    .tracker-court-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff3b3b; box-shadow: 0 0 6px #ff3b3b; animation: court-dot-pulse 1.6s ease-in-out infinite; }
     @keyframes court-dot-pulse { 50% { opacity: .45; box-shadow: 0 0 2px #ff3b3b; } }
     .tracker-stat-tag { margin-left: 5px; padding: 0 6px; border-radius: 99px; background: rgba(145,161,179,.18); color: var(--muted); font-size: .6rem; font-weight: 750; }
     .tracker-side { margin-left: 6px; padding: 1px 7px; border-radius: 99px; background: rgba(61,220,132,.14); color: #7dffb0; font-size: .58rem; font-weight: 850; letter-spacing: .05em; line-height: 1.5; text-transform: uppercase; white-space: nowrap; }
@@ -1307,8 +1307,11 @@
     /* Card header: the matchup and player sit on a slightly raised band so each pick is easy to scan */
     .tracker-card-head { margin: -8px -10px 7px; padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05); }
     .tracker-card-head .tracker-leg-game { margin: 0 0 3px; color: #bcc5d1; font-size: .62rem; }
-    .tracker-game-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 3px 8px; margin: 0 0 4px; }
+    .tracker-game-row { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 3px 8px; margin: 0 0 4px; }
     .tracker-card-head .tracker-game-row .tracker-leg-game { min-width: 0; margin: 0; }
+    /* While the game is live the top-right corner is kept for the on-court dot, so every pick's clock lines up whether he's on or off. */
+    .tracker-game-row.is-live { padding-right: 16px; }
+    .tracker-game-row .tracker-court-dot { position: absolute; top: 3px; right: 0; }
     .tracker-clock { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,.08); color: #d5dbe3; font-size: .62rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .tracker-clock.is-live { background: rgba(255,77,77,.16); color: #ffb0b0; }
     .tracker-clock.is-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #ff4d4d; animation: tracker-clock-pulse 1.4s ease-in-out infinite; }
@@ -9358,13 +9361,6 @@
 
         const top = element("div", "tracker-top");
         const title = element("h3", "", tracker.name);
-        if (snapshot.state === "in" && snapshot.found && snapshot.onCourt) {
-          const dot = element("span", "tracker-court-dot");
-          const here = tracker.sport === "icehockey_nhl" || tracker.sport === "baseball_mlb" || isFootballSport(tracker.sport) ? "In the game" : "On the court";
-          dot.title = here;
-          dot.setAttribute("aria-label", here);
-          title.prepend(dot);
-        }
         title.append(element("span", "tracker-stat-tag", trackerStats[tracker.stat].short));
         const under = isUnderPick(tracker);
         const line = pickLine(tracker.target);
@@ -9427,8 +9423,16 @@
         const clock = trackerClock(tracker, snapshot);
         const clockChip = element("span", `tracker-clock is-${clock.tone}`, clock.text);
         clockChip.title = clock.tone === "live" ? "Live game clock" : clock.tone === "final" ? "Game over" : "Game start time";
-        const gameRow = element("div", "tracker-game-row");
+        const gameRow = element("div", `tracker-game-row${snapshot.state === "in" ? " is-live" : ""}`);
         gameRow.append(clockChip);
+        if (snapshot.state === "in" && snapshot.found && snapshot.onCourt) {
+          const dot = element("span", "tracker-court-dot");
+          const here = tracker.sport === "icehockey_nhl" || tracker.sport === "baseball_mlb" || isFootballSport(tracker.sport) ? "In the game" : "On the court";
+          dot.title = here;
+          dot.setAttribute("role", "img");
+          dot.setAttribute("aria-label", `${tracker.name}: ${here.toLowerCase()}`);
+          gameRow.append(dot);
+        }
         head.append(gameRow, top);
         card.append(head);
         const legParlay = parlays.find(item => item.id === tracker.parlay);
