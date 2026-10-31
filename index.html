@@ -314,11 +314,14 @@
       position: fixed; z-index: 2000; width: 310px; max-width: calc(100vw - 24px);
       max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain;
       padding: 10px; border: 1px solid var(--border); border-radius: 18px;
-      background: var(--surface); color: #edf2e8; box-shadow: 0 18px 56px rgba(0,0,0,.32), 0 2px 8px rgba(0,0,0,.16);
+      background: #171e18; color: #edf2e8; border-color: #40503b;
+      box-shadow: 0 18px 56px rgba(0,0,0,.32), 0 2px 8px rgba(0,0,0,.16);
     }
     .soccer-league-panel[hidden] { display: none; }
     .soccer-league-panel h3 { margin: 0 2px 8px; padding: 10px 10px 14px; border-bottom: 1px solid var(--border); font-size: .9rem; font-weight: 750; letter-spacing: -.015em; }
     .soccer-league-panel h3::after { content: "Choose your competition"; display: block; margin-top: 4px; color: var(--muted); font-size: .72rem; font-weight: 400; letter-spacing: 0; }
+    #soccer-league-panel h3 { color: inherit; }
+    #soccer-league-panel h3::after, #soccer-league-panel .soccer-league-choice::after { color: #b3bfb0; }
     .soccer-league-choice {
       position: relative; display: block; width: 100%; min-height: 58px; padding: 10px 32px 10px 60px;
       border: 1px solid transparent; border-radius: 11px; background: transparent; color: inherit;
@@ -336,7 +339,9 @@
     .soccer-league-choice[aria-current="true"] .soccer-choice-check { display: inline; }
     .soccer-nav-toggle::after { content: ""; margin-left: auto; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); transition: transform .15s; }
     .soccer-nav-toggle[aria-expanded="true"]::after { transform: rotate(225deg); }
-    html[data-theme="light"] .soccer-league-panel { background: #fff; color: #26331f; box-shadow: 0 18px 48px rgba(35,50,25,.16); }
+    html[data-theme="light"] .soccer-league-panel { background: #fff; color: #26331f; border-color: #bdcea5; box-shadow: 0 18px 48px rgba(35,50,25,.16); }
+    html[data-theme="light"] #soccer-league-panel h3::after,
+    html[data-theme="light"] #soccer-league-panel .soccer-league-choice::after { color: #59674e; }
     html[data-theme="light"] .soccer-league-choice::before, html[data-theme="light"] .soccer-choice-check { color: #46651e; }
     html[data-theme="light"] .soccer-league-choice[aria-current="true"]::before { color: #365415; }
     @media (max-width: 850px) { .soccer-nav-toggle::after { display: none; } }
@@ -3366,6 +3371,7 @@
     }
 
     function renderSportNavigation(sports) {
+      document.getElementById("soccer-league-panel")?.remove();
       sportNavigationElement.replaceChildren();
       const sportIcons = {
         basketball_nba: "🏀",
@@ -3458,14 +3464,17 @@
       group.addEventListener("pointerenter", () => {
         if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) open();
       });
-      group.addEventListener("pointerleave", () => {
-        if (!pinned && !group.contains(document.activeElement)) closeTimer = window.setTimeout(close, 180);
-      });
+      const contains = target => group.contains(target) || panel.contains(target);
+      const scheduleClose = () => {
+        if (!pinned && !contains(document.activeElement)) closeTimer = window.setTimeout(close, 180);
+      };
+      group.addEventListener("pointerleave", scheduleClose);
       panel.addEventListener("pointerenter", () => window.clearTimeout(closeTimer));
-      group.addEventListener("focusout", event => {
-        if (!group.contains(event.relatedTarget)) close();
-      });
-      group.addEventListener("keydown", event => {
+      panel.addEventListener("pointerleave", scheduleClose);
+      const onFocusOut = event => {
+        if (!contains(event.relatedTarget)) close();
+      };
+      const onKeyDown = event => {
         if (event.key === "Escape") {
           event.preventDefault();
           close();
@@ -3475,16 +3484,28 @@
           open();
           (panel.querySelector('[aria-current="true"]') || panel.querySelector("button")).focus();
         }
-      });
+      };
+      for (const target of [group, panel]) {
+        target.addEventListener("focusout", onFocusOut);
+        target.addEventListener("keydown", onKeyDown);
+      }
       group.closeLeagues = close;
       group.positionLeagues = position;
-      group.append(toggle, panel);
+      group.leaguePanel = panel;
+      group.containsLeagueTarget = contains;
+      group.append(toggle);
       sportNavigationElement.append(group);
+      // Keep the fixed menu out of the sidebar's stacking and backdrop-filter context.
+      document.body.append(panel);
       updateSportNavigation();
     }
 
     function updateSportNavigation() {
-      for (const button of sportNavigationElement.querySelectorAll(".sport-nav-button:not(.soccer-nav-toggle), .soccer-league-choice")) {
+      const panel = document.getElementById("soccer-league-panel");
+      for (const button of [
+        ...sportNavigationElement.querySelectorAll(".sport-nav-button:not(.soccer-nav-toggle)"),
+        ...(panel ? panel.querySelectorAll(".soccer-league-choice") : [])
+      ]) {
         const active = button.dataset.sport === sportSelect.value;
         button.setAttribute("aria-current", String(active));
         if (button.classList.contains("soccer-league-choice")) {
@@ -3502,15 +3523,15 @@
     }
     document.addEventListener("click", event => {
       const group = sportNavigationElement.querySelector(".soccer-nav-group");
-      if (group && !group.contains(event.target)) group.closeLeagues();
+      if (group && !group.containsLeagueTarget(event.target)) group.closeLeagues();
     });
     window.addEventListener("resize", () => {
       const group = sportNavigationElement.querySelector(".soccer-nav-group");
-      if (group && !group.querySelector(".soccer-league-panel").hidden) group.positionLeagues();
+      if (group && !group.leaguePanel.hidden) group.positionLeagues();
     });
     document.addEventListener("scroll", event => {
       const group = sportNavigationElement.querySelector(".soccer-nav-group");
-      if (group && !group.querySelector(".soccer-league-panel").contains(event.target)) group.closeLeagues();
+      if (group && !group.leaguePanel.contains(event.target)) group.closeLeagues();
     }, true);
 
     function normalizeTeamName(name) {

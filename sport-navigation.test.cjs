@@ -11,7 +11,8 @@ function setup({ hover = true, phone = false, selected = "basketball_nba", leagu
     constructor(tag, className = "", text = "") {
       Object.assign(this, { tag, className, textContent: text, children: [], dataset: {}, style: {}, attributes: {}, listeners: {} });
     }
-    append(...nodes) { this.children.push(...nodes); }
+    append(...nodes) { nodes.forEach(node => { node.parent = this; this.children.push(node); }); }
+    remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); }
     replaceChildren(...nodes) { this.children = nodes; }
     setAttribute(name, value) { this.attributes[name] = value; }
     removeAttribute(name) { delete this.attributes[name]; }
@@ -21,15 +22,18 @@ function setup({ hover = true, phone = false, selected = "basketball_nba", leagu
     focus() { document.activeElement = this; }
     getBoundingClientRect() { return this.className === "soccer-league-panel" ? { width: 260, height: 350 } : { top: phone ? 780 : 350, right: phone ? 370 : 200 }; }
     querySelectorAll(selector) {
-      const match = node => selector === ".sport-nav-button:not(.soccer-nav-toggle), .soccer-league-choice"
-        ? (node.className.includes("sport-nav-button") && !node.className.includes("soccer-nav-toggle")) || node.className === "soccer-league-choice"
+      const match = node => selector === ".sport-nav-button:not(.soccer-nav-toggle)"
+        ? node.className.includes("sport-nav-button") && !node.className.includes("soccer-nav-toggle")
         : selector === '[aria-current="true"]' ? node.attributes["aria-current"] === "true"
         : selector === "button" ? node.tag === "button" : node.className.split(" ").includes(selector.slice(1));
       return this.children.flatMap(child => [...(match(child) ? [child] : []), ...child.querySelectorAll(selector)]);
     }
     querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
   }
-  const document = { activeElement: null, listeners: {}, addEventListener(name, listener) { this.listeners[name] = listener; } };
+  const body = new Node("body");
+  const document = { body, activeElement: null, listeners: {},
+    getElementById(id) { return body.children.find(node => node.id === id) || null; },
+    addEventListener(name, listener) { this.listeners[name] = listener; } };
   const timers = new Map();
   const window = {
     innerWidth: phone ? 390 : 1200, innerHeight: phone ? 844 : 900, listeners: {},
@@ -45,7 +49,7 @@ function setup({ hover = true, phone = false, selected = "basketball_nba", leagu
   const sports = [{ key: "basketball_nba", title: "NBA" }, ...(leagues ? Object.entries(soccerSupport.leagues).map(([key, league]) => ({ key, title: league.title })) : [])];
   context.renderSportNavigation(sports);
   return { nav, document, window, select, context, timers,
-    group: nav.querySelector(".soccer-nav-group"), toggle: nav.querySelector(".soccer-nav-toggle"), panel: nav.querySelector(".soccer-league-panel") };
+    group: nav.querySelector(".soccer-nav-group"), toggle: nav.querySelector(".soccer-nav-toggle"), panel: document.getElementById("soccer-league-panel") };
 }
 
 test("seven soccer leagues share one Soccer button while NBA remains separate", () => {
@@ -117,6 +121,31 @@ test("dropdown sport changes update the Soccer selection and preserve the full s
   assert.equal(setup({ leagues: false }).group, null);
 });
 
+test("league menu is outside the sidebar, preserves keyboard and hover handling, and cleans up on rerender", () => {
+  const app = setup();
+  assert.equal(app.panel.parent, app.document.body);
+  assert.equal(app.group.contains(app.panel), false);
+  app.toggle.listeners.click();
+  const choice = app.panel.querySelector("button");
+  app.group.listeners.focusout({ relatedTarget: choice });
+  app.document.listeners.click({ target: choice });
+  app.document.listeners.scroll({ target: app.panel });
+  assert.equal(app.panel.hidden, false);
+  app.panel.listeners.keydown({ key: "Escape", preventDefault() {} });
+  assert.equal(app.panel.hidden, true);
+  assert.equal(app.document.activeElement, app.toggle);
+  app.document.activeElement = null;
+  app.group.listeners.pointerenter();
+  app.group.listeners.pointerleave();
+  app.panel.listeners.pointerenter();
+  assert.equal(app.timers.size, 0);
+  app.panel.listeners.pointerleave();
+  for (const callback of app.timers.values()) callback();
+  assert.equal(app.panel.hidden, true);
+  app.context.renderSportNavigation([{ key: "basketball_nba", title: "NBA" }]);
+  assert.equal(app.document.getElementById("soccer-league-panel"), null);
+});
+
 test("sport button colors override generic hover styles and retain readable contrast", () => {
   assert.ok(html.includes('#soccer-league-panel .soccer-league-choice:hover:not(:disabled)'));
   assert.ok(html.includes('#sport-navigation .sport-nav-button[aria-current="true"]:hover:not(:disabled)'));
@@ -129,9 +158,12 @@ test("sport button colors override generic hover styles and retain readable cont
   };
   for (const [text, background] of [
     ["edf2e8", "263420"], ["e1f2c9", "2b3d20"],
-    ["26331f", "edf3e5"], ["29420f", "e3edcf"]
+    ["26331f", "edf3e5"], ["29420f", "e3edcf"],
+    ["edf2e8", "171e18"], ["b3bfb0", "171e18"], ["b3bfb0", "2b3d20"],
+    ["59674e", "ffffff"], ["59674e", "e3edcf"]
   ]) {
     const values = [luminance(text), luminance(background)].sort((a, b) => b - a);
     assert.ok((values[0] + .05) / (values[1] + .05) >= 4.5);
   }
+  assert.match(html, /background: #171e18; color: #edf2e8; border-color: #40503b/);
 });
