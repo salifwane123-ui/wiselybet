@@ -32,7 +32,7 @@ const code = [
   slice("    // Opening a pick or the whole parlay at the sportsbook also tracks it", "    // A short note that the picks are in the tracker, with Undo."),
   slice("    function normalizeName(", "    function normalizeSignalName("),
   slice("    // Players the user took out of the best parlay", "    function bestParlayLegText("),
-  slice("    function bestParlayLegText(", "    // The book and state lists are declared")
+  slice("    function bestParlayOutcomeText(", "    // The book and state lists are declared")
 ].join("\n");
 const trackerSnapshots = new Map();
 const storage = new Map();
@@ -72,7 +72,7 @@ const context = {
   isFootballSport: sport => sport === "americanfootball_nfl" || sport === "americanfootball_ncaaf",
   marketToTrackerStatBySport: { basketball_nba: { player_points: "PTS", player_rebounds: "REB", player_assists: "AST" } },
   sportsbookTitle: key => ({ draftkings: "DraftKings", fanduel: "FanDuel" })[key] || key,
-  propMarketPhrase: () => "points",
+  propMarketPhrase: (sport, market) => market === "player_rebounds" ? "rebounds" : "points",
   element: (tag, className, text = "") => ({
     tag, className, textContent: text, children: [],
     append(...children) { this.children.push(...children); }
@@ -84,7 +84,7 @@ const page = runInNewContext(`${code}
    pickIdentity, pickSlot, pickCopyIn, addTracker, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
    playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
    forgetBestParlayRemoved, syncBestParlayRemoved, trackerClock, suggestionsSettled, bookSuggestionPending, removalSuggestionPending,
-   disableParlaySuggestions, bestParlayLegText, createLiveNow });`, context);
+  disableParlaySuggestions, bestParlayOutcomeText, bestParlayLegText, createLiveNow });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -579,6 +579,10 @@ test("best-parlay Under picks keep their side, price and distinct tracker identi
   assert.equal(context.trackers.length, 2);
   assert.equal(page.bestParlayLegText(under, "basketball_nba"), "Jalen Brunson Under 24.5 points");
   assert.equal(page.bestParlayLegText(brunson, "basketball_nba"), "Jalen Brunson Over 24.5 points");
+  const alternateOver = { player: "Ace Bailey", market: "player_rebounds", line: 3.5, side: "over", alternate: true };
+  assert.equal(page.bestParlayOutcomeText(alternateOver, "basketball_nba"), "4+ rebounds");
+  assert.equal(page.bestParlayLegText(alternateOver, "basketball_nba"), "Ace Bailey 4+ rebounds");
+  assert.equal(page.bestParlayLegText({ ...alternateOver, alternate: false }, "basketball_nba"), "Ace Bailey Over 3.5 rebounds");
   const now = page.createLiveNow({ current: 12, stat: "PTS", need: 13 }, under);
   assert.match(now.children[0].title, /must finish below 24.5/);
   assert.equal(now.children[1].textContent, "below 24.5");
@@ -592,9 +596,9 @@ test("a player taken out of the best parlay stays out for his game, and an alter
   const pricedTatum = { ...tatum, price: 1.4 };
   const pricedHart = { ...hart, price: 1.5 };
   const data = { legs: [pricedTatum, pricedBrunson], alternates: [pricedHart] };
-  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson", "Jayson Tatum"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum", "Jalen Brunson"], []]);
   selectedParlayLegCount = 1;
-  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum"], []]);
   selectedParlayLegCount = 2;
   assert.deepEqual(names(page.bestParlayLegsFor({ legs: [pricedBrunson] })), [["Jalen Brunson"], []]);
 
@@ -619,7 +623,7 @@ test("a player taken out of the best parlay stays out for his game, and an alter
   assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum", "Josh Hart"], ["Jalen Brunson"]]);
   clock += hours(13);
   page.syncBestParlayRemoved();
-  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jalen Brunson", "Jayson Tatum"], []]);
+  assert.deepEqual(names(page.bestParlayLegsFor(data)), [["Jayson Tatum", "Jalen Brunson"], []]);
   assert.deepEqual(names(page.bestParlayLegsFor({ legs: [later] })), [[], ["Josh Hart"]]);
 
   // Restoring brings him back and returns how many came back.

@@ -256,41 +256,22 @@ test("side filters return only Over or only Under legs", () => {
   assert.deepEqual(unders.legs.map(leg => [leg.player, leg.side]), [["Under Lean", "under"]]);
 });
 
-test("price ranking puts the shortest selected-book odds first", () => {
-  const result = build([
-    game("g1", now + hour),
-    game("g2", now + 2 * hour)
-  ], {
-    g1: eventOdds({
-      draftkings: { player_points: [["Short Price", 20.5, ...prices(0.65)]] },
-      fanduel: { player_points: [["Short Price", 20.5, ...prices(0.65)]] }
-    }),
-    g2: eventOdds({
-      draftkings: { player_points: [["Longer Price", 16.5, ...prices(0.4)]] },
-      fanduel: { player_points: [["Longer Price", 16.5, ...prices(0.4)]] }
-    })
-  }, { rankBy: "price", includeScore: true });
-
-  assert.deepEqual(result.legs.map(leg => [leg.player, leg.side]), [
-    ["Short Price", "over"],
-    ["Longer Price", "under"]
-  ]);
-  assert.ok(result.legs[0].price < result.legs[1].price);
-});
-
-test("price ranking chooses the shortest eligible line for a player", () => {
-  const rows = [
-    ["Multi Line", 10.5, ...prices(0.55)],
-    ["Multi Line", 20.5, ...prices(0.7)]
-  ];
+test("alternate sportsbook ladders supply the lower rebound line despite short odds", () => {
   const result = build([game("g1", now + hour)], {
     g1: eventOdds({
-      draftkings: { player_points: rows },
-      fanduel: { player_points: rows }
+      draftkings: {
+        player_rebounds: [["Ace Bailey", 5.5, ...prices(0.55)]],
+        player_rebounds_alternate: [["Ace Bailey", 3.5, 1.14, 6.0]]
+      },
+      fanduel: {
+        player_rebounds: [["Ace Bailey", 5.5, ...prices(0.55)]],
+        player_rebounds_alternate: [["Ace Bailey", 3.5, 1.14, 6.0]]
+      }
     })
-  }, { rankBy: "price", sideFilter: "over" });
+  }, { markets: ["player_rebounds"], rankBy: "lowest-line", sideFilter: "over" });
 
-  assert.deepEqual(result.legs.map(leg => [leg.line, leg.side]), [[20.5, "over"]]);
+  assert.deepEqual(result.legs.map(leg => [leg.player, leg.line, leg.side, leg.price]), [["Ace Bailey", 3.5, "over", 1.14]]);
+  assert.equal(result.legs[0].books, 2);
 });
 
 test("cross-sport aggregation ranks sides together and keeps sport identity", () => {

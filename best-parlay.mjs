@@ -448,6 +448,7 @@ function quoteIsFresh(market, bookmaker, fetchedAt, limit = parlayRules.staleQuo
 // player key -> { player, lines: point -> { over, under } } for one book's market.
 function playerLines(market) {
   const players = new Map();
+  const alternate = String(market?.key || "").endsWith("_alternate");
   for (const outcome of market?.outcomes || []) {
     const side = String(outcome?.name || "").toLowerCase();
     const player = String(outcome?.description || "").trim();
@@ -459,26 +460,41 @@ function playerLines(market) {
     if (!players.has(key)) players.set(key, { player, lines: new Map() });
     const lines = players.get(key).lines;
     if (!lines.has(outcome.point)) lines.set(outcome.point, {});
-    lines.get(outcome.point)[side] = outcome;
+    lines.get(outcome.point)[side] = { ...outcome, alternate };
+  }
+  return players;
+}
+
+function playerLinesAcrossMarkets(markets) {
+  const players = new Map();
+  for (const market of markets || []) {
+    for (const [key, entry] of playerLines(market)) {
+      if (!players.has(key)) players.set(key, { player: entry.player, lines: new Map() });
+      const mergedLines = players.get(key).lines;
+      for (const [point, pair] of entry.lines) {
+        if (!mergedLines.has(point)) mergedLines.set(point, {});
+        const mergedPair = mergedLines.get(point);
+        for (const side of ["over", "under"]) {
+          if (!mergedPair[side] && pair[side]) mergedPair[side] = pair[side];
+        }
+      }
+    }
   }
   return players;
 }
 
 const overChance = (over, under) => (1 / over) / (1 / over + 1 / under);
 
-// A book's main line for a player is its Over/Under pair priced closest to even.
+// Select the book's most balanced line, or the lowest offered point when requested.
 function mainLine(lines, sideFilter = "all", rankBy = "strength") {
   let best = null;
   for (const [point, pair] of lines) {
     if (!pair.over || !pair.under) continue;
     const balance = Math.abs(overChance(pair.over.price, pair.under.price) - 0.5);
-    if (rankBy === "price") {
-      const outcomes = sideFilter === "all" ? [pair.over, pair.under] : [pair[sideFilter]];
-      const price = Math.min(...outcomes.filter(Boolean).map(outcome => outcome.price));
-      if (!Number.isFinite(price)) continue;
-      if (!best || price < best.price - 1e-9 || (Math.abs(price - best.price) <= 1e-9 && point < best.point)) {
-        best = { point, ...pair, balance, price };
-      }
+    if (rankBy === "lowest-line") {
+      const offeredSides = sideFilter === "all" ? [pair.over, pair.under] : [pair[sideFilter]];
+      if (!offeredSides.some(Boolean)) continue;
+      if (!best || point < best.point - 1e-9) best = { point, ...pair, balance };
       continue;
     }
     if (!best || balance < best.balance - 1e-9 || (Math.abs(balance - best.balance) <= 1e-9 && point < best.point)) {
@@ -519,20 +535,24 @@ export function buildBestParlay({
     const inPlay = Boolean(liveGames && event.live);
     const liveGame = inPlay ? liveGames.get(event.id) || null : null;
     const staleLimit = inPlay ? parlayRules.liveStaleQuote : parlayRules.staleQuote;
-    const minBooks = inPlay ? parlayRules.minLiveBooks : parlayRules.minBooks;
+    const minBooks = inPlay || rankBy === "lowest-line" ? parlayRules.minLiveBooks : parlayRules.minBooks;
     const best = new Map();
     let offered = false;
     for (const market of markets) {
-      const targetMarket = (target.markets || []).find(item => item?.key === market);
-      if (!targetMarket) continue;
+      const marketKeys = rankBy === "lowest-line" ? [market, `${market}_alternate`] : [market];
+      const targetMarkets = (target.markets || []).filter(item => marketKeys.includes(item?.key));
+      if (!targetMarkets.length) continue;
       offered = true;
-      if (!quoteIsFresh(targetMarket, target, fetchedAt, staleLimit)) continue;
+      const freshTargetMarkets = targetMarkets.filter(item => quoteIsFresh(item, target, fetchedAt, staleLimit));
+      if (!freshTargetMarkets.length) continue;
+      const marketLinkMarket = freshTargetMarkets.find(item => item.key === market) || freshTargetMarkets[0];
       const quotes = [];
       for (const bookmaker of bookmakers) {
-        const bookMarket = (bookmaker?.markets || []).find(item => item?.key === market);
-        if (bookMarket && quoteIsFresh(bookMarket, bookmaker, fetchedAt, staleLimit)) quotes.push(playerLines(bookMarket));
+        const bookMarkets = (bookmaker?.markets || []).filter(item => marketKeys.includes(item?.key) &&
+          quoteIsFresh(item, bookmaker, fetchedAt, staleLimit));
+        if (bookMarkets.length) quotes.push(playerLinesAcrossMarkets(bookMarkets));
       }
-      for (const [key, { player, lines }] of playerLines(targetMarket)) {
+      for (const [key, { player, lines }] of playerLinesAcrossMarkets(freshTargetMarkets)) {
         const main = mainLine(lines, sideFilter, rankBy);
         if (!main) continue;
         if (injured.has(key)) {
@@ -552,8 +572,8 @@ export function buildBestParlay({
           const probability = side === "over" ? overProbability : 1 - overProbability;
           const price = outcome.price;
           const edge = price * probability - 1;
-          if (probability < parlayRules.minProbability || price < parlayRules.minPrice || price > parlayRules.maxPrice ||
-              edge < parlayRules.minEdge) continue;
+            if (rankBy !== "lowest-line" && (probability < parlayRules.minProbability || price < parlayRules.minPrice ||
+              price > parlayRules.maxPrice || edge < parlayRules.minEdge)) continue;
           let live = null;
           if (inPlay) {
             liveChecked.add(key);
@@ -564,14 +584,13 @@ export function buildBestParlay({
             }
             livePassed.add(key);
           }
-          const score = rankBy === "price"
-            ? -price
-            : probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
+          const score = probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
           const leg = {
             player,
             market,
             line: main.point,
             side,
+            alternate: Boolean(outcome.alternate),
             price,
             probability: round4(probability),
             books: chances.length,
@@ -582,7 +601,7 @@ export function buildBestParlay({
             start: event.commence_time || "",
             live: Boolean(event.live),
             link: httpsLink(outcome.link),
-            marketLink: httpsLink(targetMarket.link),
+            marketLink: httpsLink(marketLinkMarket.link),
             eventLink: httpsLink(target.link),
             ...(live ? { read: live.read } : {}),
             score
