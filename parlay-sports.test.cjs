@@ -12,12 +12,14 @@ const slice = (text, start, end) => {
 };
 const supportedSports = ["basketball_nba", "icehockey_nhl", "basketball_wnba", ...Object.keys(soccerSupport.leagues)];
 function setup(settings = {}) {
+  const toggle = { textContent: "", attributes: {}, setAttribute(key, value) { this.attributes[key] = value; } };
   const options = { children: [], append(node) { this.children.push(node); },
     querySelectorAll() { return this.children.map(label => label.children[0]); } };
   const context = {
     settings, supportedSports, soccerSupport, isSoccer: soccerSupport.isSoccer,
     playerPropSports: {}, bpSportSelect: { querySelector: () => options },
-    document: { createElement: () => ({ dataset: {} }), createTextNode: value => value },
+    document: { createElement: () => ({ dataset: {} }), createTextNode: value => value,
+      getElementById: () => toggle },
     element: () => ({ children: [], append(...nodes) { this.children.push(...nodes); } }),
     saves: 0, loads: 0, saveSettings() { this.saves++; }, loadBestParlay() { this.loads++; }
   };
@@ -26,8 +28,22 @@ function setup(settings = {}) {
   context.loadBestParlay = () => context.loads++;
   runInNewContext(slice(html, "    function bestParlaySport(", "    function bestParlaySide(") +
     slice(html, "    function fillBestParlaySportCheckboxes(", "    async function loadBestParlay("), context);
-  return { context, options };
+  return { context, options, toggle };
 }
+
+test("compact dropdown summarizes selection while retaining native outside-click and Escape dismissal", () => {
+  const { context: c, toggle } = setup();
+  c.fillBestParlaySportCheckboxes();
+  assert.equal(toggle.textContent, "All sports");
+  c.settings.parlaySports = ["basketball_nba", "icehockey_nhl"];
+  c.fillBestParlaySportCheckboxes();
+  assert.equal(toggle.textContent, "2 sports");
+  c.settings.parlaySports = [];
+  c.fillBestParlaySportCheckboxes();
+  assert.equal(toggle.textContent, "Select sports");
+  assert.ok(html.includes('popovertarget="bp-sport-select"'));
+  assert.ok(html.includes('class="bp-sport-select" popover'));
+});
 
 test("legacy sport preferences migrate without overriding an explicit empty selection", () => {
   assert.equal(setup({ parlaySport: "basketball_nba" }).context.bestParlaySport(), "basketball_nba");
