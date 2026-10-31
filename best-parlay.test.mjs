@@ -256,20 +256,22 @@ test("side filters return only Over or only Under legs", () => {
   assert.deepEqual(unders.legs.map(leg => [leg.player, leg.side]), [["Under Lean", "under"]]);
 });
 
-test("lowest-line mode chooses 2 assists over 2.5 even when its odds are longer", () => {
-  const rows = [
-    ["Assist Example", 2.5, ...prices(0.7)],
-    ["Assist Example", 2, ...prices(0.55)]
-  ];
+test("alternate sportsbook ladders supply the lower rebound line despite short odds", () => {
   const result = build([game("g1", now + hour)], {
     g1: eventOdds({
-      draftkings: { player_assists: rows },
-      fanduel: { player_assists: rows }
+      draftkings: {
+        player_rebounds: [["Ace Bailey", 5.5, ...prices(0.55)]],
+        player_rebounds_alternate: [["Ace Bailey", 3.5, 1.14, 6.0]]
+      },
+      fanduel: {
+        player_rebounds: [["Ace Bailey", 5.5, ...prices(0.55)]],
+        player_rebounds_alternate: [["Ace Bailey", 3.5, 1.14, 6.0]]
+      }
     })
-  }, { rankBy: "lowest-line", sideFilter: "over" });
+  }, { markets: ["player_rebounds"], rankBy: "lowest-line", sideFilter: "over" });
 
-  assert.deepEqual(result.legs.map(leg => [leg.line, leg.side]), [[2, "over"]]);
-  assert.ok(result.legs[0].price > prices(0.7)[0]);
+  assert.deepEqual(result.legs.map(leg => [leg.player, leg.line, leg.side, leg.price]), [["Ace Bailey", 3.5, "over", 1.14]]);
+  assert.equal(result.legs[0].books, 2);
 });
 
 test("cross-sport aggregation ranks sides together and keeps sport identity", () => {

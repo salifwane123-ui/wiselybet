@@ -521,17 +521,21 @@ function oddsQuotaLow() {
   return oddsQuota.remaining < Math.max(250, (oddsQuota.remaining + oddsQuota.used) * 0.1);
 }
 
-async function parlayEventOdds(sport, event, book, premium, now) {
+async function parlayEventOdds(sport, event, book, premium, now, rankBy = "strength") {
   const endpoint = `sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(event.id)}/odds/`;
   const ttl = propsTtlMs(Date.parse(event.commence_time), now);
   const keyFor = params => `parlay:${endpoint}:${JSON.stringify(params)}`;
   const load = params => cached(keyFor(params), ttl, async () => ({ data: await requestOddsApi(endpoint, params), fetchedAt: Date.now() }));
-  const allMarkets = bestParlayMarkets[sport].join(",");
+  const withAlternates = markets => rankBy === "lowest-line"
+    ? markets.flatMap(market => marketsWithoutAlternates.has(market) ? [market] : [market, `${market}_alternate`])
+    : markets;
+  const allMarkets = withAlternates(bestParlayMarkets[sport]).join(",");
+  const guestMarkets = withAlternates(bestParlayMarkets[sport].slice(0, 1)).join(",");
   const full = { regions, markets: allMarkets, oddsFormat: "decimal", includeLinks: "true" };
   // Guests only see the first market, so they reuse a full fetch when one is cached and otherwise pay for one market.
-  let entry = premium ? await load(full) : cachedValue(keyFor(full)) || await load({ ...full, markets: bestParlayMarkets[sport][0] });
+  let entry = premium ? await load(full) : cachedValue(keyFor(full)) || await load({ ...full, markets: guestMarkets });
   if (us2Books.has(book) && !regions.split(",").map(region => region.trim()).includes("us2")) {
-    const extra = await load({ bookmakers: book, markets: premium ? allMarkets : bestParlayMarkets[sport][0], oddsFormat: "decimal", includeLinks: "true" }).catch(() => null);
+    const extra = await load({ bookmakers: book, markets: premium ? allMarkets : guestMarkets, oddsFormat: "decimal", includeLinks: "true" }).catch(() => null);
     const extraBooks = extra?.data?.bookmakers || [];
     if (extraBooks.length) {
       const known = new Set((entry.data?.bookmakers || []).map(item => item.key));
@@ -550,7 +554,7 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
   const events = await fetchOddsApi(`sports/${encodeURIComponent(sport)}/events`, {});
   const markets = premium ? bestParlayMarkets[sport] : bestParlayMarkets[sport].slice(0, 1);
   const price = async list => {
-    const settled = await Promise.allSettled(list.map(event => parlayEventOdds(sport, event, book, premium, now)));
+    const settled = await Promise.allSettled(list.map(event => parlayEventOdds(sport, event, book, premium, now, rankBy)));
     const oddsByEvent = new Map();
     settled.forEach((outcome, index) => {
       if (outcome.status === "fulfilled" && outcome.value) oddsByEvent.set(list[index].id, outcome.value);
