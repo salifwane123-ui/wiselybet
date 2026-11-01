@@ -6795,6 +6795,7 @@
     let trackerPanelOpen = false;
     const renderedTrackerWindows = new Set();
     const collapsedTrackerWindows = new Set();
+    const initializedTrackerParlays = new Set();
     const trackerScorePops = new Map();
     const gainDurationMs = 3000;
     let trackerPollRunning = false;
@@ -10074,7 +10075,16 @@
       return [...legs].sort((a, b) => priority(a) - priority(b));
     }
 
+    function initializeCollapsedParlays() {
+      for (const parlay of parlays) {
+        if (initializedTrackerParlays.has(parlay.id)) continue;
+        initializedTrackerParlays.add(parlay.id);
+        collapsedTrackerWindows.add(`parlay:${parlay.id}`);
+      }
+    }
+
     function renderTrackers() {
+      initializeCollapsedParlays();
       // Keep animating while the user is editing a target: remember the field and restore it after the redraw.
       const focused = document.activeElement;
       const focusedWindowKey = focused?.classList.contains("tracker-window-summary")

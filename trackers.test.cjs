@@ -90,6 +90,28 @@ const page = runInNewContext(`${code}
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
+test("parlays start collapsed after refresh, including synced parlays, without closing manually expanded windows", () => {
+  const app = {
+    parlays: [{ id: "p1" }, { id: "p2" }],
+    initializedTrackerParlays: new Set(), collapsedTrackerWindows: new Set()
+  };
+  runInNewContext(slice("    function initializeCollapsedParlays(", "    function renderTrackers("), app);
+  app.initializeCollapsedParlays();
+  assert.deepEqual([...app.collapsedTrackerWindows], ["parlay:p1", "parlay:p2"]);
+  app.collapsedTrackerWindows.delete("parlay:p1");
+  app.initializeCollapsedParlays();
+  assert.equal(app.collapsedTrackerWindows.has("parlay:p1"), false);
+  app.parlays.push({ id: "synced" });
+  app.initializeCollapsedParlays();
+  assert.equal(app.collapsedTrackerWindows.has("parlay:synced"), true);
+  assert.equal(app.collapsedTrackerWindows.has("singles:game"), false);
+  app.initializedTrackerParlays.clear();
+  app.collapsedTrackerWindows.clear();
+  app.initializeCollapsedParlays();
+  assert.equal(app.collapsedTrackerWindows.has("parlay:p1"), true, "refresh resets expansion");
+  assert.match(html, /function renderTrackers\(\) \{\s+initializeCollapsedParlays\(\);/);
+});
+
 test("parlay sportsbook dropdown resets on open or 60-second expiry without erasing the recorded book", () => {
   let now = 1000;
   class Clock extends Date { static now() { return now; } }
