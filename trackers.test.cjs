@@ -53,6 +53,7 @@ const context = {
   trackers: [],
   parlays: [],
   parlayBookState: new Map(),
+  suggestionSeenAt: new Map(),
   parlayLegTarget: () => selectedParlayLegCount,
   currentEvents: [{ id: "e1", home_team: "Boston Celtics", away_team: "New York Knicks", commence_time: "2025-01-15T00:30:00Z" }],
   localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
@@ -88,6 +89,61 @@ const page = runInNewContext(`${code}
   disableParlaySuggestions, bestParlayOutcomeText, bestParlayLegText, createLiveNow, measureTrackerHeader });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
+
+test("parlay sportsbook dropdown resets on open or 60-second expiry without erasing the recorded book", () => {
+  let now = 1000;
+  class Clock extends Date { static now() { return now; } }
+  const seen = new Map();
+  const first = { id: "p1", name: "First", sportsbook: "draftkings" };
+  const second = { id: "p2", name: "Second", sportsbook: "fanduel" };
+  const leg = { key: "leg", parlay: "p1", target: 20, odds: { book: "draftkings", price: 2, target: 20 } };
+  const c = {
+    Date: Clock, parlays: [first, second], trackers: [leg], trackerPanelOpen: true,
+    suggestionSeenAt: seen, shownSuggestionKeys: new Set(),
+    suggestionExpiryTimer: 0,
+    parlayBookState: new Map(), saveTrackers: noop, saveParlays: noop, renderTrackers: noop,
+    window: { clearTimeout: noop, setTimeout: noop }, settleSuggestions: noop, suggestionsSettled: () => true
+  };
+  runInNewContext(slice("    function resetParlaySportsbookSelection(", "    function bookSuggestionPending(") +
+    slice("    function suggestionShownAt(", "    function forgetSuggestions("), c);
+  // The timer registry is defined outside this extracted source.
+  c.suggestionTimeoutMs = 60_000;
+  c.finishParlaySportsbookOpen(first);
+  assert.equal(first.sportsbookSelectionReset, true);
+  assert.equal(first.sportsbook, "draftkings");
+  assert.equal(first.suggestionsOff, true);
+  assert.equal(second.sportsbookSelectionReset, undefined);
+  assert.equal(leg.odds.book, "draftkings");
+  c.suggestionShownAt({ key: "parlay:p2" }, "selection");
+  c.shownSuggestionKeys.add("parlay:p2|selection");
+  now += 59_999;
+  c.expireSuggestions();
+  assert.equal(second.sportsbookSelectionReset, undefined);
+  now++;
+  c.expireSuggestions();
+  assert.equal(second.sportsbookSelectionReset, true);
+  assert.equal(second.sportsbook, "fanduel");
+  assert.equal(second.suggestionsOff, undefined, "timeout does not pretend the parlay was opened");
+  const controls = {
+    ...c, element: () => ({ append: noop, setAttribute: noop, addEventListener: noop }),
+    Option: function Option(text, value) { this.text = text; this.value = value; },
+    sportsbooks: [], sportsbookTitles: new Map([["draftkings", "DraftKings"]])
+  };
+  runInNewContext(slice("    function createParlayBookTools(", "    function dismissBookInfo("), controls);
+  const result = controls.createParlayBookTools(first, [leg]);
+  assert.equal(result.controls[0].value, "");
+  assert.equal(result.status, null);
+  assert.equal(result.controls.length, 1);
+  c.restoreRequestedTargets = () => false;
+  runInNewContext(slice("    function setParlaySportsbook(", "    // Matches each leg"), c);
+  c.setParlaySportsbook(first, "fanduel");
+  assert.equal(first.sportsbookSelectionReset, undefined);
+  assert.equal(first.sportsbook, "fanduel");
+  assert.equal(first.bookInfoDismissed, undefined);
+  c.suggestionShownAt({ key: "parlay:p1" }, "selection");
+  assert.equal(seen.get("parlay:p1|selection"), now, "reselection starts a fresh timer");
+  assert.ok(html.includes('followOnOpen(open, () => window.setTimeout(() => finishParlaySportsbookOpen(parlay), 0))'));
+});
 
 test("shared picks show one score animation above all tracking windows for each new score", () => {
   function node(tag, className, textContent = "") {

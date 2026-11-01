@@ -1266,7 +1266,7 @@
     .tracker-book-select { flex: 1 1 140px; min-width: 0; min-height: 30px; padding: 4px 8px; border: 1px solid rgba(201,239,91,.4); border-radius: 6px; background: #0f1a24; color: #e7f7b0; font-size: .7rem; font-weight: 750; color-scheme: dark; }
     .tracker-state-select { flex: 0 1 130px; }
     .tracker-state-select.is-needed { border-color: #ffd27a; box-shadow: 0 0 0 2px rgba(255,210,122,.18); color: #ffd27a; }
-    .tracker-book-open { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 4px 10px; border-radius: 6px; background: #c9ef5b; color: #10160a; font-size: .7rem; font-weight: 850; text-decoration: none; }
+    .tracker-book-open { position: relative; display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 4px 10px; border-radius: 6px; background: #c9ef5b; color: #10160a; font-size: .7rem; font-weight: 850; text-decoration: none; }
     .tracker-book-open[aria-disabled="true"] { opacity: .55; pointer-events: none; }
     .tracker-book-status { margin: 0 0 8px; padding: 7px 8px; border: 1px solid rgba(201,239,91,.25); border-radius: 8px; background: rgba(0,0,0,.18); color: #d9e3cf; font-size: .64rem; line-height: 1.4; }
     .tracker-book-status p { margin: 0 0 5px; }
@@ -7218,6 +7218,9 @@
       return changed;
     }
     function setParlaySportsbook(parlay, book) {
+      delete parlay.sportsbookSelectionReset;
+      delete parlay.bookInfoDismissed;
+      suggestionSeenAt.delete(`parlay:${parlay.id}|selection`);
       parlay.sportsbook = book || "";
       if (!parlay.sportsbook) delete parlay.sportsbook;
       parlayBookState.delete(parlay.id);
@@ -7313,6 +7316,19 @@
       saveParlays();
       renderTrackers();
     }
+    function resetParlaySportsbookSelection(parlay) {
+      if (!parlay?.sportsbook || parlay.sportsbookSelectionReset) return false;
+      parlay.sportsbookSelectionReset = true;
+      parlay.bookInfoDismissed = true;
+      suggestionSeenAt.delete(`parlay:${parlay.id}|selection`);
+      return true;
+    }
+    function finishParlaySportsbookOpen(parlay) {
+      resetParlaySportsbookSelection(parlay);
+      parlay.suggestionsOff = true;
+      saveParlays();
+      renderTrackers();
+    }
     function bookSuggestionPending(tracker, info) {
       return Boolean(info?.suggest) && !suggestionsSettled(tracker) && tracker.target !== info.suggest.target && tracker.dismissedLine !== suggestionId(info.suggest);
     }
@@ -7354,7 +7370,8 @@
         if (ownerKey.startsWith("parlay:")) {
           const parlay = parlays.find(item => `parlay:${item.id}` === ownerKey);
           if (parlay?.sportsbook) {
-            parlay.bookInfoDismissed = true;
+            if (key.slice(split + 1) === "selection") resetParlaySportsbookSelection(parlay);
+            else parlay.bookInfoDismissed = true;
             saveParlays();
             changed = true;
           }
@@ -7401,9 +7418,10 @@
       select.append(new Option("Choose sportsbook…", ""));
       for (const book of sportsbooks) select.append(new Option(book.title, book.key));
       if (parlay.sportsbook && !sportsbookTitles.has(parlay.sportsbook)) select.append(new Option(parlay.sportsbook, parlay.sportsbook));
-      select.value = parlay.sportsbook || "";
+      select.value = parlay.sportsbookSelectionReset ? "" : parlay.sportsbook || "";
       select.addEventListener("change", () => setParlaySportsbook(parlay, select.value));
-      if (!parlay.sportsbook) return { controls: [select], status: null };
+      if (!parlay.sportsbook || parlay.sportsbookSelectionReset) return { controls: [select], status: null };
+      const selectionAt = suggestionShownAt({ key: `parlay:${parlay.id}` }, "selection");
 
       const signature = parlayBookSignature(parlay, legs);
       let state = parlayBookState.get(parlay.id);
@@ -7437,12 +7455,17 @@
       if (href) {
         open.href = href;
         // After the click, so the sportsbook tab opens before the window redraws.
-        followOnOpen(open, () => window.setTimeout(() => disableParlaySuggestions(parlay.id), 0));
+        followOnOpen(open, () => window.setTimeout(() => finishParlaySportsbookOpen(parlay), 0));
       } else {
         open.setAttribute("aria-disabled", "true");
         open.title = `No ${title} link is available yet`;
       }
       const controls = wantsState ? [select, createStateSelect(), open] : [select, open];
+      const selectionTimer = element("span", "tracker-book-timer");
+      selectionTimer.title = "Sportsbook selection resets after 60 seconds";
+      selectionTimer.style.animationDuration = `${suggestionTimeoutMs}ms`;
+      selectionTimer.style.animationDelay = `${Math.max(0, suggestionTimeoutMs - (Date.now() - selectionAt)) - suggestionTimeoutMs}ms`;
+      open.append(selectionTimer);
 
       const status = element("div", "tracker-book-status");
       status.setAttribute("role", "status");
