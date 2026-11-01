@@ -21,6 +21,7 @@
   <meta property="og:image" content="https://wiselybet.onrender.com/icon-512.png">
   <meta name="twitter:card" content="summary">
   <script src="/client-errors.js"></script>
+  <script>try { if (JSON.parse(localStorage.getItem("courtside.settings.v1") || "{}").theme === "light") { document.documentElement.dataset.theme = "light"; document.querySelector('meta[name="theme-color"]').content = "#f6f8f1"; } } catch (error) { /* dark by default */ }</script>
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <title>WiselyBet | Market Board</title>
   <script src="/soccer.js"></script>
@@ -1649,7 +1650,42 @@
     html[data-theme="light"] .tab-count { background: rgba(120,170,30,.25); color: #2f4d08; }
     html[data-theme="light"] .notice { border-color: rgba(40,58,22,.12); background: rgba(255,255,255,.75); color: #5b6658; }
     html[data-theme="light"] .dashboard-heading p, html[data-theme="light"] .live-score-sync, html[data-theme="light"] .rail-note, html[data-theme="light"] .rail-heading span { color: #5b6658; }
-    html[data-theme="light"] .live-games-panel { color: #edf2f8; }
+    html[data-theme="light"] .live-games-panel {
+      border-color: rgba(77,122,11,.2);
+      color: #1b2418;
+      background:
+        radial-gradient(ellipse at 50% 92%, rgba(120,170,30,.22), transparent 52%),
+        linear-gradient(180deg, #f9fbf4 0%, #f0f5e6 50%, #e2edd0 100%);
+      box-shadow: 0 16px 36px rgba(40,58,22,.1), inset 0 1px #fff;
+    }
+    html[data-theme="light"] .live-games-panel::before {
+      border-color: rgba(61,98,8,.12);
+      background:
+        linear-gradient(90deg, transparent 49.7%, rgba(61,98,8,.12) 49.8% 50.2%, transparent 50.3%),
+        radial-gradient(ellipse at 50% 0%, transparent 0 22%, rgba(61,98,8,.11) 22.2% 22.5%, transparent 22.7%),
+        repeating-linear-gradient(0deg, transparent 0 54px, rgba(61,98,8,.035) 55px 56px, transparent 57px 92px);
+    }
+    html[data-theme="light"] .live-games-panel::after { background: radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.7), transparent 50%); }
+    html[data-theme="light"] .live-stage-art { opacity: 1; }
+    /* Daytime stadium: CSS paint beats the SVG's dark presentation attributes */
+    html[data-theme="light"] #stadium-sky stop:nth-child(1) { stop-color: #d9e8f1; stop-opacity: .95; }
+    html[data-theme="light"] #stadium-sky stop:nth-child(2) { stop-color: #eef5e8; stop-opacity: .45; }
+    html[data-theme="light"] #stadium-sky stop:nth-child(3) { stop-color: #ffffff; stop-opacity: 0; }
+    html[data-theme="light"] #stadium-field stop:nth-child(1) { stop-color: #9cc265; stop-opacity: .14; }
+    html[data-theme="light"] #stadium-field stop:nth-child(2) { stop-color: #7fae3e; stop-opacity: .38; }
+    html[data-theme="light"] #stadium-light stop { stop-color: #ffffff; }
+    html[data-theme="light"] .stage-stand-back { fill: #c3d2ab; fill-opacity: .6; }
+    html[data-theme="light"] .stage-stand-back-rim { fill: #ffffff; fill-opacity: .6; }
+    html[data-theme="light"] .stage-stand-front { fill: #a9bf88; fill-opacity: .55; }
+    html[data-theme="light"] .stage-stand-front-rim { fill: #ffffff; fill-opacity: .65; }
+    html[data-theme="light"] .stage-lines { stroke: #ffffff; stroke-opacity: .9; }
+    html[data-theme="light"] .stage-lights { fill: #8daa5c; fill-opacity: .6; }
+    html[data-theme="light"] .live-games-heading span, html[data-theme="light"] .live-games-panel .muted { color: #46523f; }
+    html[data-theme="light"] .live-game-card { border-color: rgba(77,122,11,.18); background: linear-gradient(140deg, rgba(255,255,255,.94), rgba(247,250,241,.86)); box-shadow: 0 12px 26px rgba(40,58,22,.12), inset 0 1px #fff; }
+    html[data-theme="light"] .live-game-badge { color: #b42318; }
+    html[data-theme="light"] .live-game-period { color: #46523f; }
+    html[data-theme="light"] .live-game-team { color: #1b2418; }
+    html[data-theme="light"] .live-game-team strong { color: #17200f; }
     html[data-theme="light"] .date-filter { border-color: rgba(40,58,22,.14); background: rgba(255,255,255,.85); }
     html[data-theme="light"] select, html[data-theme="light"] input { border-color: rgba(40,58,22,.25); background: #fff; color: #1b2418; }
     html[data-theme="light"] .match-card, html[data-theme="light"] .rail-panel, html[data-theme="light"] #player-picks.panel, html[data-theme="light"] #followed-players { border-color: rgba(40,58,22,.14); background: #fff; box-shadow: 0 8px 22px rgba(40,58,22,.08); }
@@ -1664,7 +1700,7 @@
     html[data-theme="light"] .panel-heading, html[data-theme="light"] .prop-controls { border-color: rgba(40,58,22,.12); }
     html[data-theme="light"] .prop-controls button { border-color: rgba(77,122,11,.35); background: rgba(120,170,30,.16); color: #2f4d08; }
     html[data-theme="light"] .follow-toggle, html[data-theme="light"] .track-toggle { background: rgba(120,170,30,.16) !important; color: #2f4d08 !important; border-color: rgba(77,122,11,.5) !important; }
-    html[data-theme="light"] .follow-toggle[aria-pressed="true"], html[data-theme="light"] .track-toggle[aria-pressed="true"] { background: #6a9a14 !important; color: #fff !important; }
+    html[data-theme="light"] .follow-toggle[aria-pressed="true"], html[data-theme="light"] .track-toggle[aria-pressed="true"] { background: #4d7a0b !important; color: #fff !important; }
     html[data-theme="light"] .followed-game { color: #38442f; }
     html[data-theme="light"] .followed-stats strong { color: #1b2418; }
     html[data-theme="light"] .followed-chip.bench { color: #8a5a00; }
@@ -1711,7 +1747,7 @@
     html[data-theme="light"] .tracker-report.tone-bad summary, html[data-theme="light"] .tracker-report.tone-bad b { color: #b92b2b; }
     html[data-theme="light"] .tracker-report-mail { color: #5b6658; }
     html[data-theme="light"] .tracker-stat-tag { background: rgba(40,58,22,.1); color: #46523f; }
-    html[data-theme="light"] .tracker-side { background: rgba(31,122,66,.12); color: #1f7a42; }
+    html[data-theme="light"] .tracker-side { background: rgba(31,122,66,.12); color: #17663a; }
     html[data-theme="light"] .tracker-side.is-under { background: rgba(18,96,143,.12); color: #12608f; }
     html[data-theme="light"] .track-meaning { color: #6b4700; }
     html[data-theme="light"] .track-meaning.is-under { color: #12608f; }
@@ -1763,7 +1799,6 @@
     html[data-theme="light"] #history-list .history-loss strong { color: #b92b2b; }
     html[data-theme="light"] .settings-head button { background: rgba(120,170,30,.16); color: #2f4d08; border: 1px solid rgba(77,122,11,.4); }
     html[data-theme="light"] .team-logo-fallback { background: rgba(120,170,30,.2); color: #2f4d08; }
-    html[data-theme="light"] .live-game-team .team-logo-fallback { background: rgba(201,239,91,.14); color: #e6f4bf; }
     html.embed[data-theme="light"] { background: transparent; }
     /* Settings window border: lime gradient edge, soft glow and a bright top accent */
     #settings-panel {
@@ -2087,11 +2122,10 @@
     html[data-theme="light"] .prop-search-game { color: #3d6208; }
     html[data-theme="light"] .market-pick-suggestion a { color: #3d6208; text-decoration-color: rgba(61,98,8,.45); }
     html[data-theme="light"] .market-pick-suggestion a:hover { color: #2f4d08; }
-    html[data-theme="light"] .live-games-panel .muted { color: rgba(237,242,248,.85); }
     html[data-theme="light"] .sidebar-footer { color: var(--muted); }
     html[data-theme="light"] .heat-cool { --flame-color: #1f6fa8; }
     html[data-theme="light"] .heat-smolder { --flame-color: #8a6100; }
-    html[data-theme="light"] .heat-warm { --flame-color: #b4540a; }
+    html[data-theme="light"] .heat-warm { --flame-color: #a34a06; }
     html[data-theme="light"] .heat-hot { --flame-color: #c4321f; }
     html[data-theme="light"] .heat-inferno { --flame-color: #b8124a; }
     @media (max-width: 560px) {
@@ -2512,6 +2546,90 @@
       .skip-link { transition: none; }
     }
     @media print { .skip-link, .app-dialog, #session-reminder { display: none !important; } }
+    /* Light theme: overlays, guest board, tour, news and score pops that were still dark */
+    html[data-theme="light"] .guest-banner { border-color: rgba(77,122,11,.3); background: #fff; box-shadow: 0 8px 22px rgba(40,58,22,.08); }
+    html[data-theme="light"] .guest-banner p { color: #46523f; opacity: 1; }
+    html[data-theme="light"] .guest-board, html[data-theme="light"] .props-preview { border-color: rgba(40,58,22,.14); background: #fff; box-shadow: 0 8px 22px rgba(40,58,22,.08); }
+    html[data-theme="light"] .guest-game { border-color: rgba(40,58,22,.13); background: #f5f8ef; }
+    html[data-theme="light"] .guest-game.live { border-color: rgba(185,43,43,.45); background: #fff8f7; }
+    html[data-theme="light"] .guest-game-sport { background: rgba(120,170,30,.16); color: #2f4d08; }
+    html[data-theme="light"] .guest-game-state { color: #46523f; }
+    html[data-theme="light"] .guest-game.live .guest-game-state, html[data-theme="light"] .guest-board-row.live .guest-board-state { color: #b92b2b; }
+    html[data-theme="light"] .guest-team img, html[data-theme="light"] .guest-team-dot { background: rgba(40,58,22,.06); }
+    html[data-theme="light"] .guest-board-row, html[data-theme="light"] .props-preview-row { border-top-color: rgba(40,58,22,.1); }
+    html[data-theme="light"] .props-preview-more { background: rgba(120,170,30,.16); color: #2f4d08; }
+    html[data-theme="light"] .props-wall-row { border-color: rgba(77,122,11,.25); background: #eef3e4; }
+    html[data-theme="light"] .locked-card { box-shadow: 0 18px 44px rgba(40,58,22,.14); }
+    html[data-theme="light"] .locked-icon { background: rgba(120,170,30,.16); }
+    html[data-theme="light"] .locked-perks li::before { color: #4d7a0b; }
+    html[data-theme="light"] .followed-empty { border-color: rgba(40,58,22,.25); }
+    html[data-theme="light"] .prop-side-empty, html[data-theme="light"] .sidebar-link span:first-child, html[data-theme="light"] .team-versus { color: #5b6658; }
+    html[data-theme="light"] .sidebar-link:hover { background: rgba(120,170,30,.12); color: #25400a; }
+    html[data-theme="light"] .field > span, html[data-theme="light"] .date-filter label { color: #46523f; }
+    html[data-theme="light"] .market-pick-suggestion.no-lean strong { color: #5b6658; }
+    html[data-theme="light"] .error, html[data-theme="light"] #status.error, html[data-theme="light"] .live-score-sync.error, html[data-theme="light"] #trial-badge.urgent { color: #b42318; }
+    html[data-theme="light"] .tracker-book-status li.is-missing { color: #b92b2b; }
+    html[data-theme="light"] .tracker-book-note { color: #8a5a00; }
+    html[data-theme="light"] #pick-placement::backdrop, html[data-theme="light"] .parlay-delete::backdrop, html[data-theme="light"] .app-dialog::backdrop { background: rgba(27,36,24,.45); }
+    html[data-theme="light"] #bell-badge { background: #d6334f; }
+    html[data-theme="light"] #bell-clear, html[data-theme="light"] .news-close { color: #fff; }
+    html[data-theme="light"] #bell-clear:hover:not(:disabled), html[data-theme="light"] .news-close:hover:not(:disabled) { background: #3d6208; color: #fff; }
+    html[data-theme="light"] #app-banner { border-color: #d64545; background: #fdeaea; color: #8a1f17; box-shadow: 0 8px 24px rgba(40,58,22,.15); }
+    html[data-theme="light"] #app-banner.is-info { border-color: #d9a21b; background: #fff6dc; color: #6b4700; }
+    html[data-theme="light"] #ios-install { border-color: rgba(77,122,11,.4); background: #fff; color: #1b2418; box-shadow: 0 12px 36px rgba(40,58,22,.2); }
+    html[data-theme="light"] #ios-install strong { color: #3d6208; }
+    html[data-theme="light"] #ios-install button { border-color: rgba(40,58,22,.25); }
+    html[data-theme="light"] #age-gate { background: rgba(236,241,228,.9); }
+    html[data-theme="light"] .age-card { border-color: rgba(77,122,11,.35); background: #fff; color: #1b2418; box-shadow: 0 24px 60px rgba(40,58,22,.18); }
+    html[data-theme="light"] .age-card p { color: #38442f; }
+    html[data-theme="light"] .age-card .age-legal { color: #5b6658; }
+    html[data-theme="light"] .age-legal a { color: #3d6208; }
+    html[data-theme="light"] #age-yes { background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] #age-yes:hover:not(:disabled) { background: #3d6208; }
+    html[data-theme="light"] #age-no { color: #46523f; }
+    html[data-theme="light"] #news-overlay { background: rgba(27,36,24,.4); }
+    html[data-theme="light"] #news-window { border-color: rgba(40,58,22,.15); box-shadow: 0 24px 60px rgba(27,36,24,.25); }
+    html[data-theme="light"] .news-head, html[data-theme="light"] .news-chips { border-bottom-color: rgba(40,58,22,.12); }
+    html[data-theme="light"] .news-chip { border-color: rgba(40,58,22,.2); }
+    html[data-theme="light"] .news-chip:hover:not(:disabled) { background: rgba(120,170,30,.12); color: #1b2418; }
+    html[data-theme="light"] .news-chip.active { border-color: rgba(77,122,11,.45); background: rgba(120,170,30,.18); color: #2f4d08; }
+    html[data-theme="light"] .news-item { border-bottom-color: rgba(40,58,22,.1); }
+    html[data-theme="light"] .news-meta { color: #5b6658; opacity: 1; }
+    html[data-theme="light"] .news-tag { background: rgba(120,170,30,.16); color: #2f4d08; }
+    html[data-theme="light"] .news-tag.injury { background: #fdeaea; color: #b92b2b; }
+    html[data-theme="light"] .news-tag.betting { background: #fff1d6; color: #8a5a00; }
+    html[data-theme="light"] #tour-spot { box-shadow: 0 0 0 9999px rgba(27,36,24,.55), 0 0 0 2px #4d7a0b, 0 0 28px rgba(77,122,11,.35); }
+    html[data-theme="light"] #tour-card { border-color: rgba(77,122,11,.35); background: linear-gradient(160deg, #ffffff, #f4f8ec); color: #1b2418; box-shadow: 0 24px 60px rgba(27,36,24,.28); }
+    html[data-theme="light"] #tour-card .tour-step { color: #4d7a0b; }
+    html[data-theme="light"] #tour-card p.tour-body, html[data-theme="light"] #tour-card ul { color: #38442f; }
+    html[data-theme="light"] .tour-dots i { background: rgba(40,58,22,.18); }
+    html[data-theme="light"] .tour-dots i.on { background: #4d7a0b; }
+    html[data-theme="light"] .tour-actions button { border-color: rgba(40,58,22,.25); color: #26301f; }
+    html[data-theme="light"] .tour-actions button:not(.primary):hover:not(:disabled) { background: rgba(120,170,30,.16); color: #1b2418; }
+    html[data-theme="light"] .tour-actions button.primary { border-color: #4d7a0b; background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] .tour-actions button.primary:hover:not(:disabled) { background: #3d6208; }
+    html[data-theme="light"] .tour-skip { color: #5b6658; }
+    html[data-theme="light"] .tour-skip:hover:not(:disabled) { background: none; color: #1b2418; }
+    html[data-theme="light"] #tour-demo { border-color: rgba(77,122,11,.22); background: #f3f7ea; }
+    html[data-theme="light"] .td-row small, html[data-theme="light"] .td-track small { color: #5b6658; }
+    html[data-theme="light"] .td-btn { border-color: rgba(77,122,11,.4); background: rgba(120,170,30,.16); color: #2f4d08; animation-name: td-press-light; }
+    @keyframes td-press-light { 0%, 40%, 100% { transform: scale(1); } 50% { transform: scale(.9); background: #4d7a0b; color: #fff; } 60% { transform: scale(1); background: #4d7a0b; color: #fff; } }
+    html[data-theme="light"] .td-tap { border-color: #4d7a0b; }
+    html[data-theme="light"] .td-added { background: rgba(31,122,66,.12); color: #1f7a42; }
+    html[data-theme="light"] .td-line span { color: #38442f; }
+    html[data-theme="light"] .td-count::before { color: #3d6208; }
+    html[data-theme="light"] .td-bar { background: rgba(40,58,22,.12); }
+    html[data-theme="light"] .td-live { color: #b92b2b !important; }
+    html[data-theme="light"] .td-toast { border-color: rgba(77,122,11,.35); background: #fff; color: #1b2418; box-shadow: 0 6px 16px rgba(40,58,22,.12); }
+    html[data-theme="light"] .td-toast.t3 { background: #e8f7ee; }
+    /* Score pops keep their spinning neon rim but sit on a light card with dark ink */
+    html[data-theme="light"] .score-pop { --c: #17803f; --c2: #5f8f0c; --glow: rgba(31,138,76,.3); --bg: #f3fbf4; --ink: #14261a; box-shadow: 0 0 22px var(--glow), 0 12px 26px rgba(40,58,22,.16); }
+    html[data-theme="light"] .score-pop.is-cashed { --c: #a8650a; --c2: #d9480f; --glow: rgba(217,140,30,.35); --bg: #fff8e6; --ink: #3d2a05; }
+    html[data-theme="light"] .score-pop.tone-bad { --c: #c0392b; --c2: #d9622b; --glow: rgba(200,50,40,.28); --bg: #fff3f1; --ink: #3a1210; }
+    html[data-theme="light"] .score-pop.tone-idle { --c: #4f5f74; --c2: #8b97a8; --glow: rgba(91,107,128,.22); --bg: #f4f6f9; --ink: #1f2933; }
+    html[data-theme="light"] .score-pop::before { background-image: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.9) 47%, rgba(255,255,255,.35) 55%, transparent 64%); }
+    html[data-theme="light"] .score-pop-num { background-image: linear-gradient(180deg, var(--c2) 0%, var(--c) 100%); filter: drop-shadow(0 2px 6px var(--glow)); }
+    html[data-theme="light"] .score-pop-bar { background: rgba(40,58,22,.1); }
   </style>
 </head>
 <body>
@@ -2720,14 +2838,14 @@
               <path fill="url(#stadium-sky)" d="M0 0h1200v480H0z"></path>
               <ellipse fill="url(#stadium-light)" cx="225" cy="142" rx="180" ry="115"></ellipse>
               <ellipse fill="url(#stadium-light)" cx="973" cy="126" rx="205" ry="130"></ellipse>
-              <path fill="#161b17" fill-opacity=".72" d="M0 175 178 121l133 32 120-50 144 47 153-40 132 43 118-52 222 62v162H0z"></path>
-              <path fill="#81796a" fill-opacity=".17" d="M0 197 187 144l124 26 122-42 143 43 153-34 132 39 118-45 221 52v19l-222-48-117 42-132-37-153 39-144-40-120 39-125-28L0 264z"></path>
-              <path fill="#24251d" fill-opacity=".8" d="m0 247 184-46 127 23 122-37 143 38 153-32 132 34 118-40 221 48v99H0z"></path>
-              <path fill="#d0c7ae" fill-opacity=".2" d="m0 272 184-43 127 21 122-35 143 35 153-30 132 31 118-37 221 45v10l-222-39-117 37-132-31-153 35-144-34-120 34-125-22L0 291z"></path>
+              <path class="stage-stand-back" fill="#161b17" fill-opacity=".72" d="M0 175 178 121l133 32 120-50 144 47 153-40 132 43 118-52 222 62v162H0z"></path>
+              <path class="stage-stand-back-rim" fill="#81796a" fill-opacity=".17" d="M0 197 187 144l124 26 122-42 143 43 153-34 132 39 118-45 221 52v19l-222-48-117 42-132-37-153 39-144-40-120 39-125-28L0 264z"></path>
+              <path class="stage-stand-front" fill="#24251d" fill-opacity=".8" d="m0 247 184-46 127 23 122-37 143 38 153-32 132 34 118-40 221 48v99H0z"></path>
+              <path class="stage-stand-front-rim" fill="#d0c7ae" fill-opacity=".2" d="m0 272 184-43 127 21 122-35 143 35 153-30 132 31 118-37 221 45v10l-222-39-117 37-132-31-153 35-144-34-120 34-125-22L0 291z"></path>
               <path fill="url(#stadium-field)" d="M0 334q300-72 600 0t600 0v146H0z"></path>
-              <path fill="none" stroke="#edf2dc" stroke-opacity=".23" stroke-width="2" d="M600 334v146M0 356q300-68 600 0t600 0M0 467h1200"></path>
-              <path fill="none" stroke="#edf2dc" stroke-opacity=".18" stroke-width="2" d="M600 358c-50 0-84 30-84 70s34 66 84 66 84-26 84-66-34-70-84-70z"></path>
-              <g fill="#f3e7c4" fill-opacity=".7">
+              <path class="stage-lines" fill="none" stroke="#edf2dc" stroke-opacity=".23" stroke-width="2" d="M600 334v146M0 356q300-68 600 0t600 0M0 467h1200"></path>
+              <path class="stage-lines" fill="none" stroke="#edf2dc" stroke-opacity=".18" stroke-width="2" d="M600 358c-50 0-84 30-84 70s34 66 84 66 84-26 84-66-34-70-84-70z"></path>
+              <g class="stage-lights" fill="#f3e7c4" fill-opacity=".7">
                 <circle cx="142" cy="125" r="3"></circle><circle cx="164" cy="120" r="3"></circle><circle cx="186" cy="116" r="3"></circle><circle cx="208" cy="112" r="3"></circle><circle cx="230" cy="109" r="3"></circle>
                 <circle cx="894" cy="112" r="3"></circle><circle cx="918" cy="116" r="3"></circle><circle cx="942" cy="120" r="3"></circle><circle cx="966" cy="124" r="3"></circle><circle cx="990" cy="128" r="3"></circle>
               </g>
@@ -3247,7 +3365,10 @@
     }
     let settings = readSettings();
     function applyTheme() {
-      document.documentElement.dataset.theme = settings.theme === "light" ? "light" : "dark";
+      const light = settings.theme === "light";
+      document.documentElement.dataset.theme = light ? "light" : "dark";
+      const themeColor = document.querySelector('meta[name="theme-color"]');
+      if (themeColor) themeColor.content = light ? "#f6f8f1" : "#12150f";
     }
     function saveSettings() {
       try {

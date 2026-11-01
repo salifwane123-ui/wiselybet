@@ -14,9 +14,10 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <meta name="description" content="Sign in to WiselyBet to compare live odds and player props and track your picks in real time.">
   <script src="/client-errors.js"></script>
+  <script>try { if (JSON.parse(localStorage.getItem("courtside.settings.v1") || "{}").theme === "light") { document.documentElement.dataset.theme = "light"; document.querySelector('meta[name="theme-color"]').content = "#ffffff"; } } catch (error) { /* dark by default */ }</script>
   <title>Sign in | WiselyBet</title>
   <style>
-    :root { color-scheme: dark; font: 15px/1.5 "Segoe UI", system-ui, sans-serif; --muted: #9aa59f; --gold: #f3c64d; --green: #3ecf6e; --line: rgba(255, 255, 255, .1); --panel: #14181a; }
+    :root { color-scheme: dark; font: 15px/1.5 "Segoe UI", system-ui, sans-serif; --muted: #9aa59f; --gold: #f3c64d; --green: #3ecf6e; --ok: #c9ef5b; --line: rgba(255, 255, 255, .1); --panel: #14181a; }
     * { box-sizing: border-box; }
     body { min-height: 100vh; margin: 0; color: #f1f4f2; background: #0a0d0c; }
     .top { display: flex; align-items: center; justify-content: space-between; padding: 12px 28px; border-bottom: 3px solid var(--gold); background: #0f1412; }
@@ -73,6 +74,30 @@
     .legal-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 8px 0 0; }
     footer { padding: 14px 28px 24px; color: #6f7a74; font-size: .72rem; text-align: center; }
     @media (max-width: 860px) { .stage { grid-template-columns: 1fr; gap: 28px; padding: 24px 16px; } .hero { order: 2; } .top { padding: 12px 16px; } .top-note { display: none; } }
+    /* Light theme (Settings → Theme): the same sportsbook look on a daylight palette */
+    html[data-theme="light"] { color-scheme: light; --muted: #5b6658; --gold: #8a5f00; --green: #18773f; --ok: #18773f; --line: rgba(40, 58, 22, .14); --panel: #ffffff; }
+    html[data-theme="light"] body { color: #1b2418; background: linear-gradient(180deg, #f6f8f1 0%, #edf1e6 55%, #e5eadc 100%); }
+    html[data-theme="light"] .top { border-bottom-color: #e0b43a; background: #fff; }
+    html[data-theme="light"] .brand-name b, html[data-theme="light"] h1 em { color: #b07d00; }
+    html[data-theme="light"] .ticker { background: #fbfaf2; }
+    html[data-theme="light"] .ticker span, html[data-theme="light"] .perks { color: #38442f; }
+    html[data-theme="light"] .hero::before { background: radial-gradient(ellipse at 30% 20%, rgba(224, 180, 58, .2), transparent 60%); }
+    html[data-theme="light"] .badge { background: #f3c64d; }
+    html[data-theme="light"] .lead { color: #46523f; }
+    html[data-theme="light"] .board { box-shadow: 0 10px 28px rgba(40, 58, 22, .08); }
+    html[data-theme="light"] .board-head, html[data-theme="light"] .tabs button { background: #f3f5ee; }
+    html[data-theme="light"] .odds { border-color: rgba(154, 106, 0, .35); background: #fffaf0; }
+    html[data-theme="light"] .card { border-top-color: #e0b43a; box-shadow: 0 22px 50px rgba(40, 58, 22, .14); }
+    html[data-theme="light"] .tabs button[aria-selected="true"] { border-bottom-color: #e0b43a; background: #fff; }
+    html[data-theme="light"] label { color: #38442f; }
+    html[data-theme="light"] input { border-color: rgba(40, 58, 22, .25); background: #fff; }
+    html[data-theme="light"] input:focus { border-color: #c99a1c; outline-color: rgba(224, 180, 58, .35); }
+    html[data-theme="light"] .submit { color: #fff; }
+    html[data-theme="light"] .error { color: #b42318; }
+    html[data-theme="light"] .google { border-color: rgba(40, 58, 22, .25); }
+    html[data-theme="light"] .google:hover { border-color: var(--gold); }
+    html[data-theme="light"] .notice-ok { border-color: rgba(24, 119, 63, .35); background: rgba(24, 119, 63, .08); color: #145c32; }
+    html[data-theme="light"] footer { color: #5b6658; }
   </style>
 </head>
 <body>
@@ -222,7 +247,7 @@
       try {
         await firebaseApi.sendPasswordResetEmail(firebaseApi.auth, email);
       } catch { /* same message either way so emails can't be probed */ }
-      error.style.color = "#c9ef5b";
+      error.style.color = "var(--ok)";
       error.textContent = "If that email has an account, a reset link is on its way.";
     });
 
@@ -251,7 +276,7 @@
             setMode("login");
             password.value = "";
             document.querySelector("#confirm").value = "";
-            error.style.color = "#c9ef5b";
+            error.style.color = "var(--ok)";
             error.textContent = `Account created. We sent a verification link to ${email}. Open it, then sign in here.`;
             submit.disabled = false;
             return;

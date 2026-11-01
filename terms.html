@@ -8,7 +8,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <title>Terms of Use | WiselyBet</title>
   <link rel="stylesheet" href="/legal.css">
-  <script>try { if (JSON.parse(localStorage.getItem("courtside.settings.v1") || "{}").theme === "light") document.documentElement.dataset.theme = "light"; } catch (error) { /* dark by default */ }</script>
+  <script>try { if (JSON.parse(localStorage.getItem("courtside.settings.v1") || "{}").theme === "light") { document.documentElement.dataset.theme = "light"; document.querySelector('meta[name="theme-color"]').content = "#f6f8f1"; } } catch (error) { /* dark by default */ }</script>
 </head>
 <body>
   <a class="skip-link" href="#content">Skip to content</a>
