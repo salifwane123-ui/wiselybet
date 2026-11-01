@@ -21,7 +21,7 @@ const code = [
   slice("    // Default names (\"Parlay 2\") follow", "    // Asks what to do with the picks before a parlay is deleted."),
   slice("    function restoreRequestedTargets(", "    function setParlaySportsbook("),
   slice("    function chooseBookLine(", "    const bookPropsCache"),
-  slice("    const suggestionId = suggest =>", "    // Unanswered suggestions quietly expire"),
+  slice("    const suggestionId = suggest =>", "    // Unanswered suggestions expire"),
   slice("    // A parlay wins only if every leg hits", "    // Applause:"),
   slice("    function replacementFactor(snapshot) {", "    // Always-on performance read"),
   slice("    // Over keys keep their original shape", "    function syncTrackButtons"),
@@ -194,6 +194,9 @@ test("parlay sportsbook dropdown resets on open or 60-second expiry without eras
   assert.equal(leg.odds.book, "draftkings");
   c.suggestionShownAt({ key: "parlay:p2" }, "selection");
   c.shownSuggestionKeys.add("parlay:p2|selection");
+  c.trackerPanelOpen = false;
+  c.scheduleSuggestionExpiry();
+  assert.equal(seen.has("parlay:p2|selection"), true, "closing does not discard the running timer");
   now += 59_999;
   c.expireSuggestions();
   assert.equal(second.sportsbookSelectionReset, undefined);
@@ -220,7 +223,53 @@ test("parlay sportsbook dropdown resets on open or 60-second expiry without eras
   assert.equal(first.bookInfoDismissed, undefined);
   c.suggestionShownAt({ key: "parlay:p1" }, "selection");
   assert.equal(seen.get("parlay:p1|selection"), now, "reselection starts a fresh timer");
+  const unseen = { key: "hidden-leg", parlay: "p1", target: 12 };
+  c.trackers.push(unseen);
+  c.suggestionShownAt(unseen, "fanduel:10.5:11");
+  now += 60_000;
+  c.expireSuggestions();
+  assert.equal(first.sportsbookSelectionReset, true, "a fresh selection expires while the panel remains closed");
+  assert.equal(unseen.dismissedLine, "fanduel:10.5:11", "unanswered card suggestions also expire while closed");
+  assert.doesNotMatch(slice("    function setTrackerPanelOpen(", "    function clockMinutes("), /suggestionSeenAt\.clear/);
+  assert.match(slice("    function setTrackerPanelOpen(", "    function clockMinutes("), /expireSuggestions\(\)/,
+    "reopening checks elapsed time even if the browser delayed a background timeout");
   assert.ok(html.includes('followOnOpen(open, () => window.setTimeout(() => finishParlaySportsbookOpen(parlay), 0))'));
+});
+
+test("closing and reopening the tracking panel keeps the original sportsbook deadline", () => {
+  let now = 1000;
+  class Clock extends Date { static now() { return now; } }
+  const parlay = { id: "p1", sportsbook: "fanduel" };
+  const seen = new Map();
+  const c = {
+    Date: Clock, parlays: [parlay], trackers: [], trackerPanelOpen: true,
+    suggestionSeenAt: seen, shownSuggestionKeys: new Set(), suggestionTimeoutMs: 60_000, suggestionExpiryTimer: 0,
+    saveParlays: noop, saveTrackers: noop, settleSuggestions: noop,
+    window: { clearTimeout: noop, setTimeout: noop, matchMedia: () => ({ matches: true }) },
+    trackerCloseTimer: 0, trackerPanel: { hidden: false, classList: { remove: noop }, querySelectorAll: () => [] },
+    trackerToggle: { setAttribute: noop }, trackerArrow: {}, syncParlayFilter: noop, measureTrackerHeader: noop
+  };
+  runInNewContext(slice("    function resetParlaySportsbookSelection(", "    function bookSuggestionPending(") +
+    slice("    function suggestionShownAt(", "    function forgetSuggestions(") +
+    slice("    function setTrackerPanelOpen(", "    function clockMinutes("), c);
+  c.renderTrackers = () => {
+    c.shownSuggestionKeys.clear();
+    if (!parlay.sportsbookSelectionReset) c.suggestionShownAt({ key: "parlay:p1" }, "selection");
+    c.scheduleSuggestionExpiry();
+  };
+  c.renderTrackers();
+  c.setTrackerPanelOpen(false);
+  now += 30_000;
+  c.renderTrackers();
+  c.setTrackerPanelOpen(true);
+  assert.equal(seen.get("parlay:p1|selection"), 1000, "hidden rerenders and reopening do not restart the clock");
+  c.setTrackerPanelOpen(false);
+  now += 30_000;
+  // No timeout callback runs: reopening must catch a timer delayed by a backgrounded browser.
+  c.setTrackerPanelOpen(true);
+  assert.equal(parlay.sportsbookSelectionReset, true);
+  assert.equal(parlay.sportsbook, "fanduel");
+  assert.equal(seen.size, 0);
 });
 
 test("shared picks show one score animation above all tracking windows for each new score", () => {

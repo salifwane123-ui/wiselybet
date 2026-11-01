@@ -7658,7 +7658,7 @@
     function removalSuggestionPending(tracker, info, book) {
       return Boolean(info?.suggestRemove) && !suggestionsSettled(tracker) && tracker.dismissedLine !== removalSuggestionId(book);
     }
-    // Unanswered suggestions quietly expire after being on screen this long, keeping the user's line.
+    // Unanswered suggestions expire after this long, even while the tracking window is closed.
     const suggestionTimeoutMs = 60 * 1000;
     const suggestionSeenAt = new Map();
     const shownSuggestionKeys = new Set();
@@ -7666,23 +7666,18 @@
     function suggestionShownAt(tracker, id) {
       const key = `${tracker.key}|${id}`;
       shownSuggestionKeys.add(key);
-      if (!suggestionSeenAt.has(key) && trackerPanelOpen) suggestionSeenAt.set(key, Date.now());
+      if (!suggestionSeenAt.has(key)) suggestionSeenAt.set(key, Date.now());
       return suggestionSeenAt.get(key) ?? Date.now();
     }
     function scheduleSuggestionExpiry() {
       window.clearTimeout(suggestionExpiryTimer);
-      // Drop timers for suggestions that were answered, removed, or are no longer on screen.
+      // Drop timers for suggestions that were answered, removed, or no longer generated.
       for (const key of [...suggestionSeenAt.keys()]) if (!shownSuggestionKeys.has(key)) suggestionSeenAt.delete(key);
       if (!suggestionSeenAt.size) return;
       const next = Math.min(...suggestionSeenAt.values()) + suggestionTimeoutMs;
       suggestionExpiryTimer = window.setTimeout(expireSuggestions, Math.max(250, next - Date.now()));
     }
     function expireSuggestions() {
-      // Only count time the user could actually see the suggestion.
-      if (!trackerPanelOpen) {
-        suggestionSeenAt.clear();
-        return;
-      }
       const now = Date.now();
       let changed = false;
       for (const [key, at] of suggestionSeenAt) {
@@ -9753,8 +9748,10 @@
     // instant: close without the slide-out, for a panel that was opened and closed again before it was ever shown.
     function setTrackerPanelOpen(open, instant = false) {
       trackerPanelOpen = open;
-      if (!open) suggestionSeenAt.clear();
-      if (open) renderTrackers();
+      if (open) {
+        expireSuggestions();
+        renderTrackers();
+      }
       window.clearTimeout(trackerCloseTimer);
       trackerPanel.classList.remove("closing");
       if (open || instant || trackerPanel.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
