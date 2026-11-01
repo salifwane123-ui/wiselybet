@@ -3371,7 +3371,9 @@
     };
     playerPropSports.basketball_wnba = { ...playerPropSports.basketball_nba, title: "WNBA player prop odds" };
     playerPropSports.americanfootball_ncaaf = { ...playerPropSports.americanfootball_nfl, title: "College football player prop odds" };
-    playerPropSports.americanfootball_nfl.markets = [...playerPropSports.americanfootball_nfl.markets, ["player_anytime_td", "Anytime Touchdown"]];
+    playerPropSports.americanfootball_nfl.markets = [...playerPropSports.americanfootball_nfl.markets,
+      ["player_pass_rush_yds", "Passing + rushing yards"], ["player_rush_reception_yds", "Rushing + receiving yards"],
+      ["player_anytime_td", "Anytime Touchdown"]];
     const { isSoccer } = soccerSupport;
     supportedSports.push(...Object.keys(soccerSupport.leagues));
     for (const [key, league] of Object.entries(soccerSupport.leagues)) {
@@ -6951,6 +6953,8 @@
       REC: { label: "Receptions", short: "REC" },
       RECYD: { label: "Receiving yards", short: "REC YDS" },
       RECTD: { label: "Receiving touchdowns", short: "REC TD" },
+      PRYD: { label: "Passing + rushing yards", short: "PASS+RUSH YDS" },
+      RRYD: { label: "Rushing + receiving yards", short: "RUSH+REC YDS" },
       TD: { label: "Anytime Touchdown", short: "TD" },
       PHA: { label: "Pitcher hits allowed", short: "HA" },
       PER: { label: "Pitcher earned runs", short: "ER" },
@@ -6962,7 +6966,7 @@
       icehockey_nhl: ["PTS", "G", "A", "SOG", "BLK", "SAV"],
       baseball_mlb: ["H", "HR", "RBI", "R", "BB", "HRR", "PK", "PHA", "PER", "POUT"],
       basketball_wnba: ["PTS", "REB", "AST"],
-      americanfootball_nfl: ["PYD", "PTD", "PCMP", "PATT", "PINT", "RYD", "RTD", "RATT", "REC", "RECYD", "RECTD", "TD"],
+      americanfootball_nfl: ["PYD", "PTD", "PCMP", "PATT", "PINT", "RYD", "RTD", "RATT", "REC", "RECYD", "RECTD", "PRYD", "RRYD", "TD"],
       americanfootball_ncaaf: ["PYD", "PTD", "PCMP", "PATT", "PINT", "RYD", "RTD", "RATT", "REC", "RECYD", "RECTD"]
     };
     const footballMarketStats = {
@@ -6996,7 +7000,8 @@
     };
     marketToTrackerStatBySport.basketball_wnba = marketToTrackerStatBySport.basketball_nba;
     marketToTrackerStatBySport.americanfootball_nfl = footballMarketStats;
-    marketToTrackerStatBySport.americanfootball_nfl = { ...footballMarketStats, player_anytime_td: "TD" };
+    marketToTrackerStatBySport.americanfootball_nfl = { ...footballMarketStats, player_pass_rush_yds: "PRYD",
+      player_rush_reception_yds: "RRYD", player_anytime_td: "TD" };
     marketToTrackerStatBySport.americanfootball_ncaaf = footballMarketStats;
     for (const key of Object.keys(soccerSupport.leagues)) {
       trackerStatsBySport[key] = ["G", "A", "SH", "SOT", "SAV"];
@@ -10149,6 +10154,8 @@
         stats.PATT = String(Number.parseInt(String(stats["passing C/ATT"] || "").split("/")[1], 10) || 0);
         stats.RYD = stats["rushing YDS"]; stats.RTD = stats["rushing TD"]; stats.RATT = stats["rushing CAR"];
         stats.REC = stats["receiving REC"]; stats.RECYD = stats["receiving YDS"]; stats.RECTD = stats["receiving TD"];
+        stats.PRYD = String(number("passing YDS") + number("rushing YDS"));
+        stats.RRYD = String(number("rushing YDS") + number("receiving YDS"));
         stats.TD = String(footballSupport.touchdowns(stats));
         stats.MIN = String(Math.max(0, 60 - gameMinutesRemaining(game)));
       }
@@ -10508,7 +10515,8 @@
         const miniLabels = isSoccer(tracker.sport) ? ["G", "A", "SH", "SOT", "YC", "RC"] : tracker.sport === "icehockey_nhl"
           ? (tracker.stat === "SAV" ? ["TOI", "SA", "GA", "SV", "SV%"] : ["TOI", "G", "A", "S", "PIM"])
           : isFootballSport(tracker.sport)
-            ? (["PYD", "PTD", "PCMP", "PATT", "PINT"].includes(tracker.stat) ? ["PCMP", "PATT", "PYD", "PTD", "PINT"] : ["RATT", "RYD", "RTD", "REC", "RECYD"])
+            ? (["PYD", "PTD", "PCMP", "PATT", "PINT"].includes(tracker.stat) ? ["PCMP", "PATT", "PYD", "PTD", "PINT"]
+              : tracker.stat === "PRYD" ? ["PCMP", "PATT", "PYD", "RATT", "RYD"] : ["RATT", "RYD", "RTD", "REC", "RECYD"])
           : tracker.sport === "baseball_mlb"
             ? (baseballPitcherStats.has(tracker.stat) ? ["IP", "H", "ER", "BB", "K"] : ["H", "R", "RBI", "HR", "BB"])
             : ["MIN", "PTS", "REB", "AST", "PF"];

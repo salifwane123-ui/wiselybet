@@ -111,6 +111,12 @@ test("Anytime Touchdown helper is public and NFL market passes validation while 
   assert.equal(props.status, 401);
   assert.match((await props.json()).error, /account|trial/);
 });
+test("NFL Passing + rushing and Rushing + receiving yards pass player-prop validation while retaining account gating", async () => {
+  for (const market of ["player_pass_rush_yds", "player_rush_reception_yds"]) {
+    const props = await get(`/api/player-props?sport=americanfootball_nfl&eventId=0123456789abcdef0123456789abcdef&market=${market}`);
+    assert.equal(props.status, 401);
+  }
+});
 test("player search helper is public and the search only covers sports with player props", async () => {
   const helper = await get("/player-search.js");
   assert.equal(helper.status, 200);

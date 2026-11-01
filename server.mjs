@@ -81,7 +81,8 @@ const playerPropMarkets = {
 };
 playerPropMarkets.basketball_wnba = playerPropMarkets.basketball_nba;
 playerPropMarkets.americanfootball_ncaaf = playerPropMarkets.americanfootball_nfl;
-playerPropMarkets.americanfootball_nfl = new Set([...playerPropMarkets.americanfootball_nfl, "player_anytime_td"]);
+playerPropMarkets.americanfootball_nfl = new Set([...playerPropMarkets.americanfootball_nfl,
+  "player_pass_rush_yds", "player_rush_reception_yds", "player_anytime_td"]);
 for (const [key, league] of Object.entries(soccerSupport.leagues)) {
   if (league.props) playerPropMarkets[key] = new Set(soccerSupport.markets.map(([market]) => market));
 }

@@ -38,7 +38,7 @@ test("NFL Anytime Touchdown connects market, tracker stat and no-alternate sport
   assert.ok(html.includes('stats.TD = String(footballSupport.touchdowns(stats))'));
   assert.ok(html.includes('script src="/football.js"'));
   assert.ok(server.includes('"/football.js"'));
-  assert.ok(server.includes('new Set([...playerPropMarkets.americanfootball_nfl, "player_anytime_td"])'));
+  assert.ok(server.includes('"player_pass_rush_yds", "player_rush_reception_yds", "player_anytime_td"]);'));
   assert.ok(server.includes('new Set(["batter_stolen_bases", "player_anytime_td"])'));
 });
 
@@ -126,4 +126,55 @@ test("browser tracker derives scored touchdowns, animates once on score and mark
     snapshots.clear();
     c.updateTracker(tracker, game(0, 0, "post"), "");
     assert.equal(c.pickOutcome(tracker, snapshots.get("td")), "lost");
+});
+
+test("NFL Passing + rushing and Rushing + receiving yards are prop markets with tracker stats and alternate lines", () => {
+  assert.ok(html.includes('["player_pass_rush_yds", "Passing + rushing yards"], ["player_rush_reception_yds", "Rushing + receiving yards"]'));
+  assert.ok(html.includes('player_pass_rush_yds: "PRYD",'));
+  assert.ok(html.includes('player_rush_reception_yds: "RRYD", player_anytime_td: "TD"'));
+  assert.ok(html.includes('"RECYD", "RECTD", "PRYD", "RRYD", "TD"]'));
+  assert.ok(html.includes('PRYD: { label: "Passing + rushing yards"'));
+  assert.ok(html.includes('RRYD: { label: "Rushing + receiving yards"'));
+  assert.ok(!/marketsWithoutAlternates = new Set\([^)]*(pass_rush|rush_reception)/.test(server));
+});
+
+const comboGame = (state = "in") => ({ state, teams: [{ players: [{ name: "Player One", stats: [
+  { label: "passing C/ATT", value: "18/27" }, { label: "passing YDS", value: "251" },
+  { label: "rushing CAR", value: "6" }, { label: "rushing YDS", value: "-4" },
+  { label: "receiving REC", value: "9" }, { label: "receiving YDS", value: "120" }
+] }] }] });
+
+test("phone tracking sums combined NFL yards, including negative rushing, and settles them", async () => {
+  const { trackerAlerts } = await import("./push.mjs");
+  for (const [stat, total] of [["PRYD", 247], ["RRYD", 116]]) {
+    const tracker = { key: stat, sport: "americanfootball_nfl", name: "Player One", stat, target: 200 };
+    const live = trackerAlerts(tracker, null, comboGame());
+    assert.equal(live.next.current, total);
+    assert.equal(trackerAlerts({ ...tracker, target: total + 1 }, live.next, comboGame("post")).next.outcome, "lost");
+  }
+  const hit = trackerAlerts({ key: "h", sport: "americanfootball_nfl", name: "Player One", stat: "PRYD", target: 247 },
+    { current: 240, outcome: "" }, comboGame());
+  assert.equal(hit.next.outcome, "won");
+  assert.ok(hit.messages.some(message => message.body.includes("reached 247 passing + rushing yards")));
+});
+
+test("browser tracker sums combined NFL yards from the live box score", () => {
+  const snapshots = new Map();
+  const c = {
+    footballSupport: football, trackerSnapshots: snapshots, trackers: [], parlays: [],
+    isSoccer: () => false, isFootballSport: () => true, isUnderPick: () => false, followedPlayers: [],
+    normalizeTeamName: value => value, gameMinutesRemaining: () => 30,
+    trackerStats: { PRYD: { label: "Passing + rushing yards", short: "PASS+RUSH YDS" }, RRYD: { label: "Rushing + receiving yards", short: "RUSH+REC YDS" } },
+    pickReached: () => false, recordHistory() {}, firstAnnouncement: () => true, playCashSound() {},
+    pickIdentity: tracker => tracker.key, pickLine: target => target - 0.5, pushNotification() {}, showScorePop() {}
+  };
+  runInNewContext(slice("    function pickOutcome(", "    const trackerSnapshots ="), c);
+  runInNewContext(slice("    function trackerUpdatesEnabled(", "    // Packs the tracking windows"), c);
+  for (const [stat, total] of [["PRYD", 247], ["RRYD", 116]]) {
+    const tracker = { key: stat, name: "Player One", stat, sport: "americanfootball_nfl", target: 100, eventId: "e1" };
+    c.trackers = [tracker];
+    c.updateTracker(tracker, comboGame(), "");
+    assert.equal(snapshots.get(stat).current, total);
+    assert.equal(c.pickOutcome(tracker, snapshots.get(stat)), "won");
+  }
 });
