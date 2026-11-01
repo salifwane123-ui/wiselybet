@@ -111,6 +111,17 @@ test("Anytime Touchdown helper is public and NFL market passes validation while 
   assert.equal(props.status, 401);
   assert.match((await props.json()).error, /account|trial/);
 });
+test("player search helper is public and the search only covers sports with player props", async () => {
+  const helper = await get("/player-search.js");
+  assert.equal(helper.status, 200);
+  assert.match(helper.headers.get("content-type"), /javascript/);
+  assert.match(await helper.text(), /playerSearch/);
+  for (const sport of ["bogus", "soccer_uefa_champs_league", "__proto__"]) {
+    const reply = await get(`/api/players?sport=${sport}&q=lebron`);
+    assert.equal(reply.status, 400, sport);
+    assert.match((await reply.json()).error, /not available/);
+  }
+});
 const post = (path, body, cookie, headers) => request(path, { method: "POST", body, cookie, headers });
 const put = (path, body, cookie) => request(path, { method: "PUT", body, cookie });
 

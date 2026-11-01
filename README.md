@@ -10,6 +10,7 @@ Live site: https://wiselybet.onrender.com
 
 - **Odds board**: games and bookmaker odds for basketball, hockey, baseball, football and seven soccer leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1, MLS and the Champions League) from The Odds API, with live scores and injury reports from ESPN.
 - **Player props**: Over and Under tracking, form signals (good-form and warning icons) and followed players.
+- **Player search**: type a name in **Find a player** to see matching and similarly spelled players from every team in the selected sport, such as "lebrn" for LeBron James or "SGA" for Shai Gilgeous-Alexander. Names come from ESPN rosters (FBS teams for college football), refreshed every 6 hours. Each suggestion shows the team, position, number and the player's listed game; choose one to open that game's props, filtered to the player. Players without a listed game are shown but can't be chosen. Use the arrow keys and Enter to choose, or Escape to close. The same matching also filters the prop cards of the selected game.
 - **Trackers and parlays**: live progress for every pick, parlays that can share players, and a celebration when a parlay hits.
 - Tracking window headers show a **LIVE** badge whenever at least one pick has a verified game in progress, including when the window is collapsed. Its tooltip and accessible label identify the live-pick count; finished, scheduled and unavailable feeds do not count.
 - Parlay tracking windows start collapsed after every page refresh, including parlays loaded by account sync. Manually expanded windows stay open during live updates in that page session; single-pick windows are unchanged.
@@ -110,6 +111,7 @@ Use Firebase mode in production. The free Render plan has no persistent disk, so
 | `push.mjs` | Web Push subscriptions and the background checks behind phone alerts. |
 | `best-parlay.mjs` | Builds the Best parlay suggestions from live box scores and odds. |
 | `soccer.js` | Soccer leagues and helpers shared by the server and the pages. |
+| `player-search.js` | Similar-name player matching shared by the server's `/api/players` roster search and the Player props search box. |
 | `index.html` | Main app: odds, props, trackers, parlays and settings. |
 | `game.html` | Live game page. |
 | `login.html`, `subscribe.html` | Sign-in, subscription and account pages. |

@@ -7,6 +7,7 @@ import { randomBytes } from "node:crypto";
 import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
 import { bestParlayMarkets, buildBestParlay, combineBestParlays, injuredPlayers, parlayBooks, parlayRules, propsTtlMs, selectSlate } from "./best-parlay.mjs";
 import soccerSupport from "./soccer.js";
+import playerSearch from "./player-search.js";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
@@ -187,6 +188,137 @@ async function fetchPlayerInjuries(sport) {
     `https://site.api.espn.com/apis/site/v2/sports/${espnScoreboardSports[sport]}/injuries`
   ));
   return playerInjuryReport(feed);
+}
+
+// Player search looks through every roster in the league, not just the teams with props today.
+const playerDirectoryTtlMs = 6 * 60 * 60_000;
+const playerDirectoryRetryMs = 10 * 60_000;
+const playerDirectories = new Map();
+const rosterGroupNotes = { injuredReserveOrOut: "Injured reserve/out", suspended: "Suspended", practiceSquad: "Practice squad" };
+
+function espnTeamList(body) {
+  const teams = body?.sports?.[0]?.leagues?.[0]?.teams;
+  if (!Array.isArray(teams)) throw new Error("ESPN did not return the league's teams.");
+  return teams.map(item => item?.team).filter(team => team?.id && team.displayName && team.isActive !== false);
+}
+
+// One entry per rostered player. A team nickname is kept only when no other team in the league shares it,
+// so the page can still find "LA Clippers" games listed under "Los Angeles Clippers".
+function playerDirectoryEntries(sport, teams, rosters) {
+  const nicknames = new Map();
+  for (const team of teams) {
+    const nickname = normalizeTeamName(team.name);
+    nicknames.set(nickname, (nicknames.get(nickname) || 0) + 1);
+  }
+  const players = [];
+  const soccer = soccerSupport.isSoccer(sport);
+  teams.forEach((team, index) => {
+    const athletes = rosters[index]?.athletes;
+    if (!Array.isArray(athletes)) return;
+    // Soccer clubs' `name` is already the full club name.
+    const teamNames = [...new Set([
+      team.displayName, team.shortDisplayName, soccer ? "" : [team.location, team.name].filter(Boolean).join(" ")
+    ].filter(Boolean))];
+    const nickname = !soccer && normalizeTeamName(team.name) &&
+      nicknames.get(normalizeTeamName(team.name)) === 1 ? team.name : "";
+    const seen = new Set();
+    // Football, hockey and baseball rosters come grouped by unit; the others are a flat list.
+    for (const group of athletes) {
+      const grouped = Array.isArray(group?.items);
+      for (const athlete of grouped ? group.items : [group]) {
+        const name = String(athlete?.displayName || athlete?.fullName || "").trim();
+        const key = athlete?.id || name;
+        if (!name || seen.has(key)) continue;
+        seen.add(key);
+        players.push({
+          name,
+          team: team.displayName,
+          teamNames,
+          nickname,
+          position: String(athlete.position?.abbreviation || ""),
+          jersey: String(athlete.jersey || ""),
+          note: grouped ? rosterGroupNotes[group.position] || "" : "",
+          search: playerSearch.prepare(name)
+        });
+      }
+    }
+  });
+  return players;
+}
+
+async function playerDirectoryTeams(sport) {
+  const site = `https://site.api.espn.com/apis/site/v2/sports/${espnScoreboardSports[sport]}/teams`;
+  if (sport !== "americanfootball_ncaaf") return espnTeamList(await requestEspnJson(new URL(site)));
+  // ESPN lists every college division; the odds feed covers FBS (group 80).
+  const core = "https://sports.core.api.espn.com/v2/sports/football/leagues/college-football";
+  const [season, teams] = await Promise.all([
+    requestEspnJson(new URL(`${core}/season`)).catch(() => null),
+    requestEspnJson(new URL(`${site}?limit=1000`))
+  ]);
+  const year = Number.isInteger(season?.year) ? season.year : new Date().getUTCFullYear();
+  const fbs = await requestEspnJson(new URL(`${core}/seasons/${year}/types/2/groups/80/teams?limit=500`));
+  const ids = new Set((fbs.items || []).map(item => /\/teams\/(\d+)/.exec(item?.$ref || "")?.[1]).filter(Boolean));
+  if (!ids.size) throw new Error("ESPN did not return the FBS teams.");
+  return espnTeamList(teams).filter(team => ids.has(String(team.id)));
+}
+
+async function buildPlayerDirectory(sport) {
+  const teams = await playerDirectoryTeams(sport).catch(error => {
+    console.error(`Player search teams failed for ${sport}:`, error.message);
+    throw Object.assign(new Error("Player search can't load the league's teams right now. Please try again shortly."), { status: 502 });
+  });
+  const base = `https://site.api.espn.com/apis/site/v2/sports/${espnScoreboardSports[sport]}/teams`;
+  const rosters = new Array(teams.length).fill(null);
+  let next = 0;
+  // A few rosters at a time. ESPN sometimes answers a burst with a 404, so each roster gets one retry.
+  const worker = async () => {
+    while (next < teams.length) {
+      const index = next++;
+      for (let attempt = 0; attempt < 2 && !rosters[index]; attempt += 1) {
+        if (attempt) await new Promise(resolve => setTimeout(resolve, 400));
+        const body = await requestEspnJson(new URL(`${base}/${encodeURIComponent(teams[index].id)}/roster`)).catch(() => null);
+        if (Array.isArray(body?.athletes)) rosters[index] = body;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(8, teams.length) }, worker));
+  const loaded = rosters.filter(Boolean).length;
+  if (!loaded) throw Object.assign(new Error("Player rosters are unavailable right now. Please try again shortly."), { status: 502 });
+  return { players: playerDirectoryEntries(sport, teams, rosters), teams: loaded, teamsTotal: teams.length };
+}
+
+// Rosters change slowly: keep each league for hours, answer from the old copy while a new one loads,
+// and rebuild sooner when some teams were missing.
+function playerDirectory(sport) {
+  let entry = playerDirectories.get(sport);
+  if (!entry) playerDirectories.set(sport, entry = {});
+  const now = Date.now();
+  if (entry.value && entry.expires > now) return Promise.resolve(entry.value);
+  if (!entry.value && entry.error && entry.retryAt > now) return Promise.reject(entry.error);
+  if (!entry.pending) {
+    entry.pending = buildPlayerDirectory(sport).then(value => {
+      const ttl = value.teams < value.teamsTotal ? playerDirectoryRetryMs : playerDirectoryTtlMs;
+      Object.assign(entry, { value, pending: null, error: null, expires: Date.now() + ttl });
+      return value;
+    }, error => {
+      Object.assign(entry, { pending: null, error, retryAt: Date.now() + 30_000 });
+      if (entry.value) entry.expires = Date.now() + playerDirectoryRetryMs;
+      throw error;
+    });
+    entry.pending.catch(error => console.error(`Player search directory failed for ${sport}:`, error.message));
+  }
+  return entry.value ? Promise.resolve(entry.value) : entry.pending;
+}
+
+function playerSearchReply(directory, query) {
+  const { results, approximate, total } = playerSearch.rank(directory.players, query, 20);
+  return {
+    teams: directory.teams,
+    teamsTotal: directory.teamsTotal,
+    approximate,
+    total,
+    results: results.map(({ search, ...player }) => player)
+  };
 }
 
 function normalizeTeamName(name) {
@@ -1167,6 +1299,7 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/sw.js") return sendStatic(response, "text/javascript; charset=utf-8", serviceWorker);
     if (url.pathname === "/soccer.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "soccer.js")));
     if (url.pathname === "/football.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "football.js")));
+    if (url.pathname === "/player-search.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "player-search.js")));
     if (url.pathname === "/healthz") return sendStatic(response, "text/plain", "ok");
     if (url.pathname === "/api/auth/config") return await sendJson(response, 200, { firebase: firebaseWebConfig() });
     if (Object.hasOwn(publicPages, url.pathname)) return await sendPage(response, 200, publicPages[url.pathname]);
@@ -1196,7 +1329,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     // Guests may open the main page and the live scores; the odds and everything else need an account.
-    const guestAllowed = ["/", "/index.html", "/api/live-scores", "/api/matchup-insight", "/api/live-game", "/api/preview", "/api/preview-props", "/api/sports", "/api/events", "/api/player-props", "/api/player-injuries", "/api/best-parlay", "/api/news", "/game"].includes(url.pathname) ||
+    const guestAllowed = ["/", "/index.html", "/api/live-scores", "/api/matchup-insight", "/api/live-game", "/api/preview", "/api/preview-props", "/api/sports", "/api/events", "/api/player-props", "/api/player-injuries", "/api/players", "/api/best-parlay", "/api/news", "/game"].includes(url.pathname) ||
       /^\/sounds\/[\w-]+\.(mp3|wav|ogg|m4a)$/i.test(url.pathname);
     if (!userKey && !guestAllowed) {
       if (url.pathname.startsWith("/api/")) return await sendJson(response, 401, { error: "Sign in to see the odds." });
@@ -1416,6 +1549,16 @@ const server = createServer(async (request, response) => {
         return;
       }
       await sendJson(response, 200, await fetchPlayerInjuries(sport));
+      return;
+    }
+
+    if (url.pathname === "/api/players") {
+      const sport = url.searchParams.get("sport") || "";
+      if (!Object.hasOwn(playerPropMarkets, sport)) {
+        await sendJson(response, 400, { error: "Player search is not available for this sport." });
+        return;
+      }
+      await sendJson(response, 200, playerSearchReply(await playerDirectory(sport), url.searchParams.get("q") || ""));
       return;
     }
 

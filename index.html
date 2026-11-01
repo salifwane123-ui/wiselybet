@@ -25,6 +25,7 @@
   <title>WiselyBet | Market Board</title>
   <script src="/soccer.js"></script>
   <script src="/football.js"></script>
+  <script src="/player-search.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -2053,6 +2054,18 @@
     .prop-controls .field:first-child { flex: 2 1 240px; }
     .prop-controls select, .prop-controls input { width: 100%; max-width: 100%; min-width: 0; }
     .prop-controls button { flex: 0 0 auto; width: auto; }
+    /* Player search suggestions sit in the page flow: the panel clips anything that overflows it */
+    .prop-search-results { flex: 1 1 100%; min-width: 0; padding: 6px; border: 1px solid rgba(225,233,229,.12); border-radius: 10px; background: rgba(17,21,17,.96); }
+    #prop-search-summary { margin: 3px 8px 6px; color: var(--muted); font-size: .74rem; font-weight: 650; }
+    #prop-search-list { max-height: min(320px, 50vh); margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; }
+    .prop-search-option { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(45%); column-gap: 12px; align-items: center; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+    .prop-search-option[aria-selected="true"], .prop-search-option:not([aria-disabled="true"]):hover { background: rgba(201,239,91,.1); }
+    .prop-search-option[aria-disabled="true"] { cursor: default; }
+    .prop-search-name, .prop-search-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .prop-search-name { color: #eef0e9; font-size: .86rem; font-weight: 700; }
+    .prop-search-meta { grid-column: 1; color: var(--muted); font-size: .74rem; }
+    .prop-search-game { grid-column: 2; grid-row: 1 / span 2; color: #d7ed9f; font-size: .74rem; font-weight: 650; text-align: right; }
+    .prop-search-option[aria-disabled="true"] .prop-search-game { color: var(--muted); font-weight: 500; }
     .prop-player-header { flex-wrap: wrap; row-gap: 8px; }
     .prop-player-heading { flex: 1 1 210px; }
     .market-pick-suggestion { flex-wrap: wrap; row-gap: 4px; }
@@ -2068,6 +2081,10 @@
     html[data-theme="light"] .tour-icon { filter: brightness(.35); }
     html[data-theme="light"] .field > span, html[data-theme="light"] .prop-results-heading, html[data-theme="light"] .prop-side-meta, html[data-theme="light"] .market-pick-suggestion { color: var(--muted); }
     html[data-theme="light"] .prop-line-number { color: #3d6208; }
+    html[data-theme="light"] .prop-search-results { border-color: rgba(40,58,22,.14); background: #fff; box-shadow: 0 8px 22px rgba(40,58,22,.08); }
+    html[data-theme="light"] .prop-search-option[aria-selected="true"], html[data-theme="light"] .prop-search-option:not([aria-disabled="true"]):hover { background: rgba(120,170,30,.14); }
+    html[data-theme="light"] .prop-search-name { color: #1b2418; }
+    html[data-theme="light"] .prop-search-game { color: #3d6208; }
     html[data-theme="light"] .market-pick-suggestion a { color: #3d6208; text-decoration-color: rgba(61,98,8,.45); }
     html[data-theme="light"] .market-pick-suggestion a:hover { color: #2f4d08; }
     html[data-theme="light"] .live-games-panel .muted { color: rgba(237,242,248,.85); }
@@ -2079,6 +2096,10 @@
     html[data-theme="light"] .heat-inferno { --flame-color: #b8124a; }
     @media (max-width: 560px) {
       .prop-controls .field, .prop-controls .field:first-child, .prop-controls button { flex: 1 1 100%; min-width: 0; }
+      /* Stacked controls: keep the suggestions right under the search box */
+      .prop-controls #load-props { order: 1; }
+      .prop-search-option { grid-template-columns: minmax(0, 1fr); }
+      .prop-search-game { grid-column: 1; grid-row: auto; text-align: left; }
       .topbar-heading { display: flex; align-items: center; min-height: 40px; }
       .topbar #bell-button, .topbar #settings-button { top: 10px; }
       /* The phone grid flattens the page; keep the disclaimer at the bottom instead of an empty grid cell */
@@ -2744,9 +2765,14 @@
               </label>
               <label class="field" for="prop-search">
                 <span>Find a player</span>
-                <input id="prop-search" type="search" placeholder="Search players" autocomplete="off" />
+                <input id="prop-search" type="search" placeholder="Search any player" autocomplete="off" spellcheck="false"
+                  role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="prop-search-list" />
               </label>
               <button id="load-props" type="button">Refresh now</button>
+              <div id="prop-search-results" class="prop-search-results" hidden>
+                <p id="prop-search-summary" aria-live="polite"></p>
+                <ul id="prop-search-list" role="listbox" aria-labelledby="prop-search-summary"></ul>
+              </div>
             </div>
             <div class="prop-results-heading">
               <span>Player · line · best price by side</span>
@@ -5653,14 +5679,18 @@
     const propSearchInput = document.querySelector("#prop-search");
 
     // Hides player cards that don't match the search. Runs after every refresh so the filter sticks.
+    // Close spellings count, so "lebrn" still finds LeBron James.
     function applyPropSearch() {
-      const term = propSearchInput.value.trim().toLocaleLowerCase();
+      const query = propSearchInput.value.trim();
+      const term = query.toLocaleLowerCase();
       const cards = [...propResultsElement.querySelectorAll(".prop-player")];
       propResultsElement.querySelector(".prop-no-match")?.remove();
       if (!cards.length) return;
+      const ranked = term ? playerSearch.rank(cards.map(card => ({ name: card.dataset.player, card })), query, Infinity) : null;
+      const similar = new Set(ranked && !ranked.approximate ? ranked.results.map(entry => entry.card) : []);
       let shown = 0;
       for (const card of cards) {
-        const match = !term || card.dataset.player.includes(term);
+        const match = !term || card.dataset.player.includes(term) || similar.has(card);
         card.hidden = !match;
         if (match) shown += 1;
       }
@@ -5674,7 +5704,220 @@
     }
     propSearchInput.addEventListener("input", applyPropSearch);
 
-    function updatePlayerPropsControls(events) {
+    // Suggests similar names from every roster in the sport. Choosing one opens that player's game.
+    const propSearchResults = document.querySelector("#prop-search-results");
+    const propSearchSummary = document.querySelector("#prop-search-summary");
+    const propSearchList = document.querySelector("#prop-search-list");
+    const playerDirectoryReplies = new Map();
+    const warmedPlayerDirectories = new Set();
+    let playerDirectoryTimer = 0;
+    let playerDirectoryRequestId = 0;
+    let playerDirectoryChoices = [];
+    let playerDirectoryActive = -1;
+
+    function playerDirectorySport() {
+      const config = playerPropSports[sportSelect.value];
+      return config && !config.unavailable ? sportSelect.value : "";
+    }
+
+    function playerDirectoryLeague(sport) {
+      return sport === "americanfootball_ncaaf" ? "FBS" : (playerPropSports[sport]?.title || "").replace(/ player props?(?: odds)?$/, "");
+    }
+
+    // The odds feed and ESPN don't always name a team the same way ("Los Angeles Clippers" and "LA Clippers"),
+    // so a game also counts when its team name ends in the player's team nickname, which the server only
+    // sends when no other team in the league shares it.
+    function playerTeamIs(player, teamName) {
+      const names = player.teamNames || [];
+      if (isSoccer(sportSelect.value)) {
+        const team = soccerSupport.teamName(teamName);
+        return Boolean(team) && names.some(name => soccerSupport.teamName(name) === team);
+      }
+      const normalized = normalizeTeamName(teamName);
+      if (!normalized) return false;
+      if (names.some(name => normalizeTeamName(name) === normalized)) return true;
+      const nickname = String(player.nickname || "").trim().split(/\s+/).filter(Boolean);
+      return nickname.length > 0 && normalizeTeamName(String(teamName).trim().split(/\s+/).slice(-nickname.length).join(" ")) ===
+        normalizeTeamName(nickname.join(" "));
+    }
+
+    // The game on screen if the player is in it, then the first one inside the date filter, then the soonest.
+    function playerDirectoryGame(player) {
+      const selectedDate = dateSelect.value || "all";
+      const games = [];
+      for (const event of currentEvents) {
+        if (playerTeamIs(player, event.home_team)) games.push({ event, home: true });
+        else if (playerTeamIs(player, event.away_team)) games.push({ event, home: false });
+      }
+      return games.find(game => game.event.id === propEventSelect.value) ||
+        games.find(game => selectedDate === "all" || localDateKey(game.event.commence_time) === selectedDate) ||
+        games[0] || null;
+    }
+
+    function playerDirectoryGameText(game) {
+      if (!game) return "No game listed";
+      if (game.event.id === propEventSelect.value) return "This game";
+      const opponent = (game.home ? game.event.away_team : game.event.home_team) || "TBD";
+      const start = new Date(game.event.commence_time);
+      const time = start.getTime();
+      const when = Number.isNaN(time) ? ""
+        : time <= Date.now() ? "Started"
+        : start.toLocaleString(undefined, time - Date.now() < 6 * 86_400_000
+          ? { weekday: "short", hour: "numeric", minute: "2-digit" }
+          : { weekday: "short", month: "short", day: "numeric" });
+      return [`${game.home ? "vs" : "@"} ${opponent}`, when].filter(Boolean).join(" · ");
+    }
+
+    function setPlayerDirectoryActive(index) {
+      playerDirectoryActive = index;
+      playerDirectoryChoices.forEach(({ option }, position) => option.setAttribute("aria-selected", String(position === index)));
+      const active = playerDirectoryChoices[index]?.option;
+      if (active) {
+        propSearchInput.setAttribute("aria-activedescendant", active.id);
+        active.scrollIntoView({ block: "nearest" });
+      } else {
+        propSearchInput.removeAttribute("aria-activedescendant");
+      }
+    }
+
+    function showPlayerDirectory(summary, choices = []) {
+      playerDirectoryChoices = choices;
+      propSearchList.replaceChildren(...choices.map(choice => choice.option));
+      setPlayerDirectoryActive(-1);
+      propSearchSummary.textContent = summary;
+      propSearchResults.hidden = false;
+      propSearchInput.setAttribute("aria-expanded", "true");
+    }
+
+    function closePlayerDirectory() {
+      window.clearTimeout(playerDirectoryTimer);
+      playerDirectoryRequestId += 1;
+      setPlayerDirectoryActive(-1);
+      propSearchResults.hidden = true;
+      propSearchInput.setAttribute("aria-expanded", "false");
+    }
+
+    function renderPlayerDirectory(sport, reply) {
+      const league = playerDirectoryLeague(sport);
+      const teams = reply.teams < reply.teamsTotal ? `${reply.teams} of ${reply.teamsTotal}` : `all ${reply.teamsTotal}`;
+      const choices = reply.results.map((player, index) => {
+        const game = playerDirectoryGame(player);
+        const gameText = playerDirectoryGameText(game);
+        const details = [player.team, player.position, player.jersey && `#${player.jersey}`, player.note].filter(Boolean).join(" · ");
+        const option = element("li", "prop-search-option");
+        option.id = `prop-search-option-${index}`;
+        option.setAttribute("role", "option");
+        option.setAttribute("aria-label", `${player.name}, ${details}, ${gameText}`);
+        if (!game) option.setAttribute("aria-disabled", "true");
+        option.append(
+          element("span", "prop-search-name", player.name),
+          element("span", "prop-search-game", gameText),
+          element("span", "prop-search-meta", details)
+        );
+        const choice = { player, game, option };
+        option.addEventListener("click", () => choosePlayerDirectoryChoice(choice));
+        return choice;
+      });
+      const count = choices.length;
+      showPlayerDirectory(!count
+        ? `No similar names across ${teams} ${league} teams.`
+        : reply.approximate
+          ? `No exact match. Closest names across ${teams} ${league} teams:`
+          : `${reply.total > count ? `Top ${count} of ${reply.total}` : count} ${reply.total === 1 ? "player" : "players"} across ${teams} ${league} teams`,
+      choices);
+    }
+
+    function choosePlayerDirectoryChoice(choice) {
+      if (!choice?.game) return;
+      const { event } = choice.game;
+      propSearchInput.value = choice.player.name;
+      closePlayerDirectory();
+      if (event.id !== propEventSelect.value) {
+        // A game outside the date filter isn't in the Game list until the filter is cleared.
+        if (dateSelect.value !== "all" && localDateKey(event.commence_time) !== dateSelect.value) {
+          dateSelect.value = "all";
+          renderFilteredMatches();
+        }
+        updatePlayerPropsControls(currentEvents, event.id);
+      }
+      applyPropSearch();
+    }
+
+    function searchPlayerDirectory() {
+      window.clearTimeout(playerDirectoryTimer);
+      const requestId = ++playerDirectoryRequestId;
+      const sport = playerDirectorySport();
+      const query = propSearchInput.value.trim().slice(0, 60);
+      const normalized = playerSearch.normalize(query);
+      if (!sport || normalized.replace(/ /g, "").length < 2) {
+        closePlayerDirectory();
+        return;
+      }
+      const key = `${sport}|${normalized}`;
+      if (playerDirectoryReplies.has(key)) {
+        renderPlayerDirectory(sport, playerDirectoryReplies.get(key));
+        return;
+      }
+      if (propSearchResults.hidden) showPlayerDirectory(`Searching every ${playerDirectoryLeague(sport)} team…`);
+      playerDirectoryTimer = window.setTimeout(async () => {
+        const current = () => requestId === playerDirectoryRequestId && sport === sportSelect.value &&
+          document.activeElement === propSearchInput;
+        try {
+          const reply = await getJson(`/api/players?${new URLSearchParams({ sport, q: query })}`);
+          if (playerDirectoryReplies.size >= 200) playerDirectoryReplies.delete(playerDirectoryReplies.keys().next().value);
+          playerDirectoryReplies.set(key, reply);
+          if (current()) renderPlayerDirectory(sport, reply);
+        } catch (error) {
+          if (current()) showPlayerDirectory(error.message);
+        }
+      }, 150);
+    }
+
+    // Loading a league's rosters takes a few seconds the first time, so start when the box gets focus.
+    function warmPlayerDirectory() {
+      const sport = playerDirectorySport();
+      if (!sport || warmedPlayerDirectories.has(sport)) return;
+      warmedPlayerDirectories.add(sport);
+      getJson(`/api/players?${new URLSearchParams({ sport })}`).catch(() => warmedPlayerDirectories.delete(sport));
+    }
+
+    propSearchInput.addEventListener("input", searchPlayerDirectory);
+    propSearchInput.addEventListener("focus", () => {
+      warmPlayerDirectory();
+      if (propSearchResults.hidden && propSearchInput.value.trim()) searchPlayerDirectory();
+    });
+    propSearchInput.addEventListener("blur", closePlayerDirectory);
+    // Keeps focus in the search box while an option is clicked or the list is scrolled.
+    propSearchList.addEventListener("mousedown", event => event.preventDefault());
+    propSearchInput.addEventListener("keydown", event => {
+      const open = !propSearchResults.hidden;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        if (!open) {
+          if (propSearchInput.value.trim()) {
+            event.preventDefault();
+            searchPlayerDirectory();
+          }
+          return;
+        }
+        event.preventDefault();
+        const count = playerDirectoryChoices.length;
+        if (!count) return;
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        setPlayerDirectoryActive(playerDirectoryActive < 0
+          ? (step > 0 ? 0 : count - 1)
+          : (playerDirectoryActive + step + count) % count);
+      } else if (event.key === "Enter" && open) {
+        event.preventDefault();
+        if (playerDirectoryActive >= 0) choosePlayerDirectoryChoice(playerDirectoryChoices[playerDirectoryActive]);
+        else closePlayerDirectory();
+      } else if (event.key === "Escape" && open) {
+        event.preventDefault();
+        closePlayerDirectory();
+      }
+    });
+    sportSelect.addEventListener("change", closePlayerDirectory);
+
+    function updatePlayerPropsControls(events, preferredEventId = "") {
       const config = playerPropSports[sportSelect.value];
       const selectedEventId = propEventSelect.value;
       const selectedMarket = propMarketSelect.value;
@@ -5722,8 +5965,9 @@
           .join(" vs ") || "Game";
         propEventSelect.append(option);
       }
-      if (propEvents.some(event => event.id === selectedEventId)) {
-        propEventSelect.value = selectedEventId;
+      const restoredEventId = preferredEventId || selectedEventId;
+      if (propEvents.some(event => event.id === restoredEventId)) {
+        propEventSelect.value = restoredEventId;
       }
 
       propMarketSelect.replaceChildren();
