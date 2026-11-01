@@ -80,11 +80,12 @@ const playerPropMarkets = {
 };
 playerPropMarkets.basketball_wnba = playerPropMarkets.basketball_nba;
 playerPropMarkets.americanfootball_ncaaf = playerPropMarkets.americanfootball_nfl;
+playerPropMarkets.americanfootball_nfl = new Set([...playerPropMarkets.americanfootball_nfl, "player_anytime_td"]);
 for (const [key, league] of Object.entries(soccerSupport.leagues)) {
   if (league.props) playerPropMarkets[key] = new Set(soccerSupport.markets.map(([market]) => market));
 }
 // Every supported prop market has an "_alternate" ladder at the odds provider except these.
-const marketsWithoutAlternates = new Set(["batter_stolen_bases"]);
+const marketsWithoutAlternates = new Set(["batter_stolen_bases", "player_anytime_td"]);
 
 async function sendJson(response, status, body) {
   response.writeHead(status, {
@@ -1165,6 +1166,7 @@ const server = createServer(async (request, response) => {
     }
     if (url.pathname === "/sw.js") return sendStatic(response, "text/javascript; charset=utf-8", serviceWorker);
     if (url.pathname === "/soccer.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "soccer.js")));
+    if (url.pathname === "/football.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "football.js")));
     if (url.pathname === "/healthz") return sendStatic(response, "text/plain", "ok");
     if (url.pathname === "/api/auth/config") return await sendJson(response, 200, { firebase: firebaseWebConfig() });
     if (Object.hasOwn(publicPages, url.pathname)) return await sendPage(response, 200, publicPages[url.pathname]);

@@ -24,6 +24,7 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <title>WiselyBet | Market Board</title>
   <script src="/soccer.js"></script>
+  <script src="/football.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -3344,6 +3345,7 @@
     };
     playerPropSports.basketball_wnba = { ...playerPropSports.basketball_nba, title: "WNBA player prop odds" };
     playerPropSports.americanfootball_ncaaf = { ...playerPropSports.americanfootball_nfl, title: "College football player prop odds" };
+    playerPropSports.americanfootball_nfl.markets = [...playerPropSports.americanfootball_nfl.markets, ["player_anytime_td", "Anytime Touchdown"]];
     const { isSoccer } = soccerSupport;
     supportedSports.push(...Object.keys(soccerSupport.leagues));
     for (const [key, league] of Object.entries(soccerSupport.leagues)) {
@@ -5806,11 +5808,13 @@
         for (const bookmaker of event.bookmakers || []) {
           for (const propMarket of bookmaker.markets || []) {
             for (const outcome of propMarket.outcomes || []) {
-              const player = outcome.description || outcome.name;
-              const point = outcome.point;
-              const normalizedSelection = /^(over|under)$/i.test(outcome.name)
-                ? outcome.name.toLowerCase()
-                : outcome.name;
+              const quote = market === footballSupport.anytimeMarket ? footballSupport.anytimeOutcome(outcome) : outcome;
+              if (!quote) continue;
+              const player = quote.description || quote.name;
+              const point = quote.point;
+              const normalizedSelection = /^(over|under)$/i.test(quote.name)
+                ? quote.name.toLowerCase()
+                : quote.name;
               const key = JSON.stringify([player, point, normalizedSelection]);
               const current = bestPrices.get(key);
               if (!current || outcome.price > current.price) {
@@ -5943,7 +5947,7 @@
             row.append(element(
               "span",
               "prop-line-number",
-              line.point === undefined ? "Line" : String(line.point)
+              market === footballSupport.anytimeMarket ? "Anytime TD" : line.point === undefined ? "Line" : String(line.point)
             ));
 
             const isOverUnder = line.sides.has("over") || line.sides.has("under");
@@ -5976,7 +5980,7 @@
               side.append(element(
                 "span",
                 "prop-side-label",
-                isOverUnder ? (sideName === "over" ? "Over" : "Under") : sideName
+                market === footballSupport.anytimeMarket ? (sideName === "over" ? "Yes" : "No") : isOverUnder ? (sideName === "over" ? "Over" : "Under") : sideName
               ));
               side.append(element("strong", "prop-price", formatAmericanOdds(offer.price)));
               side.append(element("span", "prop-side-meta", `Best at ${offer.bookmaker}`));
@@ -6696,6 +6700,7 @@
       REC: { label: "Receptions", short: "REC" },
       RECYD: { label: "Receiving yards", short: "REC YDS" },
       RECTD: { label: "Receiving touchdowns", short: "REC TD" },
+      TD: { label: "Anytime Touchdown", short: "TD" },
       PHA: { label: "Pitcher hits allowed", short: "HA" },
       PER: { label: "Pitcher earned runs", short: "ER" },
       POUT: { label: "Pitcher outs", short: "OUTS" }
@@ -6706,7 +6711,7 @@
       icehockey_nhl: ["PTS", "G", "A", "SOG", "BLK", "SAV"],
       baseball_mlb: ["H", "HR", "RBI", "R", "BB", "HRR", "PK", "PHA", "PER", "POUT"],
       basketball_wnba: ["PTS", "REB", "AST"],
-      americanfootball_nfl: ["PYD", "PTD", "PCMP", "PATT", "PINT", "RYD", "RTD", "RATT", "REC", "RECYD", "RECTD"],
+      americanfootball_nfl: ["PYD", "PTD", "PCMP", "PATT", "PINT", "RYD", "RTD", "RATT", "REC", "RECYD", "RECTD", "TD"],
       americanfootball_ncaaf: ["PYD", "PTD", "PCMP", "PATT", "PINT", "RYD", "RTD", "RATT", "REC", "RECYD", "RECTD"]
     };
     const footballMarketStats = {
@@ -6740,6 +6745,7 @@
     };
     marketToTrackerStatBySport.basketball_wnba = marketToTrackerStatBySport.basketball_nba;
     marketToTrackerStatBySport.americanfootball_nfl = footballMarketStats;
+    marketToTrackerStatBySport.americanfootball_nfl = { ...footballMarketStats, player_anytime_td: "TD" };
     marketToTrackerStatBySport.americanfootball_ncaaf = footballMarketStats;
     for (const key of Object.keys(soccerSupport.leagues)) {
       trackerStatsBySport[key] = ["G", "A", "SH", "SOT", "SAV"];
@@ -6775,6 +6781,7 @@
     // "won", "lost", "live" or "void". An Under is void when the game ends without him in the box score,
     // because sportsbooks refund props on players who don't play.
     function pickOutcome(tracker, snapshot) {
+      if (tracker.stat === "TD" && snapshot?.state === "post" && snapshot.found === false) return "void";
       if (isSoccer(tracker.sport) && snapshot?.state === "post" && snapshot.found === false) return "void";
       const reached = (Number(snapshot?.current) || 0) >= Number(tracker.target);
       const finished = snapshot?.state === "post" || snapshot?.fouls >= 6;
@@ -7259,8 +7266,9 @@
         const offers = [];
         for (const propMarket of bookmaker?.markets || []) {
           for (const outcome of propMarket.outcomes || []) {
-            if ((outcome.description || outcome.name) !== tracker.name || String(outcome.name).toLowerCase() !== side) continue;
-            const point = Number(outcome.point);
+            const quote = market === footballSupport.anytimeMarket ? footballSupport.anytimeOutcome(outcome) : outcome;
+            if (!quote || (quote.description || quote.name) !== tracker.name || String(quote.name).toLowerCase() !== side) continue;
+            const point = Number(quote.point);
             if (!Number.isFinite(point) || point < 0) continue;
             offers.push({
               point,
@@ -8575,6 +8583,15 @@
     }
 
     function pickMessage(tracker, snapshot, points) {
+      if (tracker.stat === "TD") {
+        const outcome = pickOutcome(tracker, snapshot);
+        return { tone: outcome === "won" ? "hype" : outcome === "lost" ? "bad" : "idle",
+          short: outcome === "live" ? "Awaiting touchdown" : outcome,
+          text: outcome === "won" ? `🔥 Anytime Touchdown hit! ${tracker.name} scored a touchdown.`
+            : outcome === "lost" ? "Final — no touchdown scored."
+            : outcome === "void" ? "No recorded participation — check sportsbook void rules."
+            : "Awaiting a touchdown scored by the player. Passing touchdowns and two-point conversions do not count." };
+      }
       const need = tracker.target - snapshot.current;
       const label = trackerStats[tracker.stat].label.toLowerCase();
       const name = tracker.name.split(" ").slice(-1)[0];
@@ -9013,6 +9030,7 @@
     // Risk note shown after Start tracking: chance the pick cashes for the chosen stat — an Over reaching the target,
     // or an Under staying below its line.
     async function trackRiskNote(playerGroup, sport, eventId, stat, target, currentMarket, snapshot, side = "over") {
+      if (stat === "TD") return "Anytime Touchdown counts touchdowns scored by the player, not passing touchdowns or two-point conversions. Odds are not a guarantee; check your sportsbook's participation rules.";
       const under = side === "under";
       const first = playerGroup.player.split(" ")[0];
       const label = trackerStats[stat].label.toLowerCase();
@@ -9206,6 +9224,18 @@
       meaning.setAttribute("aria-live", "polite");
       let side = "over";
       const syncMeaning = () => {
+        if (statSelect.value === "TD") {
+          side = "over";
+          sideSelect.value = "over";
+          sideSelect.disabled = true;
+          targetInput.value = "1";
+          targetInput.disabled = true;
+          meaning.textContent = "Anytime Touchdown · scores at least once (passing TDs excluded)";
+          meaning.classList.remove("is-under");
+          return;
+        }
+        sideSelect.disabled = false;
+        targetInput.disabled = false;
         const raw = targetInput.value.trim();
         const value = Math.round(Number(raw));
         const valid = raw !== "" && Number.isFinite(value) && value >= (side === "under" ? 0 : 1);
@@ -9227,6 +9257,7 @@
         syncMeaning();
       });
       targetInput.addEventListener("input", syncMeaning);
+      statSelect.addEventListener("change", syncMeaning);
       syncMeaning();
       const start = element("button", "", "Start tracking");
       start.type = "button";
@@ -9614,6 +9645,11 @@
     }
 
     function assessTracker(tracker, snapshot) {
+      if (tracker.stat === "TD") {
+        const outcome = pickOutcome(tracker, snapshot);
+        return { level: outcome === "won" ? "hit" : outcome === "lost" ? "far" : "pending",
+          text: snapshot.error || pickMessage(tracker, snapshot).text };
+      }
       const need = tracker.target - snapshot.current;
       const short = trackerStats[tracker.stat].short;
       if (isSoccer(tracker.sport)) {
@@ -9678,6 +9714,13 @@
 
     // End-of-game recap: what happened, why the pick missed, and what to do next time.
     function gameRecap(tracker, snapshot) {
+      if (tracker.stat === "TD") {
+        const outcome = pickOutcome(tracker, snapshot);
+        return { tone: outcome === "won" ? "hype" : outcome === "lost" ? "bad" : "idle",
+          title: outcome === "won" ? "Anytime Touchdown hit" : outcome === "void" ? "Check participation / void rules" : "No touchdown scored",
+          happened: pickMessage(tracker, snapshot).text, why: [],
+          advice: ["Passing touchdowns and two-point conversions are excluded. Confirm final settlement with your sportsbook."] };
+      }
       if (isUnderPick(tracker)) return underRecap(tracker, snapshot);
       const label = trackerStats[tracker.stat].label.toLowerCase();
       const trail = snapshot.trail || {};
@@ -9855,6 +9898,7 @@
         stats.PATT = String(Number.parseInt(String(stats["passing C/ATT"] || "").split("/")[1], 10) || 0);
         stats.RYD = stats["rushing YDS"]; stats.RTD = stats["rushing TD"]; stats.RATT = stats["rushing CAR"];
         stats.REC = stats["receiving REC"]; stats.RECYD = stats["receiving YDS"]; stats.RECTD = stats["receiving TD"];
+        stats.TD = String(footballSupport.touchdowns(stats));
         stats.MIN = String(Math.max(0, 60 - gameMinutesRemaining(game)));
       }
       if (hockey) {
@@ -9976,8 +10020,10 @@
         } else if (current >= tracker.target) {
           recordHistory(tracker, current, "win");
           snapshot.recorded = true;
-        } else if (game.state === "post") {
+        } else if (game.state === "post" && outcome !== "void") {
           recordHistory(tracker, current, "loss");
+          snapshot.recorded = true;
+        } else if (outcome === "void") {
           snapshot.recorded = true;
         }
       }
@@ -10188,7 +10234,7 @@
         targetWrap.setAttribute("aria-label", under
           ? `Under line for ${tracker.name}: ${line} ${trackerStats[tracker.stat].label.toLowerCase()}. The pick loses at ${tracker.target}.`
           : `Target ${trackerStats[tracker.stat].label} for ${tracker.name}: ${tracker.target}`);
-        score.append(targetWrap, element("span", `tracker-side${under ? " is-under" : ""}`, under ? "▼ Under" : "▲ Over"));
+        score.append(targetWrap, element("span", `tracker-side${under ? " is-under" : ""}`, tracker.stat === "TD" ? "Anytime TD" : under ? "▼ Under" : "▲ Over"));
         if (bumped) {
           score.append(element("span", "tracker-plus", `+${snapshot.gainValue} ${trackerStats[tracker.stat].short}`));
         }

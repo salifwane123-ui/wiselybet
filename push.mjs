@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { breakDataKey, breakUntil, getSubscription, getUserData, listPushUsers, pushDataKey, updateUserData } from "./auth.mjs";
 import soccerSupport from "./soccer.js";
+import footballSupport from "./football.js";
 
 const publicKey = (process.env.VAPID_PUBLIC || "").replace(/\s+/g, "");
 const privateKey = (process.env.VAPID_PRIVATE || "").replace(/\s+/g, "");
@@ -87,7 +88,7 @@ const statNames = {
   PTS: "points", REB: "rebounds", AST: "assists", G: "goals", A: "assists", SOG: "shots on goal", BLK: "blocks", SAV: "saves",
   H: "hits", HR: "home runs", RBI: "RBIs", R: "runs", BB: "walks", HRR: "hits + runs + RBIs", PK: "strikeouts", PHA: "hits allowed",
   PER: "earned runs", POUT: "outs", PYD: "passing yards", PTD: "passing TDs", PCMP: "completions", PATT: "attempts", PINT: "interceptions",
-  RYD: "rushing yards", RTD: "rushing TDs", RATT: "carries", REC: "receptions", RECYD: "receiving yards", RECTD: "receiving TDs"
+  RYD: "rushing yards", RTD: "rushing TDs", RATT: "carries", REC: "receptions", RECYD: "receiving yards", RECTD: "receiving TDs", TD: "touchdowns scored"
 };
 Object.assign(statNames, { SH: "shots", SOT: "shots on target" });
 
@@ -118,6 +119,7 @@ function deriveStats(sport, stat, athlete) {
     stats.PATT = String(Number.parseInt(String(stats["passing C/ATT"] || "").split("/")[1], 10) || 0);
     stats.RYD = stats["rushing YDS"]; stats.RTD = stats["rushing TD"]; stats.RATT = stats["rushing CAR"];
     stats.REC = stats["receiving REC"]; stats.RECYD = stats["receiving YDS"]; stats.RECTD = stats["receiving TD"];
+    stats.TD = String(footballSupport.touchdowns(stats));
   } else if (sport === "icehockey_nhl") {
     stats.PTS = String(number("G") + number("A"));
     stats.SOG = stats.S; stats.SAV = stats.SV; stats.BLK = stats.BS;
@@ -214,7 +216,7 @@ export function trackerAlerts(tracker, previous, game, allowed = () => true) {
     }
   }
   next.hit = next.hit || current >= target;
-  const voided = game.state === "post" && ((under && !athlete) || (soccer && !athlete?.appeared));
+  const voided = game.state === "post" && (((under || tracker.stat === "TD") && !athlete) || (soccer && !athlete?.appeared));
   const finished = game.state === "post" || fouls >= 6;
   next.outcome = voided ? "void" : under
     ? current >= target ? "lost" : finished ? "won" : "live"
@@ -223,10 +225,11 @@ export function trackerAlerts(tracker, previous, game, allowed = () => true) {
   if (game.state === "post" && previous) {
     next.done = true;
     if (allowed("score")) {
-      if ((under && !athlete) || (soccer && !athlete.appeared)) {
+      if (((under || tracker.stat === "TD") && !athlete) || (soccer && !athlete.appeared)) {
         // Sportsbooks refund props on players who don't play.
         messages.push({ title: "↩️ Final — no action", body: soccer
           ? `${tracker.name} didn't play. Check your sportsbook's void rules for this pick.`
+          : tracker.stat === "TD" ? `${tracker.name} did not appear in the box score. Check your sportsbook's Anytime Touchdown participation/void rules.`
           : `${tracker.name} didn't play, so Under ${line} ${label} is void.`, tag: `final-${tracker.key}` });
       } else {
         const hit = under ? current < target : current >= target;

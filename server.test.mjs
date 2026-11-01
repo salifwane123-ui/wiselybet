@@ -102,6 +102,15 @@ function request(path, { method = "GET", body, cookie, headers = {}, redirect = 
   });
 }
 const get = (path, cookie, options = {}) => request(path, { ...options, cookie });
+
+test("Anytime Touchdown helper is public and NFL market passes validation while retaining account gating", async () => {
+  const helper = await get("/football.js");
+  assert.equal(helper.status, 200);
+  assert.match(await helper.text(), /player_anytime_td/);
+  const props = await get("/api/player-props?sport=americanfootball_nfl&eventId=0123456789abcdef0123456789abcdef&market=player_anytime_td");
+  assert.equal(props.status, 401);
+  assert.match((await props.json()).error, /account|trial/);
+});
 const post = (path, body, cookie, headers) => request(path, { method: "POST", body, cookie, headers });
 const put = (path, body, cookie) => request(path, { method: "PUT", body, cookie });
 
