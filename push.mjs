@@ -214,6 +214,11 @@ export function trackerAlerts(tracker, previous, game, allowed = () => true) {
     }
   }
   next.hit = next.hit || current >= target;
+  const voided = game.state === "post" && ((under && !athlete) || (soccer && !athlete?.appeared));
+  const finished = game.state === "post" || fouls >= 6;
+  next.outcome = voided ? "void" : under
+    ? current >= target ? "lost" : finished ? "won" : "live"
+    : current >= target ? "won" : finished ? "lost" : "live";
   if (under) next.locked = next.locked || lockedNow;
   if (game.state === "post" && previous) {
     next.done = true;
@@ -241,10 +246,11 @@ async function checkUser({ userKey, data }, fetchGame) {
   if (breakUntil(data[breakDataKey]) > Date.now()) return;
   const userState = states.get(userKey) || new Map();
   forgetFinishedPicks(userState);
-  let subs, trackers, followed, settings;
+  let subs, trackers, followed, settings, parlays;
   try {
     subs = JSON.parse(data[pushDataKey] || "[]");
     trackers = JSON.parse(data["courtside.trackers.v1"] || "[]");
+    parlays = JSON.parse(data["courtside.parlays.v1"] || "[]");
     followed = JSON.parse(data["courtside.followedPlayers.v1"] || "[]");
     settings = JSON.parse(data["courtside.settings.v1"] || "{}");
   } catch { return; }
@@ -269,6 +275,7 @@ async function checkUser({ userKey, data }, fetchGame) {
     return games.get(key);
   };
 
+  const pendingAlerts = [];
   for (const tracker of activeTrackers) {
     const id = `t:${tracker.key}`;
     const previous = userState.get(id);
@@ -276,11 +283,17 @@ async function checkUser({ userKey, data }, fetchGame) {
     const game = await gameFor(tracker);
     if (!game?.teams) continue;
     const result = trackerAlerts(tracker, previous, game, allowed);
-    messages.push(...result.messages);
+    pendingAlerts.push({ tracker, messages: result.messages });
     userState.set(id, { ...result.next, until: Date.parse(tracker.date) + trackerWindowAfterMs });
   }
+  const failed = new Set((Array.isArray(parlays) ? parlays : []).filter(parlay =>
+    (Array.isArray(trackers) ? trackers : []).some(tracker => tracker.parlay === parlay.id &&
+      userState.get(`t:${tracker.key}`)?.outcome === "lost")).map(parlay => parlay.id));
+  for (const entry of pendingAlerts) {
+    if (!failed.has(entry.tracker.parlay)) messages.push(...entry.messages);
+  }
 
-  const trackedNames = new Set(activeTrackers.map(item => normalize(item.name)));
+  const trackedNames = new Set(activeTrackers.filter(item => !failed.has(item.parlay)).map(item => normalize(item.name)));
   for (const player of activeFollowed) {
     if (trackedNames.has(normalize(player.name))) continue;
     const id = `f:${player.key}`;

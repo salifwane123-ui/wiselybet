@@ -8879,11 +8879,12 @@
     }
 
     function showScorePop(name, points, stat, message, tracker, current) {
+      if (tracker && !trackerUpdatesEnabled(tracker)) return;
       const cashed = Boolean(message?.text.startsWith("🔥"));
       if (tracker?.demo) queueSound(cashed ? playCashSound : playScoreSound, cashed ? 1100 : 450);
       else playOnce(`pop|${tracker?.eventId}|${name}|${stat}|${current}`, cashed);
       const sharedParlays = tracker && !tracker.demo
-        ? parlays.filter(parlay => trackers.some(pick => !pick.demo && pick.parlay === parlay.id &&
+        ? parlays.filter(parlay => trackers.some(pick => !pick.demo && trackerUpdatesEnabled(pick) && pick.parlay === parlay.id &&
           pickIdentity(pick) === pickIdentity(tracker)))
         : [];
       const shared = sharedParlays.length > 1;
@@ -8893,6 +8894,7 @@
       // Reaching the target cashes an Over but busts an Under, so only an Over turns into the big "cashed" pop.
       const big = cashed || (!under && tracker?.target > 0 && Number.isFinite(current) && current >= tracker.target);
       const pop = element("div", `score-pop${big ? " is-cashed" : ""}`);
+      pop.trackerPick = tracker;
       const parlay = parlays.find(item => item.id === tracker?.parlay);
       const windowKey = shared ? `shared:${pickIdentity(tracker)}` : parlay ? `parlay:${parlay.id}` : tracker ? `singles:${tracker.eventId}` : "";
       pop.append(element("div", "score-pop-group", `${big ? "🏆 " : ""}${shared
@@ -9809,8 +9811,13 @@
       return { tone: "bad", title: "📋 Game recap — pick missed", happened, why, advice };
     }
 
-    function updateTracker(tracker, game, error) {
-      const previous = trackerSnapshots.get(tracker.key);
+    function trackerUpdatesEnabled(tracker) {
+      const parlay = parlays.find(item => item.id === tracker.parlay);
+      return !parlay || !trackers.some(leg => leg.parlay === parlay.id &&
+        pickOutcome(leg, trackerSnapshots.get(leg.key)) === "lost");
+    }
+
+    function updateTracker(tracker, game, error, { silent = false, previous = trackerSnapshots.get(tracker.key) } = {}) {
       if (!game) {
         trackerSnapshots.set(tracker.key, { ...(previous || { current: 0, stats: {} }), error });
         return;
@@ -9895,8 +9902,12 @@
         recorded: previous?.recorded || false,
         trail: { ...(previous?.trail || {}) }
       };
+      trackerSnapshots.set(tracker.key, snapshot);
+      if (silent) return;
+      const updatesEnabled = trackerUpdatesEnabled(tracker);
+      if (!updatesEnabled) snapshot.pendingDelta = 0;
       const under = isUnderPick(tracker);
-      if (soccer && previous && !previous.error) {
+      if (updatesEnabled && soccer && previous && !previous.error) {
         if (Number(stats.YC || 0) > Number(previous.stats?.YC || 0) || Number(stats.RC || 0) > Number(previous.stats?.RC || 0)) {
           pushNotification("foul", `${tracker.name}: ${stats.YC || 0} yellow, ${stats.RC || 0} red cards.`);
         }
@@ -9916,7 +9927,7 @@
       // Status alerts for tracked players: bench/court, fouls and injury report. Skipped when the player is also
       // followed (that already alerts). His first pick in this game raises them for all of his picks (he can be in
       // several parlays), for as long as one of them is still open.
-      const playerPicks = trackers.filter(item => !item.demo && item.name === tracker.name && item.eventId === tracker.eventId);
+      const playerPicks = trackers.filter(item => !item.demo && item.name === tracker.name && item.eventId === tracker.eventId && trackerUpdatesEnabled(item));
       const alsoFollowed = followedPlayers.some(item => normalizeTeamName(item.name) === wanted);
       if (previous && !previous.error && !tracker.demo && playerPicks[0] === tracker && !alsoFollowed &&
           playerPicks.some(item => !pickReached(item))) {
@@ -9933,14 +9944,14 @@
       }
       // After the goal is reached (an Over cashed or an Under busted), stop the score animation for this player.
       const goalAlreadyReached = Boolean(previous) && previous.current >= tracker.target;
-      const popped = Boolean(previous) && !previous.error && !goalAlreadyReached && current > previous.current;
+      const popped = updatesEnabled && Boolean(previous) && !previous.error && !goalAlreadyReached && current > previous.current;
       if (popped) {
         snapshot.pendingDelta += current - previous.current;
         showScorePop(tracker.name, current - previous.current, tracker.stat, pickMessage(tracker, snapshot), tracker, current);
       }
       const label = trackerStats[tracker.stat].label.toLowerCase();
       const outcome = pickOutcome(tracker, snapshot);
-      if (current >= tracker.target && !snapshot.hitNotified && previous) {
+      if (updatesEnabled && current >= tracker.target && !snapshot.hitNotified && previous) {
         if (under) {
           pushNotification("score", `${tracker.name} went over ${pickLine(tracker.target)} ${label} — Under lost. ❌`);
         } else {
@@ -9950,7 +9961,7 @@
         }
       }
       snapshot.hitNotified = snapshot.hitNotified || current >= tracker.target;
-      if (under && outcome === "won" && !snapshot.wonNotified && previous) {
+      if (updatesEnabled && under && outcome === "won" && !snapshot.wonNotified && previous) {
         // A score pop that just cashed the pick already played the register.
         if (!popped && firstAnnouncement(`cash|${pickIdentity(tracker)}|${tracker.target}`)) playCashSound();
         pushNotification("score", `${tracker.name} stayed under ${pickLine(tracker.target)} ${label}${snapshot.state === "post" ? "" : " (fouled out)"} — pick cashed! 🎉`);
@@ -10085,6 +10096,15 @@
 
     function renderTrackers() {
       initializeCollapsedParlays();
+      for (const [key, pops] of trackerScorePops) {
+        const kept = pops.filter(pop => {
+          if (!pop.trackerPick || trackerUpdatesEnabled(pop.trackerPick)) return true;
+          pop.remove();
+          return false;
+        });
+        if (kept.length) trackerScorePops.set(key, kept);
+        else trackerScorePops.delete(key);
+      }
       // Keep animating while the user is editing a target: remember the field and restore it after the redraw.
       const focused = document.activeElement;
       const focusedWindowKey = focused?.classList.contains("tracker-window-summary")
@@ -10134,7 +10154,12 @@
         const windowVisible = trackerPanelOpen && !collapsedTrackerWindows.has(windowKey) &&
           (parlayView === "all" || parlayView === tracker.parlay ||
             (parlayView === "singles" && !parlayIdSet.has(tracker.parlay)));
-        if (windowVisible && snapshot.pendingDelta > 0) {
+        if (!trackerUpdatesEnabled(tracker)) {
+          snapshot.pendingDelta = 0;
+          snapshot.gainFresh = false;
+          snapshot.gainUntil = 0;
+        }
+        if (windowVisible && trackerUpdatesEnabled(tracker) && snapshot.pendingDelta > 0) {
           const stillShowing = (snapshot.gainUntil || 0) > Date.now();
           snapshot.gainValue = (stillShowing ? snapshot.gainValue : 0) + snapshot.pendingDelta;
           snapshot.gainUntil = Date.now() + gainDurationMs;
@@ -10400,7 +10425,7 @@
       }
       trackerPollRunning = true;
       try {
-        await Promise.all(trackers.filter(item => !item.demo).map(async tracker => {
+        const updates = await Promise.all(trackers.filter(item => !item.demo).map(async tracker => {
           let game = null;
           let error = "";
           try {
@@ -10408,8 +10433,15 @@
           } catch (caught) {
             error = caught.message;
           }
-          if (trackers.includes(tracker)) updateTracker(tracker, game, error);
+          return { tracker, game, error, previous: trackerSnapshots.get(tracker.key) };
         }));
+        // Settle every leg before deciding whether any parlay can still raise updates.
+        for (const { tracker, game, error } of updates) {
+          if (trackers.includes(tracker)) updateTracker(tracker, game, error, { silent: true });
+        }
+        for (const { tracker, game, error, previous } of updates) {
+          if (trackers.includes(tracker)) updateTracker(tracker, game, error, { previous });
+        }
       } finally {
         trackerPollRunning = false;
         renderTrackers();

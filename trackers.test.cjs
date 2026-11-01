@@ -90,6 +90,62 @@ const page = runInNewContext(`${code}
 // Objects made inside the vm have their own prototypes; compare plain copies.
 const plain = value => JSON.parse(JSON.stringify(value));
 
+test("failed parlay legs keep stats and history but stop score animations and notifications", () => {
+  const loser = { key: "loser", name: "Lost Player", parlay: "failed", target: 20, side: "under", sport: "basketball_nba", stat: "PTS", eventId: "e1" };
+  const remaining = { ...loser, key: "remaining", name: "Remaining Player", side: "over" };
+  const activeCopy = { ...remaining, key: "active", parlay: "active" };
+  const singleCopy = { ...remaining, key: "single", parlay: "" };
+  const snapshots = new Map([
+    ["loser", { current: 20, state: "in" }],
+    ["remaining", { current: 10, state: "in", stats: {}, fouls: 0, onCourt: true, pendingDelta: 2 }]
+  ]);
+  const animations = [], alerts = [], history = [];
+  const c = {
+    trackers: [loser, remaining, activeCopy, singleCopy], parlays: [{ id: "failed" }, { id: "active" }],
+    trackerSnapshots: snapshots, pickOutcome: page.pickOutcome, isUnderPick: page.isUnderPick,
+    normalizeTeamName: value => value, isSoccer: () => false, isFootballSport: () => false,
+    gameMinutesRemaining: () => 20, followedPlayers: [], pickReached: () => false,
+    trackerStats: { PTS: { label: "Points" } }, pickLine: target => target - 0.5,
+    pickMessage: () => ({ short: "On track", text: "Good", tone: "hype" }),
+    pushNotification: (...args) => alerts.push(args),
+    showScorePop: (...args) => animations.push(args), recordHistory: (...args) => history.push(args),
+    firstAnnouncement: () => true, playCashSound: noop
+  };
+  runInNewContext(slice("    function trackerUpdatesEnabled(", "    // Packs the tracking windows"), c);
+  assert.equal(c.trackerUpdatesEnabled(remaining), false);
+  assert.equal(c.trackerUpdatesEnabled(activeCopy), true);
+  assert.equal(c.trackerUpdatesEnabled(singleCopy), true);
+  const game = { state: "in", teams: [{ players: [{ name: remaining.name, onCourt: true, stats: [
+    { label: "PTS", value: "22" }, { label: "MIN", value: "24" }, { label: "PF", value: "0" }
+  ] }] }] };
+  c.updateTracker(remaining, game, "");
+  assert.equal(snapshots.get(remaining.key).current, 22);
+  assert.equal(snapshots.get(remaining.key).pendingDelta, 0);
+  assert.equal(animations.length, 0);
+  assert.equal(alerts.length, 0);
+  assert.equal(history.length, 1);
+  snapshots.set(activeCopy.key, { current: 10, state: "in", stats: {}, fouls: 0, onCourt: true, pendingDelta: 0 });
+  c.updateTracker(activeCopy, game, "");
+  assert.equal(animations.length, 1);
+  assert.equal(alerts.length, 1);
+  snapshots.set(loser.key, { current: 10, state: "post", found: false });
+  assert.equal(c.trackerUpdatesEnabled(remaining), true, "void leg does not fail a parlay");
+});
+
+test("tracker poll settles all legs before emitting updates, regardless of response order", async () => {
+  const first = { key: "first" }, second = { key: "second" };
+  const calls = [];
+  const c = {
+    trackers: [first, second], trackerSnapshots: new Map(), trackerPollRunning: false, trackerPollQueued: false,
+    fetchLiveGame: async tracker => ({ key: tracker.key }),
+    updateTracker: (tracker, game, error, options) => calls.push([tracker.key, Boolean(options.silent)]),
+    renderTrackers: noop
+  };
+  runInNewContext(slice("    async function pollTrackers(", '    trackerToggle.addEventListener("click"'), c);
+  await c.pollTrackers();
+  assert.deepEqual(calls, [["first", true], ["second", true], ["first", false], ["second", false]]);
+});
+
 test("parlays start collapsed after refresh, including synced parlays, without closing manually expanded windows", () => {
   const app = {
     parlays: [{ id: "p1" }, { id: "p2" }],
@@ -207,7 +263,7 @@ test("shared picks show one score animation above all tracking windows for each 
       announcements.add(id);
       return true;
     },
-    playOnce: (id, cashed) => sounds.push({ id, cashed }),
+    playOnce: (id, cashed) => sounds.push({ id, cashed }), trackerUpdatesEnabled: () => true,
     queueSound: noop, playCashSound: noop, playScoreSound: noop, burstSparks: noop,
     sportEmoji: () => "", pickLine: value => value - 0.5,
     window: { setTimeout: (fn, delay) => scheduled.push({ fn, delay }), requestAnimationFrame: noop }

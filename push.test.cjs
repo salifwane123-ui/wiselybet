@@ -10,6 +10,34 @@ const serverSource = readFileSync(join(__dirname, "push.mjs"), "utf8");
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const response = (data, ok = true) => ({ ok, status: ok ? 200 : 503, json: async () => data });
 
+test("phone alerts suppress failed parlay copies after all legs settle but retain active copies and singles", async () => {
+  const delivered = [];
+  const trackers = [
+    { key: "remaining", parlay: "failed", name: "Remaining", target: 20 },
+    { key: "lost", parlay: "failed", name: "Lost", target: 20 },
+    { key: "active-copy", parlay: "active", name: "Remaining", target: 20 },
+    { key: "single", name: "Single", target: 20 }
+  ].map(pick => ({ sport: "basketball_nba", stat: "PTS", home: "Home", away: "Away", date: new Date().toISOString(), ...pick }));
+  const c = {
+    states: new Map(), forgetFinishedPicks() {}, breakUntil: () => 0, breakDataKey: "break",
+    pushDataKey: "push", getSubscription: async () => null, inWindow: () => true,
+    localDate: date => date, trackerWindowAfterMs: 3600000, normalize: value => value,
+    trackerAlerts: tracker => ({ next: { outcome: tracker.key === "lost" ? "lost" : "live" }, messages: [{ title: tracker.key, body: tracker.name }] }),
+    uniqueMessages: messages => messages,
+    deliver: async (user, subs, message) => delivered.push(message.title)
+  };
+  const start = serverSource.indexOf("async function checkUser(");
+  const end = serverSource.indexOf("// The same pick can be in several parlays", start);
+  runInNewContext(serverSource.slice(start, end), c);
+  const user = { userKey: "test", data: {
+    push: JSON.stringify([{ tz: "UTC" }]), "courtside.trackers.v1": JSON.stringify(trackers),
+    "courtside.parlays.v1": JSON.stringify([{ id: "failed" }, { id: "active" }])
+  } };
+  await c.checkUser(user, async () => ({ teams: [] }));
+  assert.deepEqual(delivered, ["active-copy", "single"]);
+  assert.equal(c.states.get("test").get("t:remaining").outcome, "live", "muted copies still update settlement state");
+});
+
 async function client({ sub = null, reply = () => response({}), ios = false, standalone = true, getError } = {}) {
   const calls = [];
   const elements = {};
