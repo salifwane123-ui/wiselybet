@@ -2220,6 +2220,24 @@
     .bp-price { color: #eef6dc; font-size: .92rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
     .bp-chance { display: inline-flex; align-items: center; gap: 3px; color: var(--flame-color, #d9f58a); font-size: .7rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: help; }
     .bp-chance .heat-flame { zoom: .8; }
+    /* The number counts up over a hidden copy of its final value, so nothing shifts, above a thin heat meter filled to the percentage */
+    .bp-chance-value { display: inline-grid; position: relative; }
+    .bp-chance-value::after { content: attr(data-final); grid-area: 1 / 1; visibility: hidden; }
+    .bp-chance-num { grid-area: 1 / 1; text-align: right; }
+    .bp-chance-value::before { content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--flame-outer, #9fd03a), var(--flame-color, #d9f58a)) 0 0 / calc(var(--bp-pct, 0) * 100%) 100% no-repeat; background-color: rgba(255,255,255,.1); }
+    @media (prefers-reduced-motion: no-preference) {
+      .bp-chance.is-counting .bp-chance-value::before { animation: bp-meter .9s cubic-bezier(.33,1,.68,1) var(--bp-delay, 0ms) backwards; }
+      .bp-chance.is-counting .bp-chance-value { animation: bp-land .45s ease-out calc(var(--bp-delay, 0ms) + .78s); }
+      .bp-chance.is-igniting .heat-flame { animation: flame-flicker var(--flame-speed, 1.4s) ease-in-out infinite alternate, bp-ignite .7s cubic-bezier(.34,1.56,.64,1) var(--bp-delay, 0ms) backwards; }
+      /* Picks at 65%+ catch a glint now and then, as a wave down the leg list */
+      @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+        :is(.bp-slide.is-active, .bp-leg-list) .bp-chance:is(.heat-hot, .heat-inferno) .bp-chance-num { background: linear-gradient(105deg, var(--flame-color) 40%, var(--bp-glint, var(--flame-core)) 50%, var(--flame-color) 60%) 100% 0 / 280% 100% no-repeat; -webkit-background-clip: text; background-clip: text; color: transparent; animation: bp-glint 4.6s ease-in-out calc(var(--bp-i, 0) * 140ms) infinite; }
+      }
+    }
+    @keyframes bp-meter { from { background-size: calc(var(--bp-from, 0) * 100%) 100%; } }
+    @keyframes bp-land { 35% { scale: 1.16; filter: drop-shadow(0 0 5px var(--flame-glow, transparent)); } }
+    @keyframes bp-ignite { from { opacity: 0; scale: .15; filter: brightness(2.4) saturate(1.3) drop-shadow(0 0 7px var(--flame-glow, transparent)) drop-shadow(0 0 16px var(--flame-glow, transparent)); } }
+    @keyframes bp-glint { 0%, 55% { background-position: 100% 0; } 82%, 100% { background-position: 0 0; } }
     .bp-leg-link { grid-area: link; justify-self: end; padding: 3px 9px; border: 1px solid rgba(201,239,91,.3); border-radius: 7px; color: #dff3a6; font-size: .7rem; font-weight: 750; text-decoration: none; white-space: nowrap; }
     .bp-leg-link:hover { border-color: #c9ef5b; background: rgba(201,239,91,.12); }
     .bp-leg-link.is-tracked { border-color: rgba(201,239,91,.6); background: rgba(201,239,91,.14); color: #c9ef5b; }
@@ -2322,7 +2340,8 @@
     html[data-theme="light"] .bp-nav:hover:not(:disabled) { border-color: rgba(40,58,22,.14); background: rgba(47,77,8,.06); color: #1b2418; }
     html[data-theme="light"] .bp-player, html[data-theme="light"] .bp-price, html[data-theme="light"] .bp-stat dd, html[data-theme="light"] .bp-message strong { color: #1b2418; }
     html[data-theme="light"] .bp-pick, html[data-theme="light"] .bp-stat-odds dd { color: #3d6208; }
-    html[data-theme="light"] .bp-chance { color: var(--flame-color, #2f4d08); }
+    html[data-theme="light"] .bp-chance { --bp-glint: var(--flame-outer); color: var(--flame-color, #2f4d08); }
+    html[data-theme="light"] .bp-chance-value::before { background-color: rgba(40,58,22,.12); }
     html[data-theme="light"] .bp-live, html[data-theme="light"] .bp-scope { background: rgba(200,40,40,.1); color: #b42318; }
     html[data-theme="light"] .bp-scope.is-pregame { background: rgba(47,77,8,.07); color: #3b4637; }
     html[data-theme="light"] .bp-meta .bp-left { color: #26301f; }
@@ -4288,10 +4307,15 @@
       const percent = Math.round(leg.probability * 100);
       // Heat-colored with a flame like the Player Props percentages, by the shown value so equal numbers match.
       const chance = element("span", `bp-chance ${marketHeatClass(percent / 100)}`);
+      chance.dataset.percent = String(percent);
+      chance.style.setProperty("--bp-pct", String(percent / 100));
       const flame = element("span", "heat-flame");
       flame.setAttribute("aria-hidden", "true");
       flame.append(element("span", "flame-core"));
-      chance.append(flame, document.createTextNode(`${percent}%`));
+      const value = element("span", "bp-chance-value");
+      value.dataset.final = `${percent}%`;
+      value.append(element("span", "bp-chance-num", `${percent}%`));
+      chance.append(flame, value);
       odds.append(price, chance);
       const read = liveLegRead(leg);
       if (read) {
@@ -4337,6 +4361,48 @@
       remove.addEventListener("click", () => removeBestParlayLeg(leg, remove));
       row.append(remove);
       return row;
+    }
+
+    // A leg's percentage counts up as it comes into view while its heat meter fills and the flame lights;
+    // a refreshed price ticks over from the old percentage instead.
+    const bestParlayChanceFrames = new WeakMap();
+    function countBestParlayChances(runs) {
+      runs = runs.filter(run => run.chip);
+      for (const { chip } of runs) {
+        window.cancelAnimationFrame(bestParlayChanceFrames.get(chip));
+        chip.classList.remove("is-counting", "is-igniting");
+        chip.querySelector(".bp-chance-num").textContent = `${chip.dataset.percent}%`;
+      }
+      if (!runs.length || document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      // Lets a leg that counted before play its CSS animations again.
+      void bpViewport.offsetWidth;
+      for (const { chip, from = 0, delay = 0 } of runs) {
+        const number = chip.querySelector(".bp-chance-num");
+        const to = Number(chip.dataset.percent);
+        const start = performance.now() + delay;
+        chip.style.setProperty("--bp-from", String(from / 100));
+        chip.style.setProperty("--bp-delay", `${delay}ms`);
+        chip.classList.add("is-counting");
+        chip.classList.toggle("is-igniting", !from);
+        number.textContent = `${from}%`;
+        const step = now => {
+          const progress = Math.min(1, Math.max(0, (now - start) / 900));
+          number.textContent = `${Math.round(from + (to - from) * (1 - (1 - progress) ** 3))}%`;
+          if (progress < 1 && number.isConnected) bestParlayChanceFrames.set(chip, window.requestAnimationFrame(step));
+        };
+        bestParlayChanceFrames.set(chip, window.requestAnimationFrame(step));
+      }
+    }
+
+    // After a refresh, legs new to the parlay count up from zero and changed prices tick over; the rest hold still.
+    function countChangedBestParlayChances(before) {
+      const chips = [bpViewport.querySelector(".bp-slide.is-active .bp-chance"), ...(bpDetails.hidden ? [] : bpDetails.querySelectorAll(".bp-chance"))];
+      let fresh = 0;
+      countBestParlayChances(chips.filter(Boolean).flatMap(chip => {
+        const from = before.get(chip.closest("[data-key]").dataset.key);
+        if (from === Number(chip.dataset.percent)) return [];
+        return [{ chip, from: from ?? 0, delay: from === undefined ? 70 * fresh++ : 0 }];
+      }));
     }
 
     function bestParlayMessage(strong, text, retry = false) {
@@ -4494,6 +4560,7 @@
         bpProgressBar.classList.remove("run");
         return;
       }
+      const before = new Map([...bpViewport.querySelectorAll(".bp-slide[data-key] .bp-chance[data-percent]")].map(chip => [chip.closest(".bp-slide").dataset.key, Number(chip.dataset.percent)]));
       const slides = legs.map((leg, index) => {
         const slide = element("div", "bp-slide");
         slide.setAttribute("role", "group");
@@ -4525,6 +4592,7 @@
           ? `Opens ${title} with ${links.carried} of ${legs.length} picks in the betslip. Add the rest from "All legs".`
           : `Opens ${title} in a new tab. Add each leg from "All legs" or search for the players.`) + follows;
       renderBestParlayDetails(legs, data, links.direct, removed);
+      countChangedBestParlayChances(before);
       state.renderedAt = Date.now();
     }
 
@@ -4585,6 +4653,7 @@
       legs.forEach((leg, index) => {
         const item = element("li");
         item.dataset.key = bestParlayLegKey(leg);
+        item.style.setProperty("--bp-i", String(index));
         const legSport = leg.sport || sport;
         const row = createBestParlayLeg(leg, index + 1, legSport, book, true);
         const href = direct[index] || resolveBookLink(leg.marketLink) || resolveBookLink(leg.eventLink);
@@ -5079,6 +5148,7 @@
       bestParlayState.activeKey = slides[next].dataset.key;
       bpCounter.textContent = `${next + 1}/${slides.length}`;
       restartBestParlayProgress();
+      if (direction !== "none") countBestParlayChances([{ chip: slides[next].querySelector(".bp-chance"), delay: 80 }]);
     }
 
     function stepBestParlay(delta) {
@@ -5094,10 +5164,12 @@
     }
 
     function setBestParlayExpanded(open) {
+      const opening = open && bpDetails.hidden;
       bpDetails.hidden = !open;
       bpMoreButton.setAttribute("aria-expanded", String(open));
       bpMoreButton.firstChild.textContent = open ? "Hide legs " : "All legs ";
       bestParlayElement.classList.toggle("is-expanded", open);
+      if (opening) countBestParlayChances([...bpDetails.querySelectorAll(".bp-chance")].map((chip, index) => ({ chip, delay: 70 * index })));
     }
 
     if (bestParlayElement) {
