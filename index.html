@@ -2193,6 +2193,15 @@
     html[data-theme="light"] .bp-sport-option { border-color: #d4ddc9; background: #fff; color: #526048; }
     html[data-theme="light"] .bp-sport-option:has(input:checked),
     html[data-theme="light"] .bp-sport-option:has(input:indeterminate) { border-color: #99b66e; background: #e3edcf; color: #29420f; }
+    /* The sport list fades and drops into place as it opens, and lifts away as it closes where the browser can animate the top layer */
+    @media (prefers-reduced-motion: no-preference) {
+      .bp-sport-select { transition: opacity .16s ease-out, translate .2s cubic-bezier(.2,.8,.2,1); }
+      @starting-style { .bp-sport-select:popover-open { opacity: 0; translate: 0 -6px; } }
+      @supports (overlay: auto) {
+        .bp-sport-select { transition: opacity .16s ease-out, translate .2s cubic-bezier(.2,.8,.2,1), overlay .2s allow-discrete, display .2s allow-discrete; }
+        .bp-sport-select:not(:popover-open) { opacity: 0; translate: 0 -6px; }
+      }
+    }
     html[data-theme="light"] .bp-sport-option:has(input:disabled) { background: transparent; color: #68735f; }
     @media (max-width: 560px) {
       .bp-sport-option { min-height: 44px; padding: 8px; }
@@ -2307,9 +2316,11 @@
     .bp-stat-chance dd { cursor: help; }
     .bp-stale { padding: 2px 8px; border-radius: 99px; background: rgba(255,196,87,.14); color: #ffd27a; font-size: .64rem; font-weight: 800; white-space: nowrap; cursor: help; }
     .bp-actions { display: flex; grid-area: actions; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; padding: 0 12px 11px; }
-    .bp-more { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; height: 32px; min-height: 0; padding: 0 11px; border: 1px solid rgba(225,233,229,.16); border-radius: 8px; background: transparent; color: #dfe6d6; font-size: .74rem; font-weight: 750; white-space: nowrap; }
+    .bp-more { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; height: 32px; min-height: 0; padding: 0 11px; border: 1px solid rgba(225,233,229,.16); border-radius: 8px; background: transparent; color: #dfe6d6; font-size: .74rem; font-weight: 750; white-space: nowrap; transition: border-color .2s, background-color .2s, color .2s; }
     .bp-more:hover:not(:disabled) { border-color: rgba(225,233,229,.32); background: rgba(255,255,255,.06); color: #f2f7e6; }
-    .bp-more svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+    .bp-more[aria-expanded="true"] { border-color: rgba(201,239,91,.45); background: rgba(201,239,91,.08); color: #e4f4c4; }
+    .bp-more[aria-expanded="true"]:hover:not(:disabled) { border-color: rgba(201,239,91,.7); background: rgba(201,239,91,.14); color: #f2f7e6; }
+    .bp-more svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .32s cubic-bezier(.34,1.4,.64,1); }
     .bp-more[aria-expanded="true"] svg { transform: rotate(180deg); }
     /* The main button puts the whole parlay in the Live tracker; it never opens the sportsbook */
     .bp-track { display: inline-flex; flex: 1 1 auto; align-items: center; justify-content: center; gap: 7px; min-width: 0; height: 32px; min-height: 0; padding: 0 14px; overflow: hidden; border: 0; border-radius: 8px; background: #c9ef5b; color: #12150f; font-size: .76rem; font-weight: 800; white-space: nowrap; transition: background-color .15s, box-shadow .15s, color .15s; }
@@ -2325,6 +2336,7 @@
     @keyframes bp-track-check { from { stroke-dashoffset: 15; } to { stroke-dashoffset: 0; } }
     .bp-details { grid-area: details; padding: 2px 12px 12px; border-top: 1px solid rgba(225,233,229,.08); }
     .bp-details[hidden] { display: none; }
+    .bp-details.is-folding { overflow: hidden; }
     .bp-leg-list { display: grid; margin: 0; padding: 0; list-style: none; }
     .bp-leg-list > li { padding: 8px 0; border-bottom: 1px solid rgba(225,233,229,.06); }
     .bp-leg-list > li.is-new { animation: bp-new 1.8s ease-out; }
@@ -2399,6 +2411,8 @@
     html[data-theme="light"] .bp-notes .bp-note-warn { color: #8a5a00; }
     html[data-theme="light"] .bp-more { border-color: rgba(40,58,22,.2); color: #26301f; }
     html[data-theme="light"] .bp-more:hover:not(:disabled) { border-color: rgba(40,58,22,.34); background: rgba(47,77,8,.06); color: #1b2418; }
+    html[data-theme="light"] .bp-more[aria-expanded="true"] { border-color: rgba(77,122,11,.5); background: rgba(120,170,30,.1); color: #2f4d08; }
+    html[data-theme="light"] .bp-more[aria-expanded="true"]:hover:not(:disabled) { border-color: #4d7a0b; background: rgba(120,170,30,.16); color: #1b2418; }
     html[data-theme="light"] .bp-track { background: #4d7a0b; color: #fff; }
     html[data-theme="light"] .bp-track:hover:not(:disabled) { background: #3d6208; box-shadow: 0 4px 14px rgba(77,122,11,.25); }
     html[data-theme="light"] .bp-track.is-tracked { background: rgba(120,170,30,.14); box-shadow: inset 0 0 0 1px #4d7a0b; color: #2f4d08; }
@@ -2420,7 +2434,7 @@
     @media (prefers-reduced-motion: reduce) {
       .bp-slide.is-active, .bp-slide.is-leaving, .bp-slide.is-removed, .bp-notice .toast, .bp-notice .toast.leaving { animation: none; }
       .bp-slide.is-leaving, .bp-slide.is-removed { visibility: hidden; opacity: 0; }
-      .bp-track, .bp-more svg { transition: none; }
+      .bp-track, .bp-more, .bp-more svg { transition: none; }
       .bp-track.is-tracked .bp-track-done { animation: none; }
       .bp-scope::before { animation: none; }
       .bp-progress, #bp-pause { display: none; }
@@ -5300,13 +5314,63 @@
       bpProgressBar.classList.add("run");
     }
 
-    function setBestParlayExpanded(open) {
-      const opening = open && bpDetails.hidden;
-      bpDetails.hidden = !open;
+    // "All legs" folds open: the panel eases to its full height while the legs rise in one after another,
+    // then the tools and notes. It folds shut the same way, and a press midway turns it around from where it is.
+    let bestParlayFolds = 0;
+    function stopBestParlayFold(ids = ["bp-fold", "bp-rise"]) {
+      for (const animation of bpDetails.getAnimations?.({ subtree: true }) || []) {
+        if (ids.includes(animation.id)) animation.cancel();
+      }
+      bpDetails.classList.remove("is-folding");
+    }
+
+    function setBestParlayExpanded(open, animate = false) {
+      const fold = ++bestParlayFolds;
+      const reveal = open && bpDetails.hidden;
+      const motion = animate && typeof bpDetails.animate === "function" && !document.hidden && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const shut = { height: "0px", paddingTop: "0px", paddingBottom: "0px", borderTopWidth: "0px", opacity: 0 };
+      const box = () => {
+        const style = window.getComputedStyle(bpDetails);
+        return { height: `${bpDetails.getBoundingClientRect().height}px`, paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, borderTopWidth: style.borderTopWidth, opacity: style.opacity };
+      };
+      // Read before any running fold is cancelled, so a reversal starts from the panel's current size.
+      const from = motion && !bpDetails.hidden ? box() : shut;
       bpMoreButton.setAttribute("aria-expanded", String(open));
       bpMoreButton.firstChild.textContent = open ? "Hide legs " : "All legs ";
       bestParlayElement.classList.toggle("is-expanded", open);
-      if (opening) countBestParlayChances([...bpDetails.querySelectorAll(".bp-chance")].map((chip, index) => ({ chip, delay: 70 * index })));
+      bpDetails.inert = !open;
+      if (!open) {
+        if (!motion || bpDetails.hidden) {
+          stopBestParlayFold();
+          bpDetails.hidden = true;
+          return;
+        }
+        stopBestParlayFold(["bp-fold"]);
+        bpDetails.classList.add("is-folding");
+        const folding = bpDetails.animate([from, shut], { id: "bp-fold", duration: Math.min(380, Math.max(200, 160 + parseFloat(from.height) * .25)), easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+        folding.onfinish = () => {
+          if (fold !== bestParlayFolds) return;
+          bpDetails.hidden = true;
+          stopBestParlayFold();
+        };
+        return;
+      }
+      stopBestParlayFold(reveal ? ["bp-fold", "bp-rise"] : ["bp-fold"]);
+      bpDetails.hidden = false;
+      const rows = [...bpDetails.querySelectorAll(".bp-leg-list > li")];
+      const rise = index => 50 + 45 * Math.min(index, 8);
+      if (reveal) countBestParlayChances(rows.map((row, index) => ({ chip: row.querySelector(".bp-chance"), delay: motion ? rise(index) + 120 : 70 * index })));
+      if (!motion) return;
+      const to = box();
+      bpDetails.classList.add("is-folding");
+      const unfolding = bpDetails.animate([from, to], { id: "bp-fold", duration: Math.min(480, Math.max(240, 200 + Math.abs(parseFloat(to.height) - parseFloat(from.height)) * .32)), easing: "cubic-bezier(.2,.8,.2,1)" });
+      unfolding.onfinish = () => {
+        if (fold === bestParlayFolds) bpDetails.classList.remove("is-folding");
+      };
+      if (!reveal) return;
+      [...rows, ...bpDetails.querySelectorAll(":scope > :not(.bp-leg-list)")].forEach((part, index) => {
+        part.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], { id: "bp-rise", duration: 380, delay: rise(index), easing: "cubic-bezier(.2,.8,.2,1)", fill: "backwards" });
+      });
     }
 
     if (bestParlayElement) {
@@ -5361,7 +5425,7 @@
         bpPauseButton.setAttribute("aria-label", paused ? "Play slides" : "Pause slides");
         bpViewport.setAttribute("aria-live", paused ? "polite" : "off");
       });
-      bpMoreButton.addEventListener("click", () => setBestParlayExpanded(bpDetails.hidden));
+      bpMoreButton.addEventListener("click", () => setBestParlayExpanded(bpMoreButton.getAttribute("aria-expanded") !== "true", true));
       bpTrackButton.addEventListener("click", addBestParlayToTracker);
       bpProgressBar.addEventListener("animationend", () => {
         // A game that tipped off since the last render gets its LIVE badge before the next slide.

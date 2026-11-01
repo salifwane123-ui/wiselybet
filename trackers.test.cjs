@@ -1182,3 +1182,139 @@ test("a player taken out of the best parlay stays out for his game, and an alter
   assert.deepEqual(names(page.bestParlayLegsFor({ legs: [later] })), [["Josh Hart"], []]);
   assert.deepEqual(JSON.parse(storage.get(removedKey)), {});
 });
+
+test("All legs folds open and shut, and a press midway turns it around from where it is", () => {
+  const animations = [];
+  // Like the browser, a finished animation that fills forwards still holds its last frame until it is cancelled.
+  const relevant = animation => !animation.cancelled && (!animation.finished || animation.fill === "forwards");
+  const finish = animation => {
+    animation.finished = true;
+    animation.onfinish?.();
+  };
+  const part = (extra = {}) => {
+    const classes = new Set();
+    return {
+      classes,
+      classList: {
+        add: name => classes.add(name),
+        remove: (...names) => names.forEach(name => classes.delete(name)),
+        toggle: (name, on) => on ? classes.add(name) : classes.delete(name)
+      },
+      animate(keyframes, options) {
+        const animation = { target: this, keyframes: plain(keyframes), ...options, onfinish: null, cancel() { this.cancelled = true; } };
+        animations.push(animation);
+        return animation;
+      },
+      ...extra
+    };
+  };
+  const chips = ["a", "b", "c"].map(name => ({ name }));
+  const rows = chips.map(chip => part({ querySelector: selector => selector === ".bp-chance" ? chip : null }));
+  const tools = part();
+  const notes = part();
+  const natural = { height: 240, paddingTop: "2px", paddingBottom: "12px", borderTopWidth: "1px", opacity: "1" };
+  let midway = natural;
+  const details = part({
+    hidden: true,
+    inert: false,
+    querySelectorAll: selector => selector === ".bp-leg-list > li" ? rows : selector === ":scope > :not(.bp-leg-list)" ? [tools, notes] : [],
+    getAnimations: () => animations.filter(relevant)
+  });
+  const size = () => animations.some(animation => animation.target === details && animation.id === "bp-fold" && relevant(animation)) ? midway : natural;
+  details.getBoundingClientRect = () => ({ height: details.hidden ? 0 : size().height });
+  const more = {
+    attributes: { "aria-expanded": "false" },
+    firstChild: { textContent: "All legs " },
+    setAttribute(name, value) { this.attributes[name] = value; },
+    getAttribute(name) { return this.attributes[name] ?? null; }
+  };
+  const bar = part();
+  const counted = [];
+  let reduce = false;
+  const sandbox = {
+    bpDetails: details,
+    bpMoreButton: more,
+    bestParlayElement: bar,
+    countBestParlayChances: runs => counted.push(Array.from(runs, ({ chip, delay }) => ({ chip: chip.name, delay }))),
+    document: { hidden: false },
+    window: {
+      matchMedia: () => ({ matches: reduce }),
+      getComputedStyle: () => {
+        const { paddingTop, paddingBottom, borderTopWidth, opacity } = size();
+        return { paddingTop, paddingBottom, borderTopWidth, opacity };
+      }
+    }
+  };
+  runInNewContext(slice('    // "All legs" folds open:', "    if (bestParlayElement) {"), sandbox);
+  const state = () => [details.hidden, details.inert, more.attributes["aria-expanded"], more.firstChild.textContent, bar.classes.has("is-expanded"), details.classes.has("is-folding")];
+  const shut = { height: "0px", paddingTop: "0px", paddingBottom: "0px", borderTopWidth: "0px", opacity: 0 };
+  const full = { height: "240px", paddingTop: "2px", paddingBottom: "12px", borderTopWidth: "1px", opacity: "1" };
+
+  // Opening shows the panel at once and grows it from nothing to its height while the legs rise in one after
+  // another, then the tools and notes; each percentage counts up just after its leg arrives.
+  sandbox.setBestParlayExpanded(true, true);
+  assert.deepEqual(state(), [false, false, "true", "Hide legs ", true, true]);
+  const unfold = animations[0];
+  assert.equal(unfold.target, details);
+  assert.deepEqual([unfold.id, unfold.fill, unfold.keyframes], ["bp-fold", undefined, [shut, full]]);
+  assert.ok(unfold.duration >= 240 && unfold.duration <= 480);
+  const rises = animations.filter(animation => animation.id === "bp-rise");
+  assert.deepEqual(rises.map(animation => [[...rows, tools, notes].indexOf(animation.target), animation.delay, animation.fill]), [[0, 50, "backwards"], [1, 95, "backwards"], [2, 140, "backwards"], [3, 185, "backwards"], [4, 230, "backwards"]]);
+  assert.deepEqual(rises[0].keyframes, [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }]);
+  assert.deepEqual(counted, [[{ chip: "a", delay: 170 }, { chip: "b", delay: 215 }, { chip: "c", delay: 260 }]]);
+  finish(unfold);
+  rises.forEach(finish);
+  assert.equal(details.classes.has("is-folding"), false);
+
+  // Closing keeps the panel on screen, out of reach, while it folds to nothing, then hides it.
+  sandbox.setBestParlayExpanded(false, true);
+  assert.deepEqual(state(), [false, true, "false", "All legs ", false, true]);
+  const close = animations.at(-1);
+  assert.deepEqual([close.target === details, close.id, close.fill, close.keyframes], [true, "bp-fold", "forwards", [full, shut]]);
+
+  // Pressed again midway, it turns around from its current size without hiding or replaying the legs.
+  midway = { height: 120, paddingTop: "1px", paddingBottom: "6px", borderTopWidth: "1px", opacity: "0.5" };
+  const before = animations.length;
+  sandbox.setBestParlayExpanded(true, true);
+  assert.equal(close.cancelled, true);
+  assert.deepEqual(state(), [false, false, "true", "Hide legs ", true, true]);
+  assert.equal(animations.length, before + 1);
+  const reopen = animations.at(-1);
+  assert.deepEqual(reopen.keyframes, [{ height: "120px", paddingTop: "1px", paddingBottom: "6px", borderTopWidth: "1px", opacity: "0.5" }, full]);
+  assert.equal(counted.length, 1);
+  // A late finish from the reversed fold changes nothing.
+  close.onfinish();
+  assert.equal(details.hidden, false);
+  finish(reopen);
+  assert.equal(details.classes.has("is-folding"), false);
+
+  // Once folded shut it hides and lets go of the last frame.
+  midway = natural;
+  sandbox.setBestParlayExpanded(false, true);
+  const last = animations.at(-1);
+  finish(last);
+  assert.deepEqual(state(), [true, true, "false", "All legs ", false, false]);
+  assert.equal(last.cancelled, true);
+
+  // When the bar empties, the panel closes at once, even mid-fold.
+  sandbox.setBestParlayExpanded(true, true);
+  const opening = animations.filter(relevant);
+  assert.equal(opening.length, 6);
+  sandbox.setBestParlayExpanded(false);
+  assert.deepEqual(state(), [true, true, "false", "All legs ", false, false]);
+  assert.ok(opening.every(animation => animation.cancelled));
+
+  // With reduced motion it opens and closes at once.
+  reduce = true;
+  const count = animations.length;
+  sandbox.setBestParlayExpanded(true, true);
+  assert.deepEqual(state(), [false, false, "true", "Hide legs ", true, false]);
+  assert.deepEqual(counted.at(-1), [{ chip: "a", delay: 0 }, { chip: "b", delay: 70 }, { chip: "c", delay: 140 }]);
+  sandbox.setBestParlayExpanded(false, true);
+  assert.deepEqual(state(), [true, true, "false", "All legs ", false, false]);
+  assert.equal(animations.length, count);
+
+  // The button animates and follows what it shows; emptying the bar doesn't animate.
+  assert.match(html, /bpMoreButton\.addEventListener\("click", \(\) => setBestParlayExpanded\(bpMoreButton\.getAttribute\("aria-expanded"\) !== "true", true\)\)/);
+  assert.match(html, /bpDetails\.replaceChildren\(\);\s+setBestParlayExpanded\(false\);/);
+});
