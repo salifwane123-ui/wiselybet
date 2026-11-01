@@ -29,7 +29,7 @@ const code = [
   slice("    const historyKey = ", "    function historyRecord()"),
   slice("    function paceModel(tracker) {", "    function baseballRead("),
   slice("    // Copies of a pick in several parlays pop for the same play", "    // Sparks and confetti flying out"),
-  slice("    // Opening a pick or the whole parlay at the sportsbook also tracks it", "    // A short note that the picks are in the tracker, with Undo."),
+  slice("    // Add to tracker puts the whole parlay in the tracker", "    // A short note that the picks are in the tracker, with Undo."),
   slice("    function normalizeName(", "    function normalizeSignalName("),
   slice("    // Players the user took out of the best parlay", "    function bestParlayLegText("),
   slice("    function bestParlayOutcomeText(", "    // The book and state lists are declared"),
@@ -84,7 +84,7 @@ const context = {
 const page = runInNewContext(`${code}
 ({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead,
    pickIdentity, pickSlot, pickCopyIn, addTracker, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
-   playOnce, bestParlayPicks, trackBestParlayPicks, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
+   playOnce, bestParlayPicks, trackBestParlayPicks, addBestParlayToTracker, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
    forgetBestParlayRemoved, syncBestParlayRemoved, trackerClock, suggestionsSettled, bookSuggestionPending, removalSuggestionPending,
   disableParlaySuggestions, bestParlayOutcomeText, bestParlayLegText, createLiveNow, measureTrackerHeader });`, context);
 // Objects made inside the vm have their own prototypes; compare plain copies.
@@ -900,8 +900,21 @@ const noParlays = () => {
   context.trackers = [];
   trackerSnapshots.clear();
 };
+// Lends the page extra globals for one test, then puts the originals back.
+function withGlobals(globals, run) {
+  const saved = Object.keys(globals).map(key => [key, Object.hasOwn(context, key), context[key]]);
+  Object.assign(context, globals);
+  try {
+    run();
+  } finally {
+    for (const [key, had, value] of saved) {
+      if (had) context[key] = value;
+      else delete context[key];
+    }
+  }
+}
 
-test("opening the betslip tracks the parlay once, set to that sportsbook", () => {
+test("Add to tracker tracks the parlay once, set to that sportsbook", () => {
   noParlays();
   const first = openAtBook([brunson, tatum], true);
   assert.equal(first.created, true);
@@ -909,7 +922,7 @@ test("opening the betslip tracks the parlay once, set to that sportsbook", () =>
   assert.deepEqual(plain(first.parlay), { id: first.parlay.id, name: "Best parlay · DraftKings", sportsbook: "draftkings", ticketAt: clock });
   assert.deepEqual(ticketLegs(first.parlay), [["Jalen Brunson", "PTS", 25], ["Jayson Tatum", "REB", 9]]);
 
-  // Opening it again changes nothing, even after a line moved.
+  // Adding it again changes nothing, even after a line moved.
   const again = openAtBook([{ ...brunson, line: 25.5 }, tatum], true);
   assert.equal(again.parlay, first.parlay);
   assert.equal(again.created, false);
@@ -924,7 +937,124 @@ test("opening the betslip tracks the parlay once, set to that sportsbook", () =>
   assert.equal(context.parlays.length, 1);
 });
 
-test("legs opened one by one build one ticket, and the betslip completes it", () => {
+test("Add to tracker puts the whole parlay in the tracker and opens the tracker on it, never the sportsbook", () => {
+  noParlays();
+  const calls = [];
+  const initialized = new Set();
+  const collapsed = new Set(["parlay:other"]);
+  const account = { ...context.window, wiselyPremium: true, wiselyUser: { uid: "u1" }, location: { assign: url => calls.push(["go", url]) } };
+  withGlobals({
+    window: account,
+    bestParlayState: { shown: { legs: [brunson, tatum], data: draftkings } },
+    trackerPanelOpen: false,
+    parlayView: "singles",
+    collapsedTrackerWindows: collapsed,
+    initializeCollapsedParlays: () => context.parlays.forEach(parlay => {
+      if (!initialized.has(parlay.id)) collapsed.add(`parlay:${parlay.id}`);
+      initialized.add(parlay.id);
+    }),
+    saveParlayView: () => calls.push(["save view", context.parlayView]),
+    setTrackerPanelOpen: open => {
+      context.trackerPanelOpen = open;
+      calls.push(["panel", open]);
+    },
+    renderTrackers: () => calls.push(["render"]),
+    showTrackedToast: ({ created, added }, whole, opened) => calls.push(["toast", created, added.length, whole, opened]),
+    trackerPanel: { querySelector: selector => ({ scrollIntoView: ({ block }) => calls.push(["scroll", selector, block]) }) }
+  }, () => {
+    page.addBestParlayToTracker();
+    assert.equal(context.parlays.length, 1);
+    const [parlay] = context.parlays;
+    const key = `parlay:${parlay.id}`;
+    const scroll = ["scroll", `[data-window-key="${key}"]`, "nearest"];
+    assert.equal(parlay.sportsbook, "draftkings");
+    assert.deepEqual(ticketLegs(parlay), [["Jalen Brunson", "PTS", 25], ["Jayson Tatum", "REB", 9]]);
+    // The tracker opens on the new parlay, expanded, switched from "Single picks only" to it. Undo would close it again.
+    assert.equal(context.trackerPanelOpen, true);
+    assert.equal(collapsed.has(key), false);
+    assert.equal(collapsed.has("parlay:other"), true);
+    assert.equal(context.parlayView, parlay.id);
+    assert.deepEqual(calls.filter(([kind]) => kind === "save view"), [["save view", parlay.id]]);
+    assert.deepEqual(calls.slice(-2), [scroll, ["toast", true, 2, true, true]]);
+    assert.equal(calls.some(([kind]) => kind === "go"), false);
+
+    // Pressing it again only shows the parlay; nothing is added twice.
+    calls.length = 0;
+    collapsed.add(key);
+    page.addBestParlayToTracker();
+    assert.equal(context.parlays.length, 1);
+    assert.equal(context.trackers.length, 2);
+    assert.equal(collapsed.has(key), false);
+    assert.deepEqual(calls, [["render"], scroll, ["toast", false, 0, true, false]]);
+
+    // "Show everything" already includes it, and a closed tracker opens.
+    calls.length = 0;
+    context.parlayView = "all";
+    context.trackerPanelOpen = false;
+    page.addBestParlayToTracker();
+    assert.equal(context.parlayView, "all");
+    assert.deepEqual(calls, [["panel", true], scroll, ["toast", false, 0, true, true]]);
+
+    // Lapsed members are sent to subscribe and guests to sign up; nothing is tracked.
+    noParlays();
+    calls.length = 0;
+    account.wiselyPremium = false;
+    page.addBestParlayToTracker();
+    account.wiselyUser = undefined;
+    page.addBestParlayToTracker();
+    assert.deepEqual(calls, [["go", "/subscribe"], ["go", "/login#signup"]]);
+    assert.equal(context.parlays.length, 0);
+
+    calls.length = 0;
+    account.wiselyPremium = true;
+    context.bestParlayState.shown = null;
+    page.addBestParlayToTracker();
+    assert.deepEqual(calls, []);
+  });
+  const button = html.match(/<button type="button" id="bp-track" class="bp-track">[\s\S]*?<\/button>/)?.[0] || "";
+  assert.match(button, /Add to tracker/);
+  assert.doesNotMatch(button, /href|target=/);
+  assert.doesNotMatch(html, /id="bp-open"/);
+  assert.ok(html.includes('bpTrackButton.addEventListener("click", addBestParlayToTracker);'));
+  assert.doesNotMatch(slice("    function addBestParlayToTracker(", "    // A short note that the picks are in the tracker"), /window\.open|\.href\b/);
+});
+
+test("the Add to tracker button shows when the parlay is tracked, locked or only partly trackable", () => {
+  noParlays();
+  runInNewContext(slice("    // Marks the Add to tracker button", "    async function copyBestParlay("), context);
+  const classes = new Set();
+  const button = { disabled: false, title: "", classList: { toggle: (name, on) => on ? classes.add(name) : classes.delete(name) } };
+  const label = { textContent: "Add to tracker" };
+  const account = { ...context.window, wiselyPremium: true, wiselyUser: { uid: "u1" } };
+  const state = { shown: { legs: [brunson, tatum], data: draftkings } };
+  const threes = bestLeg("Jalen Brunson", "player_threes", 2.5);
+  const read = () => [label.textContent, [...classes].join(" "), button.disabled, button.title];
+  withGlobals({ window: account, bestParlayState: state, bpDetails: { querySelectorAll: () => [] }, bpTrackButton: button, bpTrackLabel: label }, () => {
+    context.syncBestParlayTracked();
+    assert.deepEqual(read(), ["Add to tracker", "", false, "Adds all 2 picks to your Live tracker as one DraftKings parlay, so you can follow them live"]);
+    openAtBook([brunson, tatum], true);
+    context.syncBestParlayTracked();
+    assert.deepEqual(read(), ["In your tracker", "is-tracked", false, "This parlay is in your Live tracker, set to DraftKings. Click to show it."]);
+
+    state.shown = { legs: [hart, threes], data: draftkings };
+    context.syncBestParlayTracked();
+    assert.deepEqual(read(), ["Add 1 of 2 to tracker", "", false, "Adds 1 of 2 picks to your Live tracker as one DraftKings parlay, so you can follow it live"]);
+    state.shown = { legs: [threes], data: draftkings };
+    context.syncBestParlayTracked();
+    assert.deepEqual(read(), ["Add to tracker", "", true, "The tracker can't follow these picks yet"]);
+
+    // Tracking is for members. Others see a lock, never a tracked parlay, and can press it to subscribe or sign up.
+    state.shown = { legs: [brunson, tatum], data: draftkings };
+    account.wiselyPremium = false;
+    context.syncBestParlayTracked();
+    assert.deepEqual(read(), ["🔒 Add to tracker", "is-locked", false, "Subscribe to follow this parlay live in your tracker"]);
+    account.wiselyUser = undefined;
+    context.syncBestParlayTracked();
+    assert.equal(button.title, "Create a free account to follow this parlay live in your tracker");
+  });
+});
+
+test("legs opened one by one build one ticket, and Add to tracker completes it", () => {
   noParlays();
   const ticket = openAtBook([brunson], false).parlay;
   clock += 10 * 60_000;
@@ -943,10 +1073,10 @@ test("legs opened one by one build one ticket, and the betslip completes it", ()
   assert.equal(context.parlays.length, 1);
 });
 
-test("another betslip, a later leg or another sportsbook starts a new ticket", () => {
+test("another parlay, a later leg or another sportsbook starts a new ticket", () => {
   noParlays();
   const first = openAtBook([brunson, tatum], true).parlay;
-  // The open ticket has a leg this betslip leaves out, so it's another bet.
+  // The open ticket has a leg this parlay leaves out, so it's another bet.
   const second = openAtBook([tatum, hart], true).parlay;
   assert.notEqual(second, first);
   assert.equal(second.name, `Best parlay · DraftKings · ${clockTime()}`);

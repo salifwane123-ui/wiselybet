@@ -2311,9 +2311,18 @@
     .bp-more:hover:not(:disabled) { border-color: rgba(225,233,229,.32); background: rgba(255,255,255,.06); color: #f2f7e6; }
     .bp-more svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
     .bp-more[aria-expanded="true"] svg { transform: rotate(180deg); }
-    .bp-open { display: inline-flex; flex: 1 1 auto; align-items: center; justify-content: center; min-width: 0; height: 32px; padding: 0 14px; overflow: hidden; border-radius: 8px; background: #c9ef5b; color: #12150f; font-size: .76rem; font-weight: 800; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; transition: background-color .15s, box-shadow .15s; }
-    .bp-open:hover { background: #d8f77c; box-shadow: 0 4px 14px rgba(201,239,91,.25); }
-    .bp-open[aria-disabled="true"] { pointer-events: none; opacity: .5; }
+    /* The main button puts the whole parlay in the Live tracker; it never opens the sportsbook */
+    .bp-track { display: inline-flex; flex: 1 1 auto; align-items: center; justify-content: center; gap: 7px; min-width: 0; height: 32px; min-height: 0; padding: 0 14px; overflow: hidden; border: 0; border-radius: 8px; background: #c9ef5b; color: #12150f; font-size: .76rem; font-weight: 800; white-space: nowrap; transition: background-color .15s, box-shadow .15s, color .15s; }
+    .bp-track:hover:not(:disabled) { background: #d8f77c; box-shadow: 0 4px 14px rgba(201,239,91,.25); }
+    .bp-track:disabled { opacity: .5; cursor: default; }
+    .bp-track svg { flex: 0 0 auto; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .bp-track span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .bp-track .bp-track-done, .bp-track.is-tracked .bp-track-add, .bp-track.is-locked svg { display: none; }
+    .bp-track.is-tracked { background: rgba(201,239,91,.14); box-shadow: inset 0 0 0 1px rgba(201,239,91,.5); color: #c9ef5b; }
+    .bp-track.is-tracked:hover:not(:disabled) { background: rgba(201,239,91,.24); box-shadow: inset 0 0 0 1px #c9ef5b; }
+    /* The check draws itself in once the parlay is tracked */
+    .bp-track.is-tracked .bp-track-done { display: inline; stroke-dasharray: 15; animation: bp-track-check .4s ease-out both; }
+    @keyframes bp-track-check { from { stroke-dashoffset: 15; } to { stroke-dashoffset: 0; } }
     .bp-details { grid-area: details; padding: 2px 12px 12px; border-top: 1px solid rgba(225,233,229,.08); }
     .bp-details[hidden] { display: none; }
     .bp-leg-list { display: grid; margin: 0; padding: 0; list-style: none; }
@@ -2348,16 +2357,16 @@
       .bp-pace-title { display: inline-flex; }
       .bp-pace-side { display: none; }
     }
-    /* Tablets: the totals and the betslip button share a row under the slides */
+    /* Tablets: the totals and the Add to tracker button share a row under the slides */
     @container bp (min-width: 640px) {
       .bp-inner { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head head" "ticker ticker" "notice notice" "stats actions" "details details"; }
       .bp-sub { display: block; }
       .bp-actions { padding: 8px 12px; border-top: 1px solid rgba(225,233,229,.08); }
-      .bp-open { flex: 0 1 auto; }
+      .bp-track { flex: 0 1 auto; }
       .bp-leg-list .bp-leg { grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas: "num main odds link remove"; }
       .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds link remove" ". why why why why"; }
     }
-    /* Wide screens: totals sit beside the title, the betslip button beside the slides */
+    /* Wide screens: totals sit beside the title, the Add to tracker button beside the slides */
     @container bp (min-width: 1100px) {
       .bp-inner { grid-template-areas: "head stats" "ticker actions" "notice notice" "details details"; }
       .bp-stats { justify-content: flex-end; gap: 6px 22px; padding: 8px 14px; border-top: 0; }
@@ -2390,8 +2399,10 @@
     html[data-theme="light"] .bp-notes .bp-note-warn { color: #8a5a00; }
     html[data-theme="light"] .bp-more { border-color: rgba(40,58,22,.2); color: #26301f; }
     html[data-theme="light"] .bp-more:hover:not(:disabled) { border-color: rgba(40,58,22,.34); background: rgba(47,77,8,.06); color: #1b2418; }
-    html[data-theme="light"] .bp-open { background: #4d7a0b; color: #fff; }
-    html[data-theme="light"] .bp-open:hover { background: #3d6208; box-shadow: 0 4px 14px rgba(77,122,11,.25); }
+    html[data-theme="light"] .bp-track { background: #4d7a0b; color: #fff; }
+    html[data-theme="light"] .bp-track:hover:not(:disabled) { background: #3d6208; box-shadow: 0 4px 14px rgba(77,122,11,.25); }
+    html[data-theme="light"] .bp-track.is-tracked { background: rgba(120,170,30,.14); box-shadow: inset 0 0 0 1px #4d7a0b; color: #2f4d08; }
+    html[data-theme="light"] .bp-track.is-tracked:hover:not(:disabled) { background: rgba(120,170,30,.24); box-shadow: inset 0 0 0 1px #3d6208; color: #1b2418; }
     html[data-theme="light"] .bp-retry, html[data-theme="light"] .bp-tool, html[data-theme="light"] .bp-leg-link { border-color: rgba(77,122,11,.4); color: #2f4d08; }
     html[data-theme="light"] .bp-retry:hover:not(:disabled) { border-color: #4d7a0b; background: #4d7a0b; color: #fff; }
     html[data-theme="light"] .bp-tool:hover:not(:disabled), html[data-theme="light"] .bp-leg-link:hover { border-color: #4d7a0b; background: rgba(120,170,30,.12); color: #1b2418; }
@@ -2409,7 +2420,8 @@
     @media (prefers-reduced-motion: reduce) {
       .bp-slide.is-active, .bp-slide.is-leaving, .bp-slide.is-removed, .bp-notice .toast, .bp-notice .toast.leaving { animation: none; }
       .bp-slide.is-leaving, .bp-slide.is-removed { visibility: hidden; opacity: 0; }
-      .bp-open, .bp-more svg { transition: none; }
+      .bp-track, .bp-more svg { transition: none; }
+      .bp-track.is-tracked .bp-track-done { animation: none; }
       .bp-scope::before { animation: none; }
       .bp-progress, #bp-pause { display: none; }
     }
@@ -2698,7 +2710,7 @@
           <dl id="bp-stats" class="bp-stats"></dl>
           <div class="bp-actions">
             <button type="button" id="bp-more" class="bp-more" aria-expanded="false" aria-controls="bp-details">All legs <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
-            <a id="bp-open" class="bp-open" target="_blank" rel="noopener noreferrer">Open betslip ↗</a>
+            <button type="button" id="bp-track" class="bp-track"><svg viewBox="0 0 16 16" aria-hidden="true"><path class="bp-track-add" d="M8 3.5v9M3.5 8h9"/><path class="bp-track-done" d="m3.5 8.5 3 3 6-7"/></svg><span id="bp-track-label">Add to tracker</span></button>
           </div>
           <div id="bp-details" class="bp-details" hidden></div>
         </div>
@@ -3414,7 +3426,8 @@
     const bpNotice = document.querySelector("#bp-notice");
     const bpStats = document.querySelector("#bp-stats");
     const bpMoreButton = document.querySelector("#bp-more");
-    const bpOpenLink = document.querySelector("#bp-open");
+    const bpTrackButton = document.querySelector("#bp-track");
+    const bpTrackLabel = document.querySelector("#bp-track-label");
     const bpDetails = document.querySelector("#bp-details");
     const bestParlayState = { sport: "", book: "", data: null, error: "", loading: false, request: 0, loadedAt: 0, index: 0, activeKey: "", renderedAt: 0, leaveTimer: 0, swipedAt: 0, removedAt: 0, shown: null };
     // Show at most 6 live matches; scroll the list when there are more.
@@ -4088,7 +4101,7 @@
     }
 
     // Best parlay bar: player-prop legs use each player's lowest available stat line at the user's sportsbook.
-    // The server picks the legs (/api/best-parlay); this code shows them, builds the betslip link and tracks them.
+    // The server picks the legs (/api/best-parlay); this code shows them, links each leg to the sportsbook and tracks them.
     const parlayLegCounts = [2, 3, 4, 5, 6, 7, 8];
     const bestParlayRefreshMs = 3 * 60_000;
     // Live legs carry the game clock and box score, so they refresh about every minute.
@@ -4673,7 +4686,7 @@
           ? bestParlayAllRemovedSlide(removed, ["live-positive", "live-performance"].includes(data?.rankBy))
           : book
             ? bestParlayEmptySlide(data, book)
-            : bestParlayMessage("Choose your sportsbook", "and we'll build the best player-prop parlay from your selected games at its odds, ready to open in your betslip."));
+            : bestParlayMessage("Choose your sportsbook", "and we'll build the best player-prop parlay from your selected games at its odds, ready to add to your Live tracker."));
         bpStats.replaceChildren();
         bpDetails.replaceChildren();
         setBestParlayExpanded(false);
@@ -4695,24 +4708,8 @@
       const kept = slides.findIndex(slide => slide.dataset.key === state.activeKey);
       showBestParlaySlide(kept >= 0 ? kept : Math.min(state.index, slides.length - 1), "none");
       renderBestParlayStats(legs, data, removed.length);
-      const links = bestParlayLinks(legs, book);
-      const title = sportsbookTitle(book);
-      if (links.href) {
-        bpOpenLink.href = links.href;
-        bpOpenLink.removeAttribute("aria-disabled");
-      } else {
-        bpOpenLink.removeAttribute("href");
-        bpOpenLink.setAttribute("aria-disabled", "true");
-      }
-      bpOpenLink.textContent = links.label;
-      // Members' picks also go into the tracker when the betslip opens.
-      const follows = window.wiselyPremium ? ` The parlay is also added to your tracker${legs.length === 1 ? "" : " as one parlay"}.` : "";
-      bpOpenLink.title = (links.carried === legs.length
-        ? `Opens ${title} in a new tab with ${legs.length === 1 ? "this pick" : `all ${legs.length} picks`} in the betslip. Check the odds there before you bet.`
-        : links.carried
-          ? `Opens ${title} with ${links.carried} of ${legs.length} picks in the betslip. Add the rest from "All legs".`
-          : `Opens ${title} in a new tab. Add each leg from "All legs" or search for the players.`) + follows;
-      renderBestParlayDetails(legs, data, links.direct, removed);
+      // Only a leg's own link in "All legs" opens the sportsbook; the main button tracks (syncBestParlayTracked).
+      renderBestParlayDetails(legs, data, legs.map(leg => resolveBookLink(leg.link)), removed);
       countChangedBestParlayChances(before);
       state.renderedAt = Date.now();
     }
@@ -4753,20 +4750,6 @@
       bpStats.replaceChildren(...items);
     }
 
-    // The main button loads every leg the book can take in one link, else opens the book's site.
-    function bestParlayLinks(legs, book) {
-      const title = sportsbookTitle(book);
-      const direct = legs.map(leg => resolveBookLink(leg.link));
-      const carried = direct.filter(Boolean);
-      const slip = carried.length ? combineBetslipLinks(book, carried) : "";
-      const home = resolveBookLink(sportsbooks.find(item => item.key === book)?.home);
-      const fallback = legs.map(leg => resolveBookLink(leg.marketLink) || resolveBookLink(leg.eventLink)).find(Boolean) || "";
-      let label = `Open ${title} ↗`;
-      if (slip && carried.length === legs.length) label = `Open betslip at ${title} ↗`;
-      else if (slip) label = `Open betslip · ${carried.length} of ${legs.length} ↗`;
-      return { direct, href: slip || home || fallback, label, carried: slip ? carried.length : 0 };
-    }
-
     function renderBestParlayDetails(legs, data, direct, removed = []) {
       const { sport, book } = data;
       const title = sportsbookTitle(book);
@@ -4786,21 +4769,13 @@
           link.dataset.direct = direct[index] ? "true" : "";
           link.dataset.player = leg.player;
           link.dataset.identity = bestParlayPicks([leg], legSport)[0]?.identity || "";
-          followOnOpen(link, () => followBestParlay([leg], data, false));
+          followOnOpen(link, () => followBestParlayLeg(leg, data));
           row.querySelector(".bp-remove").before(link);
         }
         item.append(row);
         list.append(item);
       });
       const tools = element("div", "bp-tools");
-      if (window.wiselyPremium) {
-        const track = element("button", "bp-tool bp-track");
-        track.type = "button";
-        track.addEventListener("click", () => followBestParlay(legs, data, true));
-        tools.append(track);
-      } else {
-        tools.append(createLockedButton("🔒 Track this parlay"));
-      }
       const copy = element("button", "bp-tool", "Copy picks");
       copy.type = "button";
       copy.addEventListener("click", () => void copyBestParlay(legs, data, copy));
@@ -4820,7 +4795,7 @@
       const pregame = data.rankBy === "pregame-probability";
       const gamesOn = pregame && data.live?.games > 0 ? data.live : null;
       const onNow = gamesOn ? `the ${countText(gamesOn.games, "game")} on now` : "";
-      if (window.wiselyPremium) note(`Opening the betslip, or a single leg, also adds those picks to your tracker as a ${title} parlay, so you can follow them live.`);
+      if (window.wiselyPremium) note(`Add to tracker follows the whole parlay live in your tracker, set to ${title}, without opening ${title}. A leg's own link opens that pick at ${title} and adds it to your tracker too.`);
       note(pregame
         ? `${!gamesOn ? "No game is live right now" : gamesOn.bookGames ? `Too few live picks qualify in ${onNow}` : `${title} isn't pricing live player props for ${onNow}`}, so these are pre-game picks: the upcoming player props with the highest percentages on Player Props, highest first, from the main or alternate lines ${title} offers. Where ${title} lacks the exact line, its nearest easier line carries that line's percentage as a conservative estimate. Live picks take over once ${gamesOn ? "enough qualify" : "a game starts"}.`
         : `The suggestion uses up to ${parlayLegTarget()} eligible legs, choosing each pick's lowest available line at ${title}. Candidates are ordered by market and available live strength signals.`);
@@ -4953,7 +4928,7 @@
       }
     }
 
-    // Opening a pick or the whole parlay at the sportsbook also tracks it, as a parlay set to that sportsbook.
+    // Add to tracker puts the whole parlay in the tracker, and opening one pick at the sportsbook tracks that pick, as a parlay set to that sportsbook.
     // Picks opened one at a time within half an hour build one "ticket", the way the book's betslip fills up.
     const bestParlayTicketMs = 30 * 60_000;
 
@@ -5006,7 +4981,7 @@
       return named(` #${number}`);
     }
 
-    // whole: the betslip or the Track button, so the parlay is exactly these legs. Otherwise one leg was opened.
+    // whole: the Add to tracker button, so the parlay is exactly these legs. Otherwise one leg was opened at the sportsbook.
     // Returns { parlay, created, added: tracker keys, picks }, or null when nothing could be tracked.
     function trackBestParlayPicks(legs, data, whole) {
       const { sport, book } = data;
@@ -5018,7 +4993,7 @@
       if (whole) {
         const same = bookParlayWith(identities, book, true);
         if (same) return { parlay: same, created: false, added: [], picks };
-        // A ticket built leg by leg grows into the full betslip.
+        // A ticket built leg by leg grows into the whole parlay.
         if (open && [...parlayPickIdentities(open)].every(identity => identities.includes(identity))) parlay = open;
       } else if (open) {
         parlay = open;
@@ -5054,6 +5029,35 @@
       return { parlay, created, added, picks };
     }
 
+    // The Add to tracker button: the whole parlay goes into the tracker, set to the chosen sportsbook, and the tracker opens
+    // on it. It never opens the sportsbook. A parlay already tracked is just shown. Guests and lapsed members go to sign up.
+    function addBestParlayToTracker() {
+      const shown = bestParlayState.shown;
+      if (!shown) return;
+      if (!window.wiselyPremium) {
+        window.location.assign(window.wiselyUser ? "/subscribe" : "/login#signup");
+        return;
+      }
+      const wasOpen = trackerPanelOpen;
+      const result = trackBestParlayPicks(shown.legs, shown.data, true);
+      if (!result) return;
+      revealTrackerParlay(result.parlay);
+      showTrackedToast(result, true, !wasOpen);
+    }
+
+    // Opens the tracker on this parlay, expanded, and switches the tracker's filter when it would hide the parlay.
+    function revealTrackerParlay(parlay) {
+      initializeCollapsedParlays();
+      collapsedTrackerWindows.delete(`parlay:${parlay.id}`);
+      if (parlayView !== "all" && parlayView !== parlay.id) {
+        parlayView = parlay.id;
+        saveParlayView();
+      }
+      if (trackerPanelOpen) renderTrackers();
+      else setTrackerPanelOpen(true);
+      trackerPanel.querySelector(`[data-window-key="parlay:${parlay.id}"]`)?.scrollIntoView({ block: "nearest" });
+    }
+
     // A short note that the picks are in the tracker, with Undo. Only the latest one is kept: { parlayId, ...showActionToast }.
     let trackedToast = null;
 
@@ -5064,16 +5068,16 @@
       });
     }
 
-    // Runs after the click so the sportsbook tab opens first. Only members can track.
-    // The whole parlay opens the tracker to show it. A single leg leaves the tracker as it was, so it doesn't cover
-    // the legs still to pick; the note and the tracker button's count show it was added.
-    function followBestParlay(legs, data, whole) {
+    // A leg's own link opens that pick at the sportsbook and tracks it. Runs after the click so the sportsbook tab opens
+    // first. Only members can track. The tracker stays as it was, so it doesn't cover the legs still to pick; the note
+    // and the tracker button's count show it was added.
+    function followBestParlayLeg(leg, data) {
       if (!window.wiselyPremium) return;
       const wasOpen = trackerPanelOpen;
       window.setTimeout(() => {
-        const result = trackBestParlayPicks(legs, data, whole);
-        if (!whole && !wasOpen && trackerPanelOpen) setTrackerPanelOpen(false, true);
-        if (result) showTrackedToast(result, whole, !wasOpen && trackerPanelOpen);
+        const result = trackBestParlayPicks([leg], data, false);
+        if (!wasOpen && trackerPanelOpen) setTrackerPanelOpen(false, true);
+        if (result) showTrackedToast(result, false, false);
       }, 0);
     }
 
@@ -5184,22 +5188,34 @@
       if (!removedToast.entries.some(entry => offered.has(entry.key))) removedToast.dismiss();
     }
 
-    // Marks the Track button and each leg's link once those picks are in a parlay at this sportsbook.
+    // Marks the Add to tracker button and each leg's link once those picks are in a parlay at this sportsbook.
     function syncBestParlayTracked() {
       const shown = bestParlayState.shown;
       if (!shown || !bpDetails) return;
       const { sport, book } = shown.data;
       const title = sportsbookTitle(book);
       const member = Boolean(window.wiselyPremium);
-      const track = bpDetails.querySelector(".bp-track");
-      if (track) {
-        const identities = bestParlayPicks(shown.legs, sport).map(pick => pick.identity);
-        const done = identities.length > 0 && Boolean(bookParlayWith(identities, book, true));
-        const label = done ? "Tracking ✓" : "Track this parlay";
-        if (track.textContent !== label) track.textContent = label;
-        track.disabled = done;
-        track.title = done ? `This parlay is in your tracker, set to ${title}` : `Follow every leg live in your tracker, set to ${title}`;
+      const identities = bestParlayPicks(shown.legs, sport).map(pick => pick.identity);
+      const done = member && identities.length > 0 && Boolean(bookParlayWith(identities, book, true));
+      const count = shown.legs.length;
+      const some = identities.length < count ? `${identities.length} of ${count}` : "";
+      let label = some ? `Add ${some} to tracker` : "Add to tracker";
+      let tip = `Adds ${some ? `${some} picks` : count === 1 ? "this pick" : `all ${count} picks`} to your Live tracker as one ${title} parlay, so you can follow ${identities.length === 1 ? "it" : "them"} live`;
+      if (!member) {
+        label = "🔒 Add to tracker";
+        tip = window.wiselyUser ? "Subscribe to follow this parlay live in your tracker" : "Create a free account to follow this parlay live in your tracker";
+      } else if (done) {
+        label = "In your tracker";
+        tip = `This parlay is in your Live tracker, set to ${title}. Click to show it.`;
+      } else if (!identities.length) {
+        label = "Add to tracker";
+        tip = "The tracker can't follow these picks yet";
       }
+      bpTrackButton.classList.toggle("is-tracked", done);
+      bpTrackButton.classList.toggle("is-locked", !member);
+      bpTrackButton.disabled = member && !identities.length;
+      if (bpTrackLabel.textContent !== label) bpTrackLabel.textContent = label;
+      bpTrackButton.title = tip;
       const atBook = member ? parlays.filter(parlay => parlay.sportsbook === book).map(parlayPickIdentities) : [];
       for (const link of bpDetails.querySelectorAll(".bp-leg-link")) {
         const direct = link.dataset.direct === "true";
@@ -5346,10 +5362,7 @@
         bpViewport.setAttribute("aria-live", paused ? "polite" : "off");
       });
       bpMoreButton.addEventListener("click", () => setBestParlayExpanded(bpDetails.hidden));
-      followOnOpen(bpOpenLink, () => {
-        const shown = bestParlayState.shown;
-        if (shown && bpOpenLink.hasAttribute("href")) followBestParlay(shown.legs, shown.data, true);
-      });
+      bpTrackButton.addEventListener("click", addBestParlayToTracker);
       bpProgressBar.addEventListener("animationend", () => {
         // A game that tipped off since the last render gets its LIVE badge before the next slide.
         const since = bestParlayState.renderedAt;
