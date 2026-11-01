@@ -532,6 +532,37 @@ function playerLinesAcrossMarkets(markets) {
 
 const overChance = (over, under) => (1 / over) / (1 / over + 1 / under);
 
+// One player's Player Props percentages: each point some books price both ways in their main lines, from the best
+// Over and best Under across books, normalized.
+function playerPropsPercentages(quotes, key) {
+  const points = new Map();
+  for (const bookLines of quotes) {
+    for (const [point, pair] of bookLines.get(key)?.lines || []) {
+      const entry = points.get(point) || { over: 0, under: 0, books: 0 };
+      entry.over = Math.max(entry.over, pair.over?.price || 0);
+      entry.under = Math.max(entry.under, pair.under?.price || 0);
+      if (pair.over || pair.under) entry.books += 1;
+      points.set(point, entry);
+    }
+  }
+  return [...points].filter(([, entry]) => entry.over > 1 && entry.under > 1)
+    .map(([point, entry]) => ({ point, over: overChance(entry.over, entry.under), books: entry.books }));
+}
+
+// An Over at or below a Player Props line (an Under at or above it) is at least as likely to hit, so a line the book
+// offers takes the strongest percentage it is at least as safe as.
+function percentageFor(percentages, point, side) {
+  let support = null;
+  for (const line of percentages) {
+    if (side === "over" ? point > line.point : point < line.point) continue;
+    const chance = side === "over" ? line.over : 1 - line.over;
+    if (!support || chance > support.chance || (chance === support.chance && line.books > support.books)) {
+      support = { chance, books: line.books };
+    }
+  }
+  return support;
+}
+
 // Select the book's most balanced line, or the lowest offered point when requested.
 function mainLine(lines, sideFilter = "all", rankBy = "strength") {
   let best = null;
@@ -562,8 +593,8 @@ const round4 = value => Math.round(value * 10_000) / 10_000;
 // With `liveGames` (event id -> /api/live-game data), games in progress are read live: quotes must be minutes old,
 // the book's own line can stand alone, each leg carries the player's live read, and players in form rank higher.
 // "pregame-probability" (used while no game is live) ranks every line the book offers, main or alternate, by the
-// percentage the Player Props page shows: the best Over and best Under main-line price across books at that point,
-// normalized, 50% or more. Highest first across all games.
+// percentages the Player Props page shows (the best Over and best Under main-line price across books at a point,
+// normalized): its own line's, or that of a harder line it beats. 50% or more, highest first across all games.
 export function buildBestParlay({
   events = [], oddsByEvent = new Map(), book, markets = [], injured = new Set(), maxLegs = parlayRules.maxLegs,
   alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null, includeScore = false, sideFilter = "all", rankBy = "strength"
@@ -571,6 +602,8 @@ export function buildBestParlay({
   const games = [];
   const liveOnly = ["live-positive", "live-performance"].includes(rankBy);
   const pregame = rankBy === "pregame-probability";
+  // A player's pre-game lines sharing one percentage: the closest to that line pays the most.
+  const better = pregame ? (a, b) => b.score - a.score || b.price - a.price : byStrength;
   const skipped = new Set();
   const liveChecked = new Set();
   const livePassed = new Set();
@@ -617,30 +650,33 @@ export function buildBestParlay({
         const selectedLines = liveOnly || pregame
           ? [...lines].filter(([, pair]) => pregame || (pair.over && pair.under)).map(([point, pair]) => ({ point, ...pair }))
           : [mainLine(lines, sideFilter, rankBy)];
+        // This player's Player Props percentages, for pre-game picks.
+        const percentages = pregame ? playerPropsPercentages(quotes, key) : [];
         for (const main of selectedLines) {
           if (!main) continue;
           if (injured.has(key)) {
             skipped.add(key);
             continue;
           }
-          const chances = [];
-          let bestOver = 0;
-          let bestUnder = 0;
-          let quoted = 0;
-          for (const bookLines of quotes) {
-            const pair = bookLines.get(key)?.lines.get(main.point);
-            if (pair?.over && pair?.under) chances.push(overChance(pair.over.price, pair.under.price));
-            if (pair?.over || pair?.under) quoted += 1;
-            bestOver = Math.max(bestOver, pair?.over?.price || 0);
-            bestUnder = Math.max(bestUnder, pair?.under?.price || 0);
+          let overProbability = 0;
+          let lineBooks = 0;
+          if (!pregame) {
+            const chances = [];
+            for (const bookLines of quotes) {
+              const pair = bookLines.get(key)?.lines.get(main.point);
+              if (pair?.over && pair?.under) chances.push(overChance(pair.over.price, pair.under.price));
+            }
+            if (chances.length < minBooks) continue;
+            overProbability = chances.reduce((sum, value) => sum + value, 0) / chances.length;
+            lineBooks = chances.length;
           }
-          if (pregame ? !(bestOver > 1 && bestUnder > 1) : chances.length < minBooks) continue;
-          const overProbability = pregame ? overChance(bestOver, bestUnder) : chances.reduce((sum, value) => sum + value, 0) / chances.length;
-          const books = pregame ? quoted : chances.length;
           for (const side of sides) {
             const outcome = main[side];
             if (!outcome) continue;
-            const probability = side === "over" ? overProbability : 1 - overProbability;
+            const support = pregame ? percentageFor(percentages, main.point, side) : null;
+            if (pregame && !support) continue;
+            const probability = support ? support.chance : side === "over" ? overProbability : 1 - overProbability;
+            const books = support ? support.books : lineBooks;
             const price = outcome.price;
             const edge = price * probability - 1;
             if (rankBy === "live-positive" && (!Number.isFinite(price) || price < 2 || !Number.isFinite(probability))) continue;
@@ -687,7 +723,7 @@ export function buildBestParlay({
               score
             };
             const seen = best.get(key);
-            if (!seen || byStrength(leg, seen) < 0) best.set(key, leg);
+            if (!seen || better(leg, seen) < 0) best.set(key, leg);
           }
         }
       }

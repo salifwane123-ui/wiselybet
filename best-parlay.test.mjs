@@ -331,24 +331,31 @@ test("pre-game probability takes the book's alternate lines at another book's tw
   const result = build([game("g1", now + hour)], {
     g1: eventOdds({
       draftkings: {
-        player_points: [["Alpha Player", 14.5, 1.9, 1.9], ["Bravo Player", 20.5, 1.85, 1.95]],
-        player_points_alternate: [["Alpha Player", 10.5, 1.3, 3.4], ["Bravo Player", 15.5, 1.2, 4.6]]
+        player_points: [["Alpha Player", 14.5, 1.9, 1.9], ["Bravo Player", 20.5, 1.85, 1.95], ["Charlie Player", 249.5, 1.88, 1.92]],
+        player_points_alternate: [
+          ["Alpha Player", 10.5, 1.3, 3.4], ["Bravo Player", 15.5, 1.2, 4.6],
+          ["Charlie Player", 224.5, 1.45, 2.8], ["Charlie Player", 199.5, 1.2, 4.6]
+        ]
       },
       bovada: {
-        player_points: [["Alpha Player", 14.5, 1.87, 1.93], ["Alpha Player", 10.5, 1.34, 3.15]],
+        player_points: [["Alpha Player", 14.5, 1.87, 1.93], ["Alpha Player", 10.5, 1.34, 3.15], ["Charlie Player", 229.5, 1.4, 2.9]],
         // Alternate ladders never set a percentage, as they don't on Player Props.
         player_points_alternate: [["Bravo Player", 15.5, 1.25, 4]]
       }
     })
   }, { rankBy: "pregame-probability", includeScore: true });
 
+  // The book has no Over 229.5 for Charlie, so its nearest easier line, Over 224.5, takes that line's percentage;
+  // the even easier Over 199.5 shares it but pays less.
   assert.deepEqual(result.legs.map(leg => [leg.player, leg.line, leg.side, leg.price, leg.alternate]), [
     ["Alpha Player", 10.5, "over", 1.3, true],
+    ["Charlie Player", 224.5, "over", 1.45, true],
     ["Bravo Player", 20.5, "over", 1.85, false]
   ]);
   assert.equal(result.legs[0].probability, rounded(chance(1.34, 3.15)));
   assert.equal(result.legs[0].books, 1);
-  assert.equal(result.legs[1].probability, rounded(chance(1.85, 1.95)));
+  assert.equal(result.legs[1].probability, rounded(chance(1.4, 2.9)));
+  assert.equal(result.legs[2].probability, rounded(chance(1.85, 1.95)));
 });
 
 test("cross-sport aggregation ranks sides together and keeps sport identity", () => {
