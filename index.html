@@ -4441,10 +4441,10 @@
       bpScopeLabel.classList.toggle("is-pregame", pregame);
       bpScopeLabel.hidden = !((pregame || ["live", "mixed"].includes(data?.scope)) && legs.length);
       bpSubText.textContent = pregame
-        ? `${gamesOn ? "Too few live picks" : "No game is live"} · pre-game picks with the highest market-implied probability at your sportsbook`
+        ? `${gamesOn ? "Too few live picks" : "No game is live"} · pre-game picks with the highest Player Props percentages at your sportsbook`
         : "Live performance · foul risk, playing time and role · positive or negative odds at your sportsbook";
       bpSubText.title = pregame
-        ? `${gamesOn ? "The games on now don't have enough qualifying live picks" : "No game is live right now"}, so the parlay takes the upcoming player props with the highest market-implied probability, the same percentages Player Props shows. Live picks take over once ${gamesOn ? "they qualify" : "a game starts"}.`
+        ? `${gamesOn ? "The games on now don't have enough qualifying live picks" : "No game is live right now"}, so the parlay takes the upcoming player props with the highest percentages on Player Props, highest first, from the main or alternate lines your sportsbook offers. Live picks take over once ${gamesOn ? "they qualify" : "a game starts"}.`
         : "Ranking blends no-vig market probability with live performance signals. Playing time and substitutions are estimates, not guarantees; data coverage varies by sport.";
       window.clearTimeout(state.leaveTimer);
       state.shown = legs.length ? { legs, data } : null;
@@ -4519,7 +4519,7 @@
         : pregame ? `Only ${countText(legs.length, "pick")} at 50%+ market-implied probability right now` : `Selected up to ${target} shortest-priced legs from the available candidates`;
       const items = [
         stat("bp-stat-legs", "Legs", count, legs.length < target ? short
-          : pregame ? `Up to ${target} legs with the highest market-implied probability` : `Up to ${target} legs, ordered by shortest ${sportsbookTitle(data.book)} price`),
+          : pregame ? `Up to ${target} legs with the highest Player Props percentages, highest first` : `Up to ${target} legs, ordered by shortest ${sportsbookTitle(data.book)} price`),
         stat("bp-stat-odds", "Odds", formatAmericanOdds(odds), `Combined odds at ${sportsbookTitle(data.book)} for the selected legs`),
         stat("bp-stat-pays", "$10 pays", formatPayout(10 * odds), "Total return on a $10 stake, including the stake"),
         stat("bp-stat-chance", "Hit chance", formatParlayChance(chance), `About 1 in ${Math.max(1, Math.round(1 / chance)).toLocaleString("en-US")}. Every leg must hit.`)
@@ -4602,7 +4602,7 @@
       const onNow = gamesOn ? `the ${countText(gamesOn.games, "game")} on now` : "";
       if (window.wiselyPremium) note(`Opening the betslip, or a single leg, also adds those picks to your tracker as a ${title} parlay, so you can follow them live.`);
       note(pregame
-        ? `${!gamesOn ? "No game is live right now" : gamesOn.bookGames ? `Too few live picks qualify in ${onNow}` : `${title} isn't pricing live player props for ${onNow}`}, so these are pre-game picks: the upcoming ${title} player props with the highest market-implied probability, the same percentages Player Props shows. Live picks take over once ${gamesOn ? "enough qualify" : "a game starts"}.`
+        ? `${!gamesOn ? "No game is live right now" : gamesOn.bookGames ? `Too few live picks qualify in ${onNow}` : `${title} isn't pricing live player props for ${onNow}`}, so these are pre-game picks: the upcoming player props with the highest percentages on Player Props, highest first, from the main or alternate lines ${title} offers. Live picks take over once ${gamesOn ? "enough qualify" : "a game starts"}.`
         : `The suggestion uses up to ${parlayLegTarget()} eligible legs, choosing each pick's lowest available line at ${title}. Candidates are ordered by market and available live strength signals.`);
       note("Check the sportsbook betslip before placing the bet; it may reject combinations or correlated picks.", true);
       if (sport === "all") {

@@ -661,7 +661,7 @@ async function parlayEventOdds(sport, event, book, premium, now, rankBy = "stren
   const ttl = liveOnly ? 60_000 : propsTtlMs(Date.parse(event.commence_time), now);
   const keyFor = params => `parlay:${endpoint}:${JSON.stringify(params)}${liveOnly ? `|${rankBy}` : ""}`;
   const load = params => cached(keyFor(params), ttl, async () => ({ data: await requestOddsApi(endpoint, params), fetchedAt: Date.now() }));
-  const withAlternates = markets => ["lowest-line", "live-positive", "live-performance"].includes(rankBy)
+  const withAlternates = markets => ["lowest-line", "live-positive", "live-performance", "pregame-probability"].includes(rankBy)
     ? markets.flatMap(market => marketsWithoutAlternates.has(market) ? [market] : [market, `${market}_alternate`])
     : markets;
   const allMarkets = withAlternates(bestParlayMarkets[sport]).join(",");
@@ -757,7 +757,7 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
     if (liveResult && liveResult.legs.length >= parlayRules.minLiveLegs) return respond("live", liveEvents, liveResult, live);
   }
   // When no game is live, or the games on now can't fill a parlay, live-performance falls back to the upcoming player
-  // props with the highest market-implied probability.
+  // props with the highest Player Props percentages.
   const mode = rankBy === "live-performance" ? "pregame-probability" : rankBy;
   const liveAnswer = () => respond("live", liveEvents, liveResult || { legs: [], alternates: [], bookGames: 0, injuredSkipped: 0, pricesAt: "" }, live);
   if (liveOnly && mode === rankBy) return liveAnswer();

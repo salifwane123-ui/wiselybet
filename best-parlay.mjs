@@ -561,8 +561,9 @@ const round4 = value => Math.round(value * 10_000) / 10_000;
 // `maxLegs` into `alternates`, the next-best legs that stand in for any the user removes.
 // With `liveGames` (event id -> /api/live-game data), games in progress are read live: quotes must be minutes old,
 // the book's own line can stand alone, each leg carries the player's live read, and players in form rank higher.
-// "pregame-probability" (used while no game is live) ranks every main line the book offers by the percentage the
-// Player Props page shows: the best Over and best Under price across books at that line, normalized, 50% or more.
+// "pregame-probability" (used while no game is live) ranks every line the book offers, main or alternate, by the
+// percentage the Player Props page shows: the best Over and best Under main-line price across books at that point,
+// normalized, 50% or more. Highest first across all games.
 export function buildBestParlay({
   events = [], oddsByEvent = new Map(), book, markets = [], injured = new Set(), maxLegs = parlayRules.maxLegs,
   alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null, includeScore = false, sideFilter = "all", rankBy = "strength"
@@ -598,7 +599,7 @@ export function buildBestParlay({
     const best = new Map();
     let offered = false;
     for (const market of markets) {
-      const marketKeys = rankBy === "lowest-line" || liveOnly ? [market, `${market}_alternate`] : [market];
+      const marketKeys = rankBy === "lowest-line" || liveOnly || pregame ? [market, `${market}_alternate`] : [market];
       const targetMarkets = (target.markets || []).filter(item => marketKeys.includes(item?.key));
       if (!targetMarkets.length) continue;
       offered = true;
@@ -607,7 +608,8 @@ export function buildBestParlay({
       const marketLinkMarket = freshTargetMarkets.find(item => item.key === market) || freshTargetMarkets[0];
       const quotes = [];
       for (const bookmaker of bookmakers) {
-        const bookMarkets = (bookmaker?.markets || []).filter(item => marketKeys.includes(item?.key) &&
+        // Pre-game percentages come from every book's main lines alone, as on the Player Props page.
+        const bookMarkets = (bookmaker?.markets || []).filter(item => (pregame ? item?.key === market : marketKeys.includes(item?.key)) &&
           eligibleQuote(item, bookmaker));
         if (bookMarkets.length) quotes.push(playerLinesAcrossMarkets(bookMarkets));
       }

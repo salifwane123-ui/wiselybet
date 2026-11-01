@@ -274,7 +274,7 @@ test("alternate sportsbook ladders supply the lower rebound line despite short o
   assert.equal(result.legs[0].books, 2);
 });
 
-test("pre-game probability ranks the book's main lines across games by the Player Props percentage", () => {
+test("pre-game probability ranks the book's lines across games by the Player Props percentage", () => {
   const chance = (over, under) => (1 / over) / (1 / over + 1 / under);
   const rounded = value => Math.round(value * 10_000) / 10_000;
   const events = [game("g1", now + hour), game("g2", now + 2 * hour)];
@@ -297,7 +297,8 @@ test("pre-game probability ranks the book's main lines across games by the Playe
   const options = { rankBy: "pregame-probability", maxLegs: 4, includeScore: true };
   const result = build(events, odds, options);
   const all = [...result.legs, ...result.alternates];
-  // Global order (not game by game), one pick per player, short prices allowed, alternates and other books' lines left out.
+  // Global order (not game by game), one pick per player, short prices allowed; lines the book doesn't offer, and its
+  // alternate lines no book prices both ways in a main market, are left out.
   assert.deepEqual(all.map(leg => [leg.player, leg.market, leg.line, leg.side, leg.price]), [
     ["Hotel Player", "player_points", 10.5, "over", 1.2],
     ["Alpha Player", "player_rebounds", 8.5, "over", 1.4],
@@ -322,6 +323,32 @@ test("pre-game probability ranks the book's main lines across games by the Playe
   const healthy = build(events, odds, { ...options, injured: new Set([normalizePlayerName("Alpha Player")]) });
   assert.ok([...healthy.legs, ...healthy.alternates].every(leg => leg.player !== "Alpha Player"));
   assert.equal(healthy.injuredSkipped, 1);
+});
+
+test("pre-game probability takes the book's alternate lines at another book's two-way main-line percentage", () => {
+  const chance = (over, under) => (1 / over) / (1 / over + 1 / under);
+  const rounded = value => Math.round(value * 10_000) / 10_000;
+  const result = build([game("g1", now + hour)], {
+    g1: eventOdds({
+      draftkings: {
+        player_points: [["Alpha Player", 14.5, 1.9, 1.9], ["Bravo Player", 20.5, 1.85, 1.95]],
+        player_points_alternate: [["Alpha Player", 10.5, 1.3, 3.4], ["Bravo Player", 15.5, 1.2, 4.6]]
+      },
+      bovada: {
+        player_points: [["Alpha Player", 14.5, 1.87, 1.93], ["Alpha Player", 10.5, 1.34, 3.15]],
+        // Alternate ladders never set a percentage, as they don't on Player Props.
+        player_points_alternate: [["Bravo Player", 15.5, 1.25, 4]]
+      }
+    })
+  }, { rankBy: "pregame-probability", includeScore: true });
+
+  assert.deepEqual(result.legs.map(leg => [leg.player, leg.line, leg.side, leg.price, leg.alternate]), [
+    ["Alpha Player", 10.5, "over", 1.3, true],
+    ["Bravo Player", 20.5, "over", 1.85, false]
+  ]);
+  assert.equal(result.legs[0].probability, rounded(chance(1.34, 3.15)));
+  assert.equal(result.legs[0].books, 1);
+  assert.equal(result.legs[1].probability, rounded(chance(1.85, 1.95)));
 });
 
 test("cross-sport aggregation ranks sides together and keeps sport identity", () => {
