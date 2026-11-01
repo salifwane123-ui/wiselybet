@@ -89,6 +89,12 @@ let server;
 before(async () => { server = await startServer(); });
 after(async () => { await server?.stop(); });
 
+test("best parlay rejects an unsupported game selection before requesting odds", async () => {
+  const reply = await request("/api/best-parlay?sport=basketball_nba&book=fanduel&games=finished");
+  assert.equal(reply.status, 400);
+  assert.match((await reply.json()).error, /Live only, Upcoming only, or Both/);
+});
+
 function request(path, { method = "GET", body, cookie, headers = {}, redirect = "follow" } = {}) {
   return fetch(server.base + path, {
     method,

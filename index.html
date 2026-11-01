@@ -2530,13 +2530,18 @@
               <span class="bp-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5V6a2 2 0 0 0 0 4v1.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5V10a2 2 0 0 0 0-4z"/><path d="M6.5 6h3M6.5 8h3M6.5 10h2"/></svg></span>
               <div class="bp-heading">
                 <h2 id="bp-title">Best parlay <span id="bp-sport" class="bp-sport"></span><span id="bp-scope" class="bp-scope" hidden>Live</span></h2>
-                <p id="bp-sub" class="bp-sub">Top player props from the games on now, priced at your sportsbook</p>
+                <p id="bp-sub" class="bp-sub">Top player props from your selected games, priced at your sportsbook</p>
               </div>
             </div>
             <div class="bp-pickers">
               <button id="bp-sport-toggle" type="button" class="bp-select" popovertarget="bp-sport-select" aria-controls="bp-sport-select" aria-expanded="false">All sports</button>
               <fieldset id="bp-sport-select" class="bp-sport-select" popover><legend>Sports for suggestions</legend><div class="bp-sport-options"></div></fieldset>
               <select id="bp-side-select" class="bp-select bp-side-select" aria-label="Player prop side"></select>
+              <select id="bp-games-select" class="bp-select bp-side-select" aria-label="Games for parlay suggestions">
+                <option value="live">Live only</option>
+                <option value="upcoming">Upcoming only</option>
+                <option value="both">Both</option>
+              </select>
               <select id="bp-book" class="bp-select bp-book-select" aria-label="Your sportsbook"><option value="">Your sportsbook…</option></select>
               <select id="bp-state" class="bp-select bp-state-select" aria-label="Your state" hidden></select>
               <select id="bp-legs" class="bp-select" aria-label="Number of legs"></select>
@@ -3202,6 +3207,7 @@
       theme: "dark",
       parlaySport: "all",
       parlaySide: "all",
+      parlayGames: "live",
       parlayBook: "",
       parlayState: "",
       parlayLegs: 8,
@@ -3257,6 +3263,7 @@
     const bpPauseButton = document.querySelector("#bp-pause");
     const bpSportSelect = document.querySelector("#bp-sport-select");
     const bpSideSelect = document.querySelector("#bp-side-select");
+    const bpGamesSelect = document.querySelector("#bp-games-select");
     const bpBookSelect = document.querySelector("#bp-book");
     const bpStateSelect = document.querySelector("#bp-state");
     const bpLegsSelect = document.querySelector("#bp-legs");
@@ -3979,6 +3986,9 @@
     function bestParlaySide() {
       return ["all", "over", "under"].includes(settings.parlaySide) ? settings.parlaySide : "all";
     }
+    function bestParlayGames() {
+      return ["live", "upcoming", "both"].includes(settings.parlayGames) ? settings.parlayGames : "live";
+    }
     function bestParlayBook() {
       return sportsbookTitles.has(settings.parlayBook) ? settings.parlayBook : "";
     }
@@ -4076,10 +4086,13 @@
       const removed = pool.filter(isBestParlayRemoved);
       const livePositive = data?.rankBy === "live-positive";
       const liveOnly = livePositive || data?.rankBy === "live-performance";
+      const filtered = Boolean(data?.gameFilter);
       const candidates = pool.filter(item => !isBestParlayRemoved(item) && Number.isFinite(Number(item.price)) &&
+        (!filtered || (data.gameFilter === "live" ? item.live === true && Boolean(liveLegRead(item))
+          : data.gameFilter === "upcoming" ? !item.live : !item.live || Boolean(liveLegRead(item)))) &&
         (liveOnly ? Number(item.price) >= (livePositive ? 2 : 1) && Number(item.price) > 1 &&
           item.live === true && Boolean(liveLegRead(item)) : Number(item.price) > 1));
-      if (liveOnly && candidates.length < 2) return { legs: [], removed };
+      if ((liveOnly || filtered) && candidates.length < 2) return { legs: [], removed };
       return { legs: candidates.slice(0, target), removed };
     }
     function bestParlayOutcomeText(leg, sport) {
@@ -4166,6 +4179,7 @@
       if (!bpLegsSelect.options.length) bpLegsSelect.append(...parlayLegCounts.map(count => new Option(`${count} legs`, String(count))));
       fillStateOptions(bpStateSelect);
       bpSideSelect.value = bestParlaySide();
+      bpGamesSelect.value = bestParlayGames();
       bpBookSelect.value = bestParlayBook();
       bpLegsSelect.value = String(parlayLegTarget());
     }
@@ -4215,8 +4229,9 @@
       const state = bestParlayState;
       const sport = bestParlaySport();
       const side = bestParlaySide();
+      const games = bestParlayGames();
       const book = bestParlayBook();
-      if (state.sport !== sport || state.side !== side || state.book !== book) Object.assign(state, { sport, side, book, data: null, error: "", index: 0 });
+      if (state.sport !== sport || state.side !== side || state.book !== book || state.games !== games) Object.assign(state, { sport, side, book, games, data: null, error: "", index: 0 });
       const request = ++state.request;
       if (!sport || !book) {
         state.loading = false;
@@ -4227,7 +4242,7 @@
       if (!state.data) renderBestParlay();
       try {
         const scope = sport.includes(",") ? `sport=all&sports=${encodeURIComponent(sport)}` : `sport=${encodeURIComponent(sport)}`;
-        const data = await getJson(`/api/best-parlay?${scope}&side=${encodeURIComponent(side)}&book=${encodeURIComponent(book)}`);
+        const data = await getJson(`/api/best-parlay?${scope}&side=${encodeURIComponent(side)}&book=${encodeURIComponent(book)}&games=${encodeURIComponent(games)}`);
         if (request !== state.request) return;
         if (!Array.isArray(data?.legs)) throw new Error("We couldn't build a parlay right now. Please try again in a minute.");
         state.data = data;
@@ -4344,6 +4359,8 @@
         }
         return bestParlayMessage("Couldn't load the parlay.", bestParlayState.error || "Please try again in a minute.", true);
       }
+      if (data.gameFilter) return bestParlayMessage("Not enough qualifying picks.",
+        `At least two eligible ${data.gameFilter === "both" ? "live or upcoming" : data.gameFilter} picks from ${title} are needed. We will check again automatically.`);
       if (data.rankBy === "live-positive") {
         return bestParlayMessage("Not enough qualifying live picks.",
           `Suggestions need at least two verified live picks at +100 or higher from ${title}. Upcoming games are excluded. We will check again automatically.`);
@@ -4427,7 +4444,8 @@
       fillBestParlayPickers();
       const state = bestParlayState;
       const book = bestParlayBook();
-      const data = state.data?.sport === sport && state.data.side === bestParlaySide() && state.data.book === book ? state.data : null;
+      const data = state.data?.sport === sport && state.data.side === bestParlaySide() && state.data.book === book &&
+        state.data.gameFilter === bestParlayGames() ? state.data : null;
       const { legs, removed } = bestParlayLegsFor(data);
       dropStaleRemovedToast(data);
       bpSportLabel.textContent = parlaySportTitle(sport);
@@ -4435,17 +4453,23 @@
       bestParlayElement.classList.toggle("is-unset", !book || !sport);
       bestParlayElement.classList.toggle("has-legs", legs.length > 0);
       bestParlayElement.classList.toggle("is-single", legs.length === 1);
-      const pregame = data?.rankBy === "pregame-probability";
-      const gamesOn = pregame && data.live?.games > 0;
-      bpScopeLabel.textContent = pregame ? "Pre-game" : data?.scope === "mixed" ? "Mixed" : "Live";
+      const pregame = data?.rankBy === "pregame-probability" || data?.gameFilter === "both" && legs.length > 0 && !legs.some(leg => leg.live);
+      bpScopeLabel.textContent = pregame ? "Upcoming" : data?.scope === "mixed" ? "Mixed" : "Live";
       bpScopeLabel.classList.toggle("is-pregame", pregame);
       bpScopeLabel.hidden = !((pregame || ["live", "mixed"].includes(data?.scope)) && legs.length);
       bpSubText.textContent = pregame
-        ? `${gamesOn ? "Too few live picks" : "No game is live"} · pre-game picks with the highest Player Props percentages at your sportsbook`
+        ? "Upcoming picks with the highest market-implied probability at your sportsbook"
         : "Live performance · foul risk, playing time and role · positive or negative odds at your sportsbook";
       bpSubText.title = pregame
-        ? `${gamesOn ? "The games on now don't have enough qualifying live picks" : "No game is live right now"}, so the parlay takes the upcoming player props with the highest percentages on Player Props, highest first, from the main or alternate lines your sportsbook offers. Live picks take over once ${gamesOn ? "they qualify" : "a game starts"}.`
+        ? "Upcoming picks use market-implied estimates, with no live performance, foul or rotation checks yet."
         : "Ranking blends no-vig market probability with live performance signals. Playing time and substitutions are estimates, not guarantees; data coverage varies by sport.";
+      if (bestParlayGames() === "upcoming") {
+        bpSubText.textContent = "Upcoming games only · highest market-implied probability at your sportsbook";
+        bpSubText.title = "Upcoming picks have no live performance, foul or rotation checks yet. Estimates are not guarantees.";
+      } else if (bestParlayGames() === "both") {
+        bpSubText.textContent = "Live and upcoming games · live performance plus upcoming market estimates";
+        bpSubText.title = "Both can form a mixed parlay. Only live picks have live-performance checks; upcoming picks use market estimates.";
+      }
       window.clearTimeout(state.leaveTimer);
       state.shown = legs.length ? { legs, data } : null;
       if (!legs.length) {
@@ -4456,7 +4480,7 @@
           ? bestParlayAllRemovedSlide(removed, ["live-positive", "live-performance"].includes(data?.rankBy))
           : book
             ? bestParlayEmptySlide(data, book)
-            : bestParlayMessage("Choose your sportsbook", "and we'll build the best player-prop parlay from the games on now at its odds, ready to open in your betslip."));
+            : bestParlayMessage("Choose your sportsbook", "and we'll build the best player-prop parlay from your selected games at its odds, ready to open in your betslip."));
         bpStats.replaceChildren();
         bpDetails.replaceChildren();
         setBestParlayExpanded(false);
@@ -4602,7 +4626,7 @@
       const onNow = gamesOn ? `the ${countText(gamesOn.games, "game")} on now` : "";
       if (window.wiselyPremium) note(`Opening the betslip, or a single leg, also adds those picks to your tracker as a ${title} parlay, so you can follow them live.`);
       note(pregame
-        ? `${!gamesOn ? "No game is live right now" : gamesOn.bookGames ? `Too few live picks qualify in ${onNow}` : `${title} isn't pricing live player props for ${onNow}`}, so these are pre-game picks: the upcoming player props with the highest percentages on Player Props, highest first, from the main or alternate lines ${title} offers. Live picks take over once ${gamesOn ? "enough qualify" : "a game starts"}.`
+        ? `${!gamesOn ? "No game is live right now" : gamesOn.bookGames ? `Too few live picks qualify in ${onNow}` : `${title} isn't pricing live player props for ${onNow}`}, so these are pre-game picks: the upcoming player props with the highest percentages on Player Props, highest first, from the main or alternate lines ${title} offers. Where ${title} lacks the exact line, its nearest easier line carries that line's percentage as a conservative estimate. Live picks take over once ${gamesOn ? "enough qualify" : "a game starts"}.`
         : `The suggestion uses up to ${parlayLegTarget()} eligible legs, choosing each pick's lowest available line at ${title}. Candidates are ordered by market and available live strength signals.`);
       note("Check the sportsbook betslip before placing the bet; it may reject combinations or correlated picks.", true);
       if (sport === "all") {
@@ -5096,6 +5120,11 @@
       });
       bpSideSelect.addEventListener("change", () => {
         settings.parlaySide = bpSideSelect.value;
+        saveSettings();
+        void loadBestParlay();
+      });
+      bpGamesSelect.addEventListener("change", () => {
+        settings.parlayGames = bpGamesSelect.value;
         saveSettings();
         void loadBestParlay();
       });
@@ -10978,7 +11007,8 @@
         applyTheme();
         applyVolume();
         if (settings.parlayBook !== previous.parlayBook || settings.parlaySport !== previous.parlaySport ||
-            JSON.stringify(settings.parlaySports) !== JSON.stringify(previous.parlaySports) || settings.parlaySide !== previous.parlaySide) void loadBestParlay();
+            JSON.stringify(settings.parlaySports) !== JSON.stringify(previous.parlaySports) || settings.parlaySide !== previous.parlaySide ||
+            settings.parlayGames !== previous.parlayGames) void loadBestParlay();
         else if (["parlayState", "parlayLegs", "oddsFormat"].some(key => settings[key] !== previous[key])) renderBestParlay();
         if (settings.parlayState !== previous.parlayState) renderTrackers();
       } else if (event.key === historyKey) {
