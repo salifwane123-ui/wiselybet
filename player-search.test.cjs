@@ -188,3 +188,48 @@ test("the matcher ships to the page and the search endpoint is open to guests", 
   assert.match(html, /id="prop-search"[^>]*role="combobox"[^>]*aria-controls="prop-search-list"/);
   assert.match(html, /id="prop-search-list" role="listbox"/);
 });
+
+test("the prop cards filter by similar names, and a guest's miss mentions the locked players", () => {
+  const filter = (query, lockedPlayers) => {
+    const cards = ["lebron james", "jalen brunson", "karl-anthony towns"].map(player => ({ dataset: { player }, hidden: false }));
+    const placed = [];
+    const wall = lockedPlayers === undefined ? null
+      : { dataset: { lockedPlayers: String(lockedPlayers) }, before: message => placed.push({ ...message, beforeWall: true }) };
+    const context = {
+      playerSearch,
+      propSearchInput: { value: query },
+      propResultsElement: {
+        querySelectorAll: selector => selector === ".prop-player" ? cards : [],
+        querySelector: selector => selector === ".props-wall" ? wall : null,
+        append: message => placed.push(message)
+      },
+      propCountElement: { textContent: "", dataset: { total: "3 players · 3 lines" } },
+      element: (tag, className, textContent) => ({ className, textContent }),
+      activePlayerSignal: null,
+      closePlayerSignal() {},
+      result: {}
+    };
+    runInNewContext(`${between(html, "    function applyPropSearch(", '    propSearchInput.addEventListener("input", applyPropSearch);')}
+      result.applyPropSearch = applyPropSearch;`, context);
+    context.result.applyPropSearch();
+    return {
+      shown: cards.filter(card => !card.hidden).map(card => card.dataset.player),
+      count: context.propCountElement.textContent,
+      messages: plain(placed)
+    };
+  };
+
+  assert.deepEqual(filter("lebrn"), { shown: ["lebron james"], count: "1 of 3 players", messages: [] });
+  assert.deepEqual(filter("kat").shown, ["karl-anthony towns"]);
+  assert.equal(filter("").shown.length, 3);
+  assert.deepEqual(filter("Paolo Banchero", 7).messages, [{
+    className: "empty-state prop-no-match",
+    textContent: 'No unlocked player matches "Paolo Banchero" for this game and market.',
+    beforeWall: true
+  }]);
+  assert.equal(filter("Paolo Banchero", 0).messages[0].textContent, 'No player matches "Paolo Banchero" for this game and market.');
+  assert.deepEqual(filter("Paolo Banchero").messages, [{
+    className: "empty-state prop-no-match",
+    textContent: 'No player matches "Paolo Banchero" for this game and market.'
+  }]);
+});

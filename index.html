@@ -5696,7 +5696,13 @@
       }
       if (activePlayerSignal?.isConnected && activePlayerSignal.closest(".prop-player").hidden) closePlayerSignal();
       if (term && !shown) {
-        propResultsElement.append(element("div", "empty-state prop-no-match", `No player matches "${propSearchInput.value.trim()}" for this game and market.`));
+        // Guests only receive the unlocked players, so the one searched for may be behind the lock.
+        const wall = propResultsElement.querySelector(".props-wall");
+        const locked = Number(wall?.dataset.lockedPlayers) > 0;
+        const message = element("div", "empty-state prop-no-match",
+          `No ${locked ? "unlocked " : ""}player matches "${propSearchInput.value.trim()}" for this game and market.`);
+        if (wall) wall.before(message);
+        else propResultsElement.append(message);
       }
       propCountElement.textContent = term
         ? `${shown} of ${cards.length} players`
@@ -6288,6 +6294,7 @@
         if (!window.wiselyPremium && event.guest) {
           const hidden = Math.max(0, event.guest.total - event.guest.shown);
           const wall = element("div", "props-wall");
+          wall.dataset.lockedPlayers = String(hidden);
           const blurred = element("div", "props-wall-blur");
           blurred.setAttribute("aria-hidden", "true");
           for (let index = 0; index < 3; index += 1) blurred.append(element("div", "props-wall-row", "██████████  ·  Over ██.█  ·  -███  ·  +███"));
