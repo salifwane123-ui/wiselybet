@@ -561,12 +561,15 @@ const round4 = value => Math.round(value * 10_000) / 10_000;
 // `maxLegs` into `alternates`, the next-best legs that stand in for any the user removes.
 // With `liveGames` (event id -> /api/live-game data), games in progress are read live: quotes must be minutes old,
 // the book's own line can stand alone, each leg carries the player's live read, and players in form rank higher.
+// "pregame-probability" (used while no game is live) ranks every main line the book offers by the percentage the
+// Player Props page shows: the best Over and best Under price across books at that line, normalized, 50% or more.
 export function buildBestParlay({
   events = [], oddsByEvent = new Map(), book, markets = [], injured = new Set(), maxLegs = parlayRules.maxLegs,
   alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null, includeScore = false, sideFilter = "all", rankBy = "strength"
 }) {
   const games = [];
   const liveOnly = ["live-positive", "live-performance"].includes(rankBy);
+  const pregame = rankBy === "pregame-probability";
   const skipped = new Set();
   const liveChecked = new Set();
   const livePassed = new Set();
@@ -609,8 +612,8 @@ export function buildBestParlay({
         if (bookMarkets.length) quotes.push(playerLinesAcrossMarkets(bookMarkets));
       }
       for (const [key, { player, lines }] of playerLinesAcrossMarkets(freshTargetMarkets)) {
-        const selectedLines = liveOnly
-          ? [...lines].filter(([, pair]) => pair.over && pair.under).map(([point, pair]) => ({ point, ...pair }))
+        const selectedLines = liveOnly || pregame
+          ? [...lines].filter(([, pair]) => pregame || (pair.over && pair.under)).map(([point, pair]) => ({ point, ...pair }))
           : [mainLine(lines, sideFilter, rankBy)];
         for (const main of selectedLines) {
           if (!main) continue;
@@ -619,12 +622,19 @@ export function buildBestParlay({
             continue;
           }
           const chances = [];
+          let bestOver = 0;
+          let bestUnder = 0;
+          let quoted = 0;
           for (const bookLines of quotes) {
             const pair = bookLines.get(key)?.lines.get(main.point);
             if (pair?.over && pair?.under) chances.push(overChance(pair.over.price, pair.under.price));
+            if (pair?.over || pair?.under) quoted += 1;
+            bestOver = Math.max(bestOver, pair?.over?.price || 0);
+            bestUnder = Math.max(bestUnder, pair?.under?.price || 0);
           }
-          if (chances.length < minBooks) continue;
-          const overProbability = chances.reduce((sum, value) => sum + value, 0) / chances.length;
+          if (pregame ? !(bestOver > 1 && bestUnder > 1) : chances.length < minBooks) continue;
+          const overProbability = pregame ? overChance(bestOver, bestUnder) : chances.reduce((sum, value) => sum + value, 0) / chances.length;
+          const books = pregame ? quoted : chances.length;
           for (const side of sides) {
             const outcome = main[side];
             if (!outcome) continue;
@@ -633,7 +643,8 @@ export function buildBestParlay({
             const edge = price * probability - 1;
             if (rankBy === "live-positive" && (!Number.isFinite(price) || price < 2 || !Number.isFinite(probability))) continue;
             if (rankBy === "live-performance" && (!Number.isFinite(price) || price <= 1 || !Number.isFinite(probability))) continue;
-            if (!liveOnly && rankBy !== "lowest-line" && (probability < parlayRules.minProbability || price < parlayRules.minPrice ||
+            if (pregame && (!(price > 1) || !(probability >= parlayRules.minProbability))) continue;
+            if (!liveOnly && !pregame && rankBy !== "lowest-line" && (probability < parlayRules.minProbability || price < parlayRules.minPrice ||
               price > parlayRules.maxPrice || edge < parlayRules.minEdge)) continue;
             let live = null;
             if (inPlay) {
@@ -646,7 +657,7 @@ export function buildBestParlay({
               livePassed.add(key);
             }
             const score = rankBy === "live-performance" ? probability + live.bonus
-              : rankBy === "live-positive" ? probability : probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
+              : rankBy === "live-positive" || pregame ? probability : probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
             if (rankBy === "live-performance") live.read.notes.push({
               tone: "neutral",
               text: "Ranked by market-implied probability plus live performance and availability signals. The displayed chance is the market estimate, not a validated performance forecast."
@@ -659,7 +670,7 @@ export function buildBestParlay({
               alternate: Boolean(outcome.alternate),
               price,
               probability: round4(probability),
-              books: chances.length,
+              books,
               edge: round4(edge),
               eventId: event.id,
               home: event.home_team || "",
@@ -688,7 +699,7 @@ export function buildBestParlay({
   const ranked = [];
   const used = new Set();
   const wanted = maxLegs + Math.max(0, alternateLegs);
-  const rankedGames = liveOnly ? [games.flat().sort(byStrength)] : games;
+  const rankedGames = liveOnly || pregame ? [games.flat().sort(byStrength)] : games;
   for (let round = 0; ranked.length < wanted; round += 1) {
     const picks = rankedGames.map(list => list[round]).filter(Boolean);
     if (!picks.length) break;

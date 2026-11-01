@@ -689,8 +689,8 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
   const now = Date.now();
   const events = await fetchOddsApi(`sports/${encodeURIComponent(sport)}/events`, {});
   const markets = premium ? bestParlayMarkets[sport] : bestParlayMarkets[sport].slice(0, 1);
-  const price = async list => {
-    const settled = await Promise.allSettled(list.map(event => parlayEventOdds(sport, event, book, premium, now, rankBy)));
+  const price = async (list, mode = rankBy) => {
+    const settled = await Promise.allSettled(list.map(event => parlayEventOdds(sport, event, book, premium, now, mode)));
     const oddsByEvent = new Map();
     settled.forEach((outcome, index) => {
       if (outcome.status === "fulfilled" && outcome.value) oddsByEvent.set(list[index].id, outcome.value);
@@ -713,11 +713,11 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
     else if (!game) unknown += 1;
   });
   const injured = await injuriesTask;
-  const respond = (scope, slateEvents, result, live) => ({
+  const respond = (scope, slateEvents, result, live, mode = rankBy) => ({
     sport,
     book,
     side: sideFilter,
-    rankBy,
+    rankBy: mode,
     scope,
     markets: bestParlayMarkets[sport],
     games: slateEvents.length,
@@ -756,7 +756,9 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
     };
     if (liveResult && liveResult.legs.length >= parlayRules.minLiveLegs) return respond("live", liveEvents, liveResult, live);
   }
-  if (liveOnly) {
+  // With no game live, live-performance falls back to the upcoming player props with the highest market-implied probability.
+  const mode = liveOnly && !liveEvents.length && rankBy === "live-performance" ? "pregame-probability" : rankBy;
+  if (liveOnly && mode === rankBy) {
     return respond("live", liveEvents, liveResult || { legs: [], alternates: [], bookGames: 0, injuredSkipped: 0, pricesAt: "" }, live);
   }
 
@@ -766,13 +768,13 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
   let result = null;
   try {
     result = buildBestParlay({
-      events: slate.events, oddsByEvent: await price(slate.events), book, markets, injured: injured || new Set(), sport, includeScore, sideFilter, rankBy
+      events: slate.events, oddsByEvent: await price(slate.events, mode), book, markets, injured: injured || new Set(), sport, includeScore, sideFilter, rankBy: mode
     });
   } catch (error) {
     if (!liveResult?.legs.length) throw error;
   }
   if (!result?.legs.length && liveResult?.legs.length) return respond("live", liveEvents, liveResult, live);
-  return respond(slate.scope, slate.events, result, live);
+  return respond(slate.scope, slate.events, result, live, mode);
 }
 
 const easternDates = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
@@ -851,7 +853,11 @@ async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy 
     }
     if (!results.length) throw new Error("Cross-sport player props are temporarily unavailable.");
 
-    const merged = combineBestParlays(results);
+    // Pre-game picks fill in only while none of the selected sports has a game on; otherwise the parlay stays live.
+    const liveRanked = results.filter(result => result.rankBy !== "pregame-probability");
+    const ranked = liveRanked.length ? liveRanked : results;
+    const mode = liveRanked.length ? rankBy : "pregame-probability";
+    const merged = combineBestParlays(ranked);
     const liveResults = results.map(result => result.live).filter(Boolean);
     const live = liveResults.length ? {
       games: liveResults.reduce((sum, item) => sum + (item.games || 0), 0),
@@ -869,20 +875,20 @@ async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy 
       sport: scope,
       book,
       side: sideFilter,
-      rankBy,
-      scope: ["live-positive", "live-performance"].includes(rankBy) ? "live" : liveLegs === merged.legs.length && liveLegs ? "live" : liveLegs ? "mixed" : results.some(result => result.scope === "next") ? "next" : "soon",
-      markets: [...new Set(results.flatMap(result => result.markets || []))],
-      games: results.reduce((sum, result) => sum + (result.games || 0), 0),
-      bookGames: results.reduce((sum, result) => sum + (result.bookGames || 0), 0),
+      rankBy: mode,
+      scope: ["live-positive", "live-performance"].includes(mode) ? "live" : liveLegs === merged.legs.length && liveLegs ? "live" : liveLegs ? "mixed" : ranked.some(result => result.scope === "next") ? "next" : "soon",
+      markets: [...new Set(ranked.flatMap(result => result.markets || []))],
+      games: ranked.reduce((sum, result) => sum + (result.games || 0), 0),
+      bookGames: ranked.reduce((sum, result) => sum + (result.bookGames || 0), 0),
       legs: merged.legs,
       alternates: merged.alternates,
-      injuryCheck: unavailable.length === 0 && results.every(result => result.injuryCheck),
-      injuredSkipped: results.reduce((sum, result) => sum + (result.injuredSkipped || 0), 0),
-      pricesAt: results.map(result => result.pricesAt).filter(Boolean).sort()[0] || "",
+      injuryCheck: unavailable.length === 0 && ranked.every(result => result.injuryCheck),
+      injuredSkipped: ranked.reduce((sum, result) => sum + (result.injuredSkipped || 0), 0),
+      pricesAt: ranked.map(result => result.pricesAt).filter(Boolean).sort()[0] || "",
       generatedAt: new Date().toISOString(),
       limited: !premium,
       live,
-      sportsIncluded: results.map(result => result.sport),
+      sportsIncluded: ranked.map(result => result.sport),
       sportsUnavailable: unavailable
     };
     const saved = await cached(key, 60_000, async () => value);

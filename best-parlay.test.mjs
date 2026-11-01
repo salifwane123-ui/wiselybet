@@ -274,6 +274,56 @@ test("alternate sportsbook ladders supply the lower rebound line despite short o
   assert.equal(result.legs[0].books, 2);
 });
 
+test("pre-game probability ranks the book's main lines across games by the Player Props percentage", () => {
+  const chance = (over, under) => (1 / over) / (1 / over + 1 / under);
+  const rounded = value => Math.round(value * 10_000) / 10_000;
+  const events = [game("g1", now + hour), game("g2", now + 2 * hour)];
+  const odds = {
+    g1: eventOdds({
+      draftkings: {
+        player_points: [["Alpha Player", 20.5, 1.5, 2.6], ["Bravo Player", 18.5, 1.9, 1.9]],
+        player_rebounds: [["Alpha Player", 8.5, 1.4, 3]],
+        player_points_alternate: [["Bravo Player", 10.5, 1.05, 9]]
+      },
+      fanduel: { player_points: [["Alpha Player", 20.5, 1.55, 2.5], ["Bravo Player", 18.5, 2.1, 1.75], ["Foxtrot Player", 12.5, 1.3, 3.5]] }
+    }),
+    g2: eventOdds({
+      draftkings: {
+        player_points: [["Hotel Player", 10.5, 1.2, 4.5]],
+        player_assists: [["Charlie Player", 6.5, 2.4, 1.6], ["Delta Player", 4.5, 1.7, 2.2], ["Echo Player", 3.5, ...prices(0.55)]]
+      }
+    })
+  };
+  const options = { rankBy: "pregame-probability", maxLegs: 4, includeScore: true };
+  const result = build(events, odds, options);
+  const all = [...result.legs, ...result.alternates];
+  // Global order (not game by game), one pick per player, short prices allowed, alternates and other books' lines left out.
+  assert.deepEqual(all.map(leg => [leg.player, leg.market, leg.line, leg.side, leg.price]), [
+    ["Hotel Player", "player_points", 10.5, "over", 1.2],
+    ["Alpha Player", "player_rebounds", 8.5, "over", 1.4],
+    ["Charlie Player", "player_assists", 6.5, "under", 1.6],
+    ["Delta Player", "player_assists", 4.5, "over", 1.7],
+    ["Echo Player", "player_assists", 3.5, "over", prices(0.55)[0]],
+    ["Bravo Player", "player_points", 18.5, "under", 1.9]
+  ]);
+  assert.equal(result.legs.length, 4);
+  assert.equal(all[0].probability, rounded(chance(1.2, 4.5)));
+  assert.equal(all[0].books, 1, "a line only the chosen book quotes still counts, as in Player Props");
+  // The best Over (FanDuel 2.1) and best Under (DraftKings 1.9) across books set Bravo's percentage.
+  assert.equal(all[5].probability, rounded(1 - chance(2.1, 1.9)));
+  assert.equal(all[5].books, 2);
+  assert.ok(all.every(leg => !leg.alternate && leg.probability >= 0.5));
+  assert.deepEqual(all.map(leg => leg._rank), [...all.map(leg => leg._rank)].sort((a, b) => b - a));
+
+  const overs = build(events, odds, { ...options, sideFilter: "over" });
+  assert.deepEqual([...overs.legs, ...overs.alternates].map(leg => leg.player), ["Hotel Player", "Alpha Player", "Delta Player", "Echo Player"]);
+  const unders = build(events, odds, { ...options, sideFilter: "under" });
+  assert.deepEqual(unders.legs.map(leg => leg.player), ["Charlie Player", "Bravo Player"]);
+  const healthy = build(events, odds, { ...options, injured: new Set([normalizePlayerName("Alpha Player")]) });
+  assert.ok([...healthy.legs, ...healthy.alternates].every(leg => leg.player !== "Alpha Player"));
+  assert.equal(healthy.injuredSkipped, 1);
+});
+
 test("cross-sport aggregation ranks sides together and keeps sport identity", () => {
   const result = combineBestParlays([
     {
