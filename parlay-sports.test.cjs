@@ -127,29 +127,58 @@ test("subset requests use canonical selected-sport signatures and only the selec
   assert.equal(calls[2], "baseball_mlb");
 });
 
-test("live-performance server response never fetches upcoming prices or falls back while a game is live", async () => {
+test("live-performance keeps a live parlay off upcoming prices and swaps short live picks only for a full pre-game parlay", async () => {
+  const now = Date.now();
   const calls = [];
-  const events = [{ id: "live", live: true }, { id: "upcoming", live: false }];
+  const events = [{ id: "live", live: true }, { id: "upcoming", commence_time: new Date(now + 3600_000).toISOString() }];
+  let liveCount = 2, pregameCount = 2, pricesDown = false;
+  const legs = (count, live) => Array.from({ length: count }, (_, index) => ({ player: `${live ? "Live" : "Pre"} ${index}`, live, price: 1.8 }));
   const c = {
     parlayRules: { maxGames: 8, minLiveLegs: 2 }, bestParlayMarkets: { basketball_nba: ["player_points"] },
     cached: async (key, ttl, fn) => fn(), fetchPlayerInjuries: async () => [], injuredPlayers: () => new Set(),
-    fetchOddsApi: async () => events, selectSlate: list => ({ events: list }),
+    fetchOddsApi: async () => events, selectSlate: list => ({ scope: "soon", events: list }),
     parlayLiveGame: async () => ({ state: "in" }),
-    parlayEventOdds: async (sport, event) => { calls.push(event.id); return {}; },
-    buildBestParlay: () => ({ legs: [{ player: "Sample", live: true, price: 2 }], alternates: [], bookGames: 1 }),
+    parlayEventOdds: async (sport, event) => {
+      calls.push(event.id);
+      if (pricesDown && event.id === "upcoming") throw new Error("odds feed down");
+      return {};
+    },
+    buildBestParlay: options => ({ legs: options.rankBy === "live-performance" ? legs(liveCount, true) : legs(pregameCount, false), alternates: [], bookGames: 1 }),
     console
   };
   runInNewContext(slice(server, "async function buildParlayResponse(", "const easternDates"), c);
-  const result = await c.buildParlayResponse("basketball_nba", "fanduel", true, { rankBy: "live-performance" });
-  assert.deepEqual(calls, ["live"]);
-  assert.equal(result.scope, "live");
-  assert.equal(result.legs.length, 1, "cross-sport aggregation can combine single qualifying legs");
-  c.buildBestParlay = () => ({ legs: [], alternates: [], bookGames: 1 });
+  const run = () => c.buildParlayResponse("basketball_nba", "fanduel", true, { rankBy: "live-performance" });
+
+  const live = await run();
+  assert.equal(live.rankBy, "live-performance");
+  assert.equal(live.scope, "live");
+  assert.equal(live.legs.length, 2);
+  assert.deepEqual(calls, ["live"], "a live parlay never prices the upcoming games");
+
+  liveCount = 1;
   calls.length = 0;
-  const empty = await c.buildParlayResponse("basketball_nba", "fanduel", true, { rankBy: "live-performance" });
-  assert.equal(empty.legs.length, 0);
-  assert.equal(empty.rankBy, "live-performance");
-  assert.deepEqual(calls, ["live"], "a game on keeps upcoming prices out even without a qualifying live leg");
+  const pregame = await run();
+  assert.equal(pregame.rankBy, "pregame-probability");
+  assert.equal(pregame.scope, "soon");
+  assert.deepEqual(Array.from(pregame.legs, leg => leg.player), ["Pre 0", "Pre 1"]);
+  assert.equal(pregame.live.games, 1);
+  assert.equal(pregame.live.legs, 1);
+  assert.deepEqual(Array.from(pregame.liveLegs, leg => leg.player), ["Live 0"], "the lone live pick stays available to a cross-sport parlay");
+  assert.deepEqual(calls, ["live", "upcoming"]);
+
+  liveCount = 0;
+  pregameCount = 1;
+  const short = await run();
+  assert.equal(short.rankBy, "live-performance", "pre-game picks that can't fill a parlay leave the live answer");
+  assert.equal(short.legs.length, 0);
+  assert.equal(short.liveLegs, undefined);
+
+  liveCount = 1;
+  pregameCount = 2;
+  pricesDown = true;
+  const down = await run();
+  assert.equal(down.rankBy, "live-performance", "a failed pre-game fallback keeps the live answer");
+  assert.equal(down.legs.length, 1, "cross-sport aggregation can combine single qualifying legs");
 });
 
 test("with no game live, live-performance falls back to the upcoming slate ranked by pre-game probability", async () => {
@@ -183,36 +212,59 @@ test("with no game live, live-performance falls back to the upcoming slate ranke
   builds.length = 0;
   c.buildBestParlay = options => { builds.push(options.rankBy); return { legs: [], alternates: [], bookGames: 1 }; };
   const live = await c.buildParlayResponse("basketball_nba", "fanduel", true, { rankBy: "live-performance" });
-  assert.equal(live.rankBy, "live-performance");
+  assert.equal(live.rankBy, "live-performance", "with a game on and no pre-game parlay either, the live answer stands");
   assert.equal(live.scope, "live");
   assert.equal(live.legs.length, 0);
-  assert.deepEqual(calls, [["started", "live-performance"]]);
-  assert.deepEqual(builds, ["live-performance"]);
+  assert.deepEqual(calls, [["started", "live-performance"], ["tonight", "pregame-probability"]]);
+  assert.deepEqual(builds, ["live-performance", "pregame-probability"]);
 });
 
-test("cross-sport pre-game picks fill in only while none of the selected sports is live", async () => {
-  const modes = { basketball_nba: "pregame", icehockey_nhl: "pregame" };
+test("cross-sport pre-game picks fill in whenever the selected sports' live picks can't form a parlay", async () => {
+  const picks = (prefix, sport, count, live) => Array.from({ length: count }, (_, index) => ({ player: `${prefix} ${sport} ${index}`, price: live ? 2 : 1.4, live }));
+  const pre = (sport, count = 1, extra = {}) => ({ sport, rankBy: "pregame-probability", scope: "soon", games: 2, legs: picks("Pre", sport, count, false), alternates: [], ...extra });
+  const on = (sport, count) => ({ sport, rankBy: "live-performance", scope: "live", games: 1, live: { games: 1, bookGames: 1 }, legs: picks("Live", sport, count, true), alternates: [] });
+  const answers = { basketball_nba: pre("basketball_nba"), icehockey_nhl: pre("icehockey_nhl") };
   const c = {
-    bestParlayMarkets: { basketball_nba: [], icehockey_nhl: [] },
+    parlayRules: { minLiveLegs: 2 }, bestParlayMarkets: { basketball_nba: [], icehockey_nhl: [] },
     parlayLastGood: new Map(), cachedValue: () => null, cached: async (key, ttl, fn) => fn(),
-    bestParlayFor: async sport => modes[sport] === "live"
-      ? { sport, rankBy: "live-performance", scope: "live", games: 1, legs: [{ player: "Live Player", price: 2, live: true }], alternates: [], live: { games: 1 } }
-      : { sport, rankBy: "pregame-probability", scope: "soon", games: 2, legs: [{ player: `Pre ${sport}`, price: 1.4, live: false }], alternates: [] },
+    bestParlayFor: async sport => answers[sport],
     combineBestParlays: results => ({ legs: results.flatMap(result => result.legs), alternates: [] }),
     console
   };
   runInNewContext(slice(server, "async function bestParlayForAllSports(", "const rateWindowMs"), c);
-  const selected = ["basketball_nba", "icehockey_nhl"];
-  const pregame = await c.bestParlayForAllSports("fanduel", true, "all", "live-performance", selected);
-  assert.equal(pregame.rankBy, "pregame-probability");
-  assert.equal(pregame.scope, "soon");
-  assert.deepEqual(Array.from(pregame.legs, leg => leg.player), ["Pre basketball_nba", "Pre icehockey_nhl"]);
-  modes.basketball_nba = "live";
-  const live = await c.bestParlayForAllSports("fanduel", true, "all", "live-performance", selected);
-  assert.equal(live.rankBy, "live-performance");
-  assert.equal(live.scope, "live");
-  assert.deepEqual(Array.from(live.legs, leg => leg.player), ["Live Player"]);
-  assert.equal(live.games, 1);
+  const run = () => c.bestParlayForAllSports("fanduel", true, "all", "live-performance", ["basketball_nba", "icehockey_nhl"]);
+  const players = result => Array.from(result.legs, leg => leg.player);
+
+  let result = await run();
+  assert.equal(result.rankBy, "pregame-probability");
+  assert.equal(result.scope, "soon");
+  assert.deepEqual(players(result), ["Pre basketball_nba 0", "Pre icehockey_nhl 0"]);
+
+  answers.basketball_nba = on("basketball_nba", 2);
+  result = await run();
+  assert.equal(result.rankBy, "live-performance");
+  assert.equal(result.scope, "live");
+  assert.deepEqual(players(result), ["Live basketball_nba 0", "Live basketball_nba 1"], "a live parlay keeps pre-game picks out");
+  assert.equal(result.games, 1);
+
+  answers.basketball_nba = on("basketball_nba", 1);
+  answers.icehockey_nhl = pre("icehockey_nhl", 2);
+  result = await run();
+  assert.equal(result.rankBy, "pregame-probability", "one live pick can't form a parlay, so pre-game picks fill in");
+  assert.deepEqual(players(result), ["Pre icehockey_nhl 0", "Pre icehockey_nhl 1"]);
+  assert.equal(result.live.games, 1);
+
+  answers.icehockey_nhl = pre("icehockey_nhl", 2, { live: { games: 2, bookGames: 1 }, liveLegs: picks("Live", "icehockey_nhl", 1, true) });
+  result = await run();
+  assert.equal(result.rankBy, "live-performance", "a sport's lone live pick still pairs with another sport's");
+  assert.deepEqual(players(result), ["Live basketball_nba 0", "Live icehockey_nhl 0"]);
+  assert.equal(result.games, 3);
+
+  answers.basketball_nba = on("basketball_nba", 0);
+  answers.icehockey_nhl = pre("icehockey_nhl", 1);
+  result = await run();
+  assert.equal(result.rankBy, "live-performance", "with games on and no full pre-game parlay, the live answer stands");
+  assert.equal(result.legs.length, 0);
 });
 
 test("client shows pre-game fallback legs without a live read and explains an empty fallback", () => {

@@ -756,25 +756,31 @@ async function buildParlayResponse(sport, book, premium, { maxGames = parlayRule
     };
     if (liveResult && liveResult.legs.length >= parlayRules.minLiveLegs) return respond("live", liveEvents, liveResult, live);
   }
-  // With no game live, live-performance falls back to the upcoming player props with the highest market-implied probability.
-  const mode = liveOnly && !liveEvents.length && rankBy === "live-performance" ? "pregame-probability" : rankBy;
-  if (liveOnly && mode === rankBy) {
-    return respond("live", liveEvents, liveResult || { legs: [], alternates: [], bookGames: 0, injuredSkipped: 0, pricesAt: "" }, live);
-  }
+  // When no game is live, or the games on now can't fill a parlay, live-performance falls back to the upcoming player
+  // props with the highest market-implied probability.
+  const mode = rankBy === "live-performance" ? "pregame-probability" : rankBy;
+  const liveAnswer = () => respond("live", liveEvents, liveResult || { legs: [], alternates: [], bookGames: 0, injuredSkipped: 0, pricesAt: "" }, live);
+  if (liveOnly && mode === rankBy) return liveAnswer();
 
   // Otherwise the upcoming games, including any running late, priced before tip-off.
   const upcoming = events.filter(event => Date.parse(event?.commence_time) > now || waiting.has(event?.id));
   const slate = selectSlate(upcoming, now, maxGames, waiting);
+  // Pre-game picks only stand in for games that are on when they can fill a parlay themselves.
+  const gamesOn = liveOnly && liveEvents.length > 0;
   let result = null;
   try {
     result = buildBestParlay({
       events: slate.events, oddsByEvent: await price(slate.events, mode), book, markets, injured: injured || new Set(), sport, includeScore, sideFilter, rankBy: mode
     });
   } catch (error) {
+    if (gamesOn) return liveAnswer();
     if (!liveResult?.legs.length) throw error;
   }
+  if (gamesOn && !(result?.legs.length >= parlayRules.minLiveLegs)) return liveAnswer();
   if (!result?.legs.length && liveResult?.legs.length) return respond("live", liveEvents, liveResult, live);
-  return respond(slate.scope, slate.events, result, live, mode);
+  const response = respond(slate.scope, slate.events, result, live, mode);
+  // A cross-sport parlay can still pair this sport's lone live pick with another sport's.
+  return gamesOn && liveResult?.legs.length ? { ...response, liveLegs: liveResult.legs } : response;
 }
 
 const easternDates = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" });
@@ -853,11 +859,18 @@ async function bestParlayForAllSports(book, premium, sideFilter = "all", rankBy 
     }
     if (!results.length) throw new Error("Cross-sport player props are temporarily unavailable.");
 
-    // Pre-game picks fill in only while none of the selected sports has a game on; otherwise the parlay stays live.
-    const liveRanked = results.filter(result => result.rankBy !== "pregame-probability");
-    const ranked = liveRanked.length ? liveRanked : results;
-    const mode = liveRanked.length ? rankBy : "pregame-probability";
-    const merged = combineBestParlays(ranked);
+    // Live picks lead whenever, across the selected sports, they can fill a parlay; otherwise the pre-game picks do.
+    // A sport whose lone live pick fell back to pre-game picks still lends it to a cross-sport live parlay.
+    const pregameParts = results.filter(result => result.rankBy === "pregame-probability");
+    const mainParts = results.flatMap(result => result.rankBy !== "pregame-probability" ? [result]
+      : result.liveLegs?.length ? [{ ...result, scope: "live", games: result.live?.games || 0, bookGames: result.live?.bookGames || 0, legs: result.liveLegs, alternates: [] }] : []);
+    const mainMerged = combineBestParlays(mainParts);
+    const pregameMerged = combineBestParlays(pregameParts);
+    const pregame = pregameParts.length > 0 && (!mainParts.length ||
+      mainMerged.legs.length < parlayRules.minLiveLegs && pregameMerged.legs.length >= parlayRules.minLiveLegs);
+    const ranked = pregame ? pregameParts : mainParts;
+    const mode = pregame ? "pregame-probability" : rankBy;
+    const merged = pregame ? pregameMerged : mainMerged;
     const liveResults = results.map(result => result.live).filter(Boolean);
     const live = liveResults.length ? {
       games: liveResults.reduce((sum, item) => sum + (item.games || 0), 0),
