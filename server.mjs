@@ -116,11 +116,6 @@ async function requestOddsApi(endpoint, parameters) {
   }
 
   const result = await fetch(url, { signal: AbortSignal.timeout(15000) });
-  const remaining = result.headers.get("x-requests-remaining");
-  if (remaining !== null && remaining.trim() !== "" && Number.isFinite(Number(remaining))) {
-    const used = Number(result.headers.get("x-requests-used"));
-    oddsQuota = { remaining: Number(remaining), used: Number.isFinite(used) ? used : 0, at: Date.now() };
-  }
   const body = await result.json().catch(() => null);
   if (!result.ok) {
     const error = new Error(
@@ -616,8 +611,6 @@ async function fetchLiveGame(sport, date, home, away) {
 const apiCache = new Map();
 const apiPending = new Map();
 const cacheTtlMs = { sports: 10 * 60_000, odds: 60_000, props: 60_000, espn: 10_000 };
-// Latest usage reported by the odds provider, so optional features can back off before live odds run out.
-let oddsQuota = null;
 
 // Serves repeated identical upstream requests from memory to save API quota; simultaneous misses share one request.
 async function cached(key, ttl, load) {
@@ -649,11 +642,6 @@ const parlayLastGood = new Map();
 const parlayStaleMs = 30 * 60_000;
 // Sportsbooks only listed in the provider's second US region.
 const us2Books = new Set(["espnbet", "hardrockbet", "ballybet"]);
-
-function oddsQuotaLow() {
-  if (!oddsQuota) return false;
-  return oddsQuota.remaining < Math.max(250, (oddsQuota.remaining + oddsQuota.used) * 0.1);
-}
 
 async function parlayEventOdds(sport, event, book, premium, now, rankBy = "strength") {
   const endpoint = `sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(event.id)}/odds/`;
@@ -837,13 +825,6 @@ async function bestParlayFor(sport, book, premium, options = {}) {
   };
   const fresh = cachedValue(key);
   if (fresh) return fresh;
-  if (oddsQuotaLow()) {
-    const saved = lastGood();
-    if (saved) return saved;
-    const error = new Error("Best parlays are paused for now to keep live odds running. Please check back later.");
-    error.status = 503;
-    throw error;
-  }
   try {
     const value = await cached(key, 60_000, () => buildParlayResponse(sport, book, premium, { maxGames, includeScore, sideFilter, rankBy, gameFilter }));
     parlayLastGood.set(key, value);

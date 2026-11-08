@@ -66,7 +66,7 @@ test("phase-specific single and cross-sport caches cannot reuse another mode", a
   const keys = [];
   const c = {
     parlayRules: { maxGames: 8 }, bestParlayMarkets: { basketball_nba: [], icehockey_nhl: [] },
-    parlayLastGood: new Map(), cachedValue: key => { keys.push(key); return null; }, oddsQuotaLow: () => false,
+    parlayLastGood: new Map(), cachedValue: key => { keys.push(key); return null; },
     cached: async (key, ttl, fn) => fn(),
     buildParlayResponse: async (sport, book, premium, options) => ({ sport, gameFilter: options.gameFilter,
       legs: [{ player: sport, live: options.gameFilter === "live", probability: 0.6 }], alternates: [] }),
@@ -365,19 +365,69 @@ test("client pauses a live-positive parlay below two eligible legs, including af
   assert.equal(c.bestParlayLegsFor(data).legs.length, 0);
 });
 
-test("live-performance requests never return last-good fallback on provider failure or low quota", async () => {
+test("low reported odds credits do not block single-sport or cross-sport suggestions", async () => {
+  for (const [remaining, used] of [[249, 251], [999, 9001], [0, 500]]) {
+    for (const gameFilter of ["live", "upcoming", "both"]) {
+      let requests = 0;
+      const sports = ["basketball_nba", "icehockey_nhl"];
+      const c = {
+        URL, AbortSignal, apiKey: "test-key",
+        fetch: async () => {
+          requests++;
+          return new Response("[]", { headers: {
+            "x-requests-remaining": String(remaining), "x-requests-used": String(used)
+          } });
+        },
+        parlayRules: { maxGames: 8, minLiveLegs: 2 },
+        bestParlayMarkets: Object.fromEntries(sports.map(sport => [sport, ["player_points"]])),
+        buildParlayResponse: async (sport, book, premium, options) => {
+          await c.requestOddsApi(`sports/${sport}/events`, {});
+          return { sport, book, gameFilter: options.gameFilter, scope: gameFilter === "live" ? "live" : "soon",
+            rankBy: gameFilter === "upcoming" ? "pregame-probability" : "live-performance", stale: false,
+            legs: [0, 1].map(index => ({ player: `${sport} ${index}`, live: gameFilter === "live", price: 1.8, probability: 0.6 })),
+            alternates: [] };
+        },
+        combineBestParlays: results => ({ legs: results.flatMap(result => result.legs), alternates: [] }),
+        console
+      };
+      runInNewContext(slice(server, "async function requestOddsApi(", "async function fetchEspnJson(") +
+        slice(server, "const apiCache = new Map();", "async function parlayEventOdds(") +
+        slice(server, "async function bestParlayFor(", "const rateWindowMs"), c);
+      await c.requestOddsApi("sports/", {});
+      const single = () => c.bestParlayFor(sports[0], "fanduel", true, { rankBy: "live-performance", gameFilter });
+      const crossSport = () => c.bestParlayForAllSports("fanduel", true, "all", "live-performance", sports, gameFilter);
+      const result = await single();
+      assert.equal(result.legs.length, 2);
+      assert.equal(result.gameFilter, gameFilter);
+      assert.equal(result.stale, false);
+      const merged = await crossSport();
+      assert.equal(merged.legs.length, 4);
+      assert.equal(merged.gameFilter, gameFilter);
+      assert.equal(requests, 4, "low usage headers must not prevent fresh requests");
+      assert.equal(await single(), result);
+      assert.equal(await crossSport(), merged);
+      assert.equal(requests, 4, "fresh cached suggestions still avoid extra provider requests");
+    }
+  }
+});
+
+test("live-performance requests never return last-good fallback on provider failure", async () => {
   const c = {
-    parlayRules: { maxGames: 8 }, parlayLastGood: new Map(), parlayStaleMs: 30 * 60_000,
-    cachedValue: () => null, oddsQuotaLow: () => false,
+    parlayRules: { maxGames: 8 }, bestParlayMarkets: { basketball_nba: [], icehockey_nhl: [] },
+    parlayLastGood: new Map(), parlayStaleMs: 30 * 60_000, cachedValue: () => null,
     cached: async () => { throw new Error("Provider offline"); },
     console: { error() {} }
   };
-  runInNewContext(slice(server, "async function bestParlayFor(", "async function bestParlayForAllSports("), c);
-  const key = "best-parlay:basketball_nba|fanduel|full|8|plain|all|live-performance";
-  c.parlayLastGood.set(key, { generatedAt: new Date().toISOString(), scope: "live", legs: [{ price: 2 }] });
-  await assert.rejects(c.bestParlayFor("basketball_nba", "fanduel", true, { rankBy: "live-performance" }), error => error.status === 503);
-  c.oddsQuotaLow = () => true;
-  await assert.rejects(c.bestParlayFor("basketball_nba", "fanduel", true, { rankBy: "live-performance" }), error => error.status === 503);
+  runInNewContext(slice(server, "async function bestParlayFor(", "const rateWindowMs"), c);
+  for (const gameFilter of ["", "live", "upcoming", "both"]) {
+    const suffix = gameFilter ? `|games:${gameFilter}` : "";
+    const keys = ["basketball_nba|fanduel|full|8|plain|all|live-performance", "all|fanduel|full|all|live-performance"];
+    for (const key of keys) {
+      c.parlayLastGood.set(`best-parlay:${key}${suffix}`, { generatedAt: new Date().toISOString(), scope: "live", legs: [{ price: 2 }] });
+    }
+    await assert.rejects(c.bestParlayFor("basketball_nba", "fanduel", true, { rankBy: "live-performance", gameFilter }), error => error.status === 503);
+    await assert.rejects(c.bestParlayForAllSports("fanduel", true, "all", "live-performance", undefined, gameFilter), error => error.status === 503);
+  }
 });
 
 test("one qualifying live leg from each selected sport forms a cross-sport parlay", async () => {

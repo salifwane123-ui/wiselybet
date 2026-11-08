@@ -1,6 +1,6 @@
 // The "Best parlay" at the top of the board: the strongest player-prop Overs and Unders at one sportsbook. While games are
 // in progress it is built from them alone, using each player's live box score; otherwise from the next few hours.
-// Pure functions only; server.mjs fetches, caches and guards the API quota.
+// Pure functions only; server.mjs fetches and caches provider data.
 
 import soccerSupport from "./soccer.js";
 const minute = 60_000;
