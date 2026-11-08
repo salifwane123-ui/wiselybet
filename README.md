@@ -82,6 +82,14 @@ All settings come from environment variables.
 
 Keep secrets such as `firebase-key.json` and `.env` out of git; both are listed in `.gitignore`.
 
+### Odds credits and key changes
+
+The server reads `THE_ODDS_API_KEY` once at startup. After changing it in Render, save and deploy the environment change; refreshing the browser alone cannot activate it. A provider response saying "Usage quota has been reached" means the active key's quota is exhausted, not that sign-in failed. Check that key's usage in The Odds API dashboard. Available credits are still required; caching cannot restore spent credits.
+
+Player props, previews and parlay pricing share cached event odds. Matching requests and market subsets reuse completed or in-flight requests without fetching extra markets. Different games, regions, sportsbook selections and response options stay separate. Populated pre-game prices refresh after 8 minutes within an hour of game time, or 15 minutes further out, with expiry capped at game time. Live, unknown-start and empty responses refresh after at most 60 seconds. The page checks every minute but shows when prices were actually fetched, not a new timestamp for each cached check. Low remaining credits do not impose an app-level cutoff.
+
+The provider charges by returned markets and regions, not just HTTP requests. One populated market in one region fetched every minute can use about 60 credits an hour; multi-game, multi-market parlays add more. These savings are not a monthly spending cap, and each server instance has its own cache, which clears on restart. See [The Odds API usage costs](https://the-odds-api.com/liveapi/guides/v4/#get-event-odds).
+
 ## Tests
 
 ```bash

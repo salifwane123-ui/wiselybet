@@ -98,6 +98,10 @@ async function sendJson(response, status, body) {
 }
 
 async function fetchOddsApi(endpoint, parameters = {}) {
+  if (/\/events\/[^/]+\/odds\/?$/.test(endpoint)) {
+    const entry = await fetchEventOdds(endpoint, parameters);
+    return { ...entry.data, oddsFetchedAt: new Date(entry.fetchedAt).toISOString() };
+  }
   const ttl = endpoint === "sports/" ? cacheTtlMs.sports : cacheTtlMs.odds;
   return cached(`odds:${endpoint}:${JSON.stringify(parameters)}`, ttl, () => requestOddsApi(endpoint, parameters));
 }
@@ -620,7 +624,8 @@ async function cached(key, ttl, load) {
   const pending = Promise.resolve()
     .then(load)
     .then(value => {
-      apiCache.set(key, { value, expires: Date.now() + ttl });
+      const now = Date.now();
+      apiCache.set(key, { value, expires: now + (typeof ttl === "function" ? ttl(value, now) : ttl) });
       if (apiCache.size > 300) {
         for (const [name, entry] of apiCache) if (entry.expires < Date.now()) apiCache.delete(name);
       }
@@ -643,20 +648,66 @@ const parlayStaleMs = 30 * 60_000;
 // Sportsbooks only listed in the provider's second US region.
 const us2Books = new Set(["espnbet", "hardrockbet", "ballybet"]);
 
+function eventOddsTtlMs(entry, now = Date.now()) {
+  const start = Date.parse(entry.data?.commence_time);
+  const hasPrices = entry.data?.bookmakers?.some(book => book.markets?.some(market => market.outcomes?.length));
+  // Empty markets retry promptly; pre-game caching must end when the game starts.
+  const duration = hasPrices && start > entry.fetchedAt
+    ? Math.min(propsTtlMs(start, entry.fetchedAt), 15 * 60_000, start - entry.fetchedAt)
+    : cacheTtlMs.props;
+  return Math.max(0, entry.fetchedAt + duration - now);
+}
+
+async function fetchEventOdds(endpoint, parameters) {
+  endpoint = endpoint.replace(/\/+$/, "");
+  const params = Object.fromEntries(Object.entries(parameters).sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, value]) => [name, ["markets", "regions", "bookmakers"].includes(name)
+      ? [...new Set(String(value).split(",").map(part => part.trim()))].sort().join(",") : String(value)]));
+  const prefix = `event-odds:${endpoint}:`;
+  const key = prefix + JSON.stringify(params);
+  const covers = candidate => {
+    if (!candidate.startsWith(prefix)) return false;
+    const source = JSON.parse(candidate.slice(prefix.length));
+    if ([...new Set([...Object.keys(source), ...Object.keys(params)])]
+      .some(name => name !== "markets" && source[name] !== params[name])) return false;
+    return (params.markets || "").split(",").every(market => (source.markets || "").split(",").includes(market));
+  };
+  const select = entry => params.markets ? {
+    ...entry,
+    data: {
+      ...entry.data,
+      bookmakers: (entry.data.bookmakers || []).map(book => ({
+        ...book, markets: (book.markets || []).filter(market => params.markets.split(",").includes(market.key))
+      })).filter(book => book.markets.length)
+    }
+  } : entry;
+  let fresh = null;
+  const now = Date.now();
+  for (const [candidate, hit] of apiCache) {
+    if (hit.expires <= now || !covers(candidate)) continue;
+    const entry = select(hit.value);
+    if (eventOddsTtlMs(entry, now) > 0 && (!fresh || entry.fetchedAt > fresh.fetchedAt)) fresh = entry;
+  }
+  if (fresh) return fresh;
+  // A parlay's in-flight multi-market request can also satisfy the props panel.
+  for (const [candidate, pending] of apiPending) {
+    if (covers(candidate)) return select(await pending);
+  }
+  return cached(key, eventOddsTtlMs, async () => ({
+    data: await requestOddsApi(endpoint, params), fetchedAt: Date.now()
+  }));
+}
+
 async function parlayEventOdds(sport, event, book, premium, now, rankBy = "strength") {
   const endpoint = `sports/${encodeURIComponent(sport)}/events/${encodeURIComponent(event.id)}/odds/`;
-  const liveOnly = ["live-positive", "live-performance"].includes(rankBy);
-  const ttl = liveOnly ? 60_000 : propsTtlMs(Date.parse(event.commence_time), now);
-  const keyFor = params => `parlay:${endpoint}:${JSON.stringify(params)}${liveOnly ? `|${rankBy}` : ""}`;
-  const load = params => cached(keyFor(params), ttl, async () => ({ data: await requestOddsApi(endpoint, params), fetchedAt: Date.now() }));
+  const load = params => fetchEventOdds(endpoint, params);
   const withAlternates = markets => ["lowest-line", "live-positive", "live-performance", "pregame-probability"].includes(rankBy)
     ? markets.flatMap(market => marketsWithoutAlternates.has(market) ? [market] : [market, `${market}_alternate`])
     : markets;
   const allMarkets = withAlternates(bestParlayMarkets[sport]).join(",");
   const guestMarkets = withAlternates(bestParlayMarkets[sport].slice(0, 1)).join(",");
   const full = { regions, markets: allMarkets, oddsFormat: "decimal", includeLinks: "true" };
-  // Guests only see the first market, so they reuse a full fetch when one is cached and otherwise pay for one market.
-  let entry = premium ? await load(full) : cachedValue(keyFor(full)) || await load({ ...full, markets: guestMarkets });
+  let entry = await load(premium ? full : { ...full, markets: guestMarkets });
   if (us2Books.has(book) && !regions.split(",").map(region => region.trim()).includes("us2")) {
     const extra = await load({ bookmakers: book, markets: premium ? allMarkets : guestMarkets, oddsFormat: "decimal", includeLinks: "true" }).catch(() => null);
     const extraBooks = extra?.data?.bookmakers || [];

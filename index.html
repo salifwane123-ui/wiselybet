@@ -2920,7 +2920,7 @@
               <div>
                 <h2 id="player-picks-title">Player prop odds</h2>
                 <p>Compare the best Over and Under price for each player and line. Percentages are normalized market-implied probabilities—not internet pick counts or betting recommendations.</p>
-                <p class="prop-auto-note">Auto-refreshes every 60 seconds while this page is open. Each check uses your odds provider quota.</p>
+                <p class="prop-auto-note">Checks every 60 seconds while this page is open. Pre-game prices are cached for 8–15 minutes, never past game time; live prices for up to 60 seconds. Shared cached checks use no provider credits.</p>
                 <details class="public-research-sample">
                   <summary>Public research example · October 30, 2026</summary>
                   <p>Franz Wagner · Magic vs. Raptors · points 22.5: one verified article author backed Under. No matching Reddit or X posts were verified. This past-game sample is not a current pick or a count of all bettors.</p>
@@ -6340,7 +6340,7 @@
       propStatusElement.className = "muted";
       propStatusElement.textContent = propEvents.length
         ? playerPropsHasLoaded
-          ? "Updating the selected market automatically every 60 seconds."
+          ? "Checking the selected market every 60 seconds; cached prices may be reused."
           : "Loading the selected game and market automatically…"
         : "No games are available.";
       if (!propEvents.length) {
@@ -6473,12 +6473,12 @@
             "empty-state",
             "No player odds were returned for this game and market. It will check again automatically."
           ));
-          playerPropsLastUpdatedAt = new Date();
+          playerPropsLastUpdatedAt = new Date(event.oddsFetchedAt || Date.now());
           playerPropsLastUpdatedKey = selectionKey;
           playerPropsHasLoaded = true;
           propCountElement.textContent = "";
           propStatusElement.textContent =
-            `Last checked ${playerPropsLastUpdatedAt.toLocaleTimeString()} · next automatic check in 60 seconds.`;
+            `Last provider check ${playerPropsLastUpdatedAt.toLocaleTimeString()} · next automatic check in 60 seconds.`;
           return;
         }
 
@@ -6656,11 +6656,11 @@
         applyPropSearch();
         restorePlayerSignal(signalHadFocus);
         void loadPlayerSignals(signalInputs, requestId, sport, event, market);
-        playerPropsLastUpdatedAt = new Date();
+        playerPropsLastUpdatedAt = new Date(event.oddsFetchedAt || Date.now());
         playerPropsLastUpdatedKey = selectionKey;
         playerPropsHasLoaded = true;
         propStatusElement.textContent =
-          `Updated ${playerPropsLastUpdatedAt.toLocaleTimeString()} · auto-refreshes every 60 seconds. Best picks first, ranked by market-implied probability.`;
+          `Prices fetched ${playerPropsLastUpdatedAt.toLocaleTimeString()} · checks every 60 seconds and reuses cached prices. Best picks first, ranked by market-implied probability.`;
       } catch (error) {
         if (requestId !== playerPropsRequestId) return;
         for (const button of propResultsElement.querySelectorAll(".prop-signal-button")) {
