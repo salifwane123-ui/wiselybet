@@ -83,7 +83,7 @@ const context = {
 };
 const page = runInNewContext(`${code}
 ({ trackerSide, isUnderPick, pickGoal, pickScore, pickOutcome, chooseBookLine, parlayStatus, trackerKey, underProjection, underChance, underRead,
-   pickIdentity, pickSlot, pickCopyIn, addTracker, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
+   pickIdentity, pickSlot, pickCopyIn, addTracker, placeTrackedPick, deleteParlay, recordHistory, readHistory, goalReachedNames, firstAnnouncement,
    playOnce, bestParlayPicks, trackBestParlayPicks, addBestParlayToTracker, parlayWinOdds, bestParlayLegsFor, bestParlayPlayerKey, rememberBestParlayRemoved,
    forgetBestParlayRemoved, syncBestParlayRemoved, trackerClock, suggestionsSettled, bookSuggestionPending, removalSuggestionPending,
   disableParlaySuggestions, bestParlayOutcomeText, bestParlayLegText, createLiveNow, measureTrackerHeader });`, context);
@@ -759,6 +759,133 @@ test("a pick whose parlay is gone counts as a single pick", () => {
   assert.equal(leftover.parlay, "");
   assert.equal(leftover.target, 27);
   assert.equal(context.trackers.length, 1);
+});
+
+test("moving a single pick into a parlay keeps its key, side, line and live progress", () => {
+  twoParlays();
+  const source = track("Test Player", "PTS", 25, "", "under");
+  const other = track("Test Player", "PTS", 30, "p2", "under");
+  const key = source.key;
+  const snapshot = { current: 12, state: "in", hitNotified: false };
+  trackerSnapshots.set(key, snapshot);
+  assert.equal(page.placeTrackedPick(key, "p1", "move"), source);
+  assert.equal(source.key, key);
+  assert.equal(source.side, "under");
+  assert.equal(source.target, 25);
+  assert.equal(source.parlay, "p1");
+  assert.equal(trackerSnapshots.get(key), snapshot);
+  assert.equal(context.trackers.length, 2);
+  assert.equal(other.target, 30);
+  assert.equal(other.parlay, "p2");
+});
+
+test("copying a pick works outside the current slate without sharing sportsbook or snapshot state", () => {
+  twoParlays();
+  const source = track("Test Player", "PTS", 24, "p1", "under");
+  Object.assign(source, { requestedTarget: 25, bookLine: { book: "fanduel", price: 1.8, point: 23.5 },
+    dismissedLine: "old-offer", suggestionsSettled: "p1" });
+  const before = plain(source);
+  trackerSnapshots.set(source.key, { current: 10, state: "in" });
+  const events = context.currentEvents;
+  context.currentEvents = [];
+  try {
+    const copy = page.placeTrackedPick(source.key, "p2", "copy");
+    assert.deepEqual(plain(source), before);
+    assert.equal(context.trackers.length, 2);
+    assert.notEqual(copy.key, source.key);
+    assert.equal(copy.parlay, "p2");
+    assert.equal(copy.target, 24);
+    assert.equal(copy.side, "under");
+    assert.equal(copy.home, source.home);
+    assert.equal(copy.away, source.away);
+    assert.equal(copy.date, source.date);
+    for (const field of ["requestedTarget", "bookLine", "dismissedLine", "suggestionsSettled"]) assert.equal(copy[field], undefined);
+    assert.equal(trackerSnapshots.has(copy.key), false);
+    assert.equal(trackerSnapshots.get(source.key).current, 10);
+  } finally {
+    context.currentEvents = events;
+  }
+});
+
+test("moving between groups keeps the displayed line but clears the previous book's decisions", () => {
+  twoParlays();
+  const source = track("Test Player", "PTS", 24, "p1");
+  Object.assign(source, { requestedTarget: 25, bookLine: { book: "fanduel" },
+    dismissedLine: "old-offer", suggestionsSettled: "p1" });
+  context.parlayBookState.set("p1", {});
+  context.parlayBookState.set("p2", {});
+  const moved = page.placeTrackedPick(source.key, "p2", "move");
+  assert.equal(moved, source);
+  assert.equal(moved.parlay, "p2");
+  assert.equal(moved.target, 24);
+  for (const field of ["requestedTarget", "bookLine", "dismissedLine", "suggestionsSettled"]) assert.equal(moved[field], undefined);
+  assert.equal(context.parlayBookState.has("p1"), false);
+  assert.equal(context.parlayBookState.has("p2"), false);
+});
+
+test("move and copy update a destination duplicate without doubling it or changing other copies", () => {
+  for (const mode of ["move", "copy"]) {
+    twoParlays();
+    const source = track("Test Player", "PTS", 25, "");
+    const existing = track("Test Player", "PTS", 20, "p1");
+    const other = track("Test Player", "PTS", 30, "p2");
+    const oldKey = existing.key;
+    existing.suggestionsSettled = "p1";
+    existing.dismissedLine = "old-offer";
+    trackerSnapshots.set(oldKey, { current: 21, hitNotified: true });
+    trackerSnapshots.set(source.key, { current: 21 });
+    const placed = page.placeTrackedPick(source.key, "p1", mode);
+    assert.equal(placed, existing);
+    assert.equal(placed.target, 25);
+    assert.notEqual(placed.key, oldKey);
+    assert.equal(placed.suggestionsSettled, undefined);
+    assert.equal(placed.dismissedLine, undefined);
+    assert.equal(trackerSnapshots.has(oldKey), false);
+    assert.equal(context.trackers.filter(item => item.parlay === "p1").length, 1);
+    assert.equal(context.trackers.includes(source), mode === "copy");
+    assert.equal(trackerSnapshots.has(source.key), mode === "copy");
+    assert.equal(other.target, 30);
+    assert.equal(context.trackers.length, mode === "copy" ? 3 : 2);
+  }
+});
+
+test("grouped picks can move or copy back to singles and invalid placements change nothing", () => {
+  for (const mode of ["move", "copy"]) {
+    twoParlays();
+    const source = track("Test Player", "PTS", 25, "p1");
+    const placed = page.placeTrackedPick(source.key, "", mode);
+    assert.equal(placed.parlay, "");
+    assert.equal(placed.target, 25);
+    assert.equal(context.trackers.length, mode === "copy" ? 2 : 1);
+    const before = plain(context.trackers);
+    assert.throws(() => page.placeTrackedPick(placed.key, "", mode), /already in that group/);
+    assert.throws(() => page.placeTrackedPick(placed.key, "deleted", mode), /no longer exists/);
+    assert.throws(() => page.placeTrackedPick("removed-pick", "p2", mode), /no longer available/);
+    assert.throws(() => page.placeTrackedPick(placed.key, "p2", "invalid"), /Choose Move or Copy/);
+    assert.deepEqual(plain(context.trackers), before);
+  }
+});
+
+test("tracker placement buttons expose both actions with accessible pick labels", () => {
+  const calls = [];
+  const tracker = { name: "Test Player", stat: "PTS", target: 25, side: "under" };
+  const c = {
+    trackerStats: context.trackerStats, pickGoal: () => "Under 24.5",
+    chooseTrackedPickPlacement: (...args) => calls.push(args),
+    element: (tag, className, text) => ({ tag, className, text, children: [], attributes: {}, listeners: {},
+      append(child) { this.children.push(child); },
+      setAttribute(key, value) { this.attributes[key] = value; },
+      addEventListener(event, callback) { this.listeners[event] = callback; } })
+  };
+  runInNewContext(slice("    function createTrackerPlacementControls(", "    const historyKey = "), c);
+  const controls = c.createTrackerPlacementControls(tracker);
+  assert.deepEqual(controls.children.map(button => button.text), ["Move to parlay", "Copy to parlay"]);
+  for (const button of controls.children) {
+    assert.match(button.attributes["aria-label"], /Test Player Under 24.5 Points to a parlay/);
+    button.listeners.click();
+  }
+  assert.deepEqual(calls, [[tracker, "move"], [tracker, "copy"]]);
+  assert.ok(html.includes("if (!tracker.demo) head.append(createTrackerPlacementControls(tracker));"));
 });
 
 test("opening a parlay at the sportsbook turns its suggestions off for good", () => {

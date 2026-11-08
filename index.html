@@ -1377,6 +1377,8 @@
     .tracker-side { margin-left: 6px; padding: 1px 7px; border-radius: 99px; background: rgba(61,220,132,.14); color: #7dffb0; font-size: .58rem; font-weight: 850; letter-spacing: .05em; line-height: 1.5; text-transform: uppercase; white-space: nowrap; }
     .tracker-side.is-under { background: rgba(95,212,255,.16); color: #8fe3ff; }
     .tracker-remove { width: auto; min-height: 0; padding: 1px 7px; border: 1px solid #2d3e50; border-radius: 6px; background: transparent; color: var(--muted); font-size: .62rem; font-weight: 600; line-height: 1.4; }
+    .tracker-placement { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+    .tracker-placement button { width: auto; min-height: 32px; padding: 5px 9px; border: 1px solid rgba(201,239,91,.35); border-radius: 7px; background: rgba(201,239,91,.08); color: #e7f7b0; font-size: .68rem; font-weight: 700; }
     .tracker-score { position: relative; display: flex; align-items: baseline; gap: 3px; margin: 3px 0 4px; font-variant-numeric: tabular-nums; }
     .tracker-current { font-size: 1.3rem; font-weight: 850; line-height: 1; }
     .tracker-target { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: .78rem; }
@@ -1752,6 +1754,7 @@
     html[data-theme="light"] .track-meaning { color: #6b4700; }
     html[data-theme="light"] .track-meaning.is-under { color: #12608f; }
     html[data-theme="light"] .tracker-remove { border-color: rgba(40,58,22,.25); color: #5b6658; }
+    html[data-theme="light"] .tracker-placement button { border-color: rgba(61,98,8,.3); background: #f6faef; color: #2f4d08; }
     html[data-theme="light"] .tracker-card-head { border-bottom-color: rgba(40,58,22,.1); background: rgba(40,58,22,.045); }
     html[data-theme="light"] .tracker-card-head .tracker-leg-game { color: #46523f; }
     html[data-theme="light"] .tracker-clock { background: rgba(40,58,22,.08); color: #34402d; }
@@ -7535,16 +7538,17 @@
       keep.focus();
     }
 
-    // Asks where a newly tracked pick belongs. Resolves to a parlay id, "" for a single pick, or null when cancelled.
+    // Resolves to a parlay id, "" for a single pick, or null when cancelled. Existing picks can move or copy elsewhere.
     // The same pick can go into several parlays; choosing a parlay that already has it just updates its line.
-    function choosePickPlacement(name, eventId, stat, target, side = "over") {
+    function choosePickPlacement(name, eventId, stat, target, side = "over", { mode = "add", excludeParlay = null } = {}) {
       return new Promise(resolve => {
         document.querySelector("#pick-placement")?.close();
         const dialog = document.createElement("dialog");
         dialog.id = "pick-placement";
         dialog.setAttribute("aria-labelledby", "pick-placement-title");
         const body = element("div", "pick-placement-body");
-        const heading = element("h2", "", "Where should this pick go?");
+        const action = mode === "move" ? "Move" : mode === "copy" ? "Copy" : "Add";
+        const heading = element("h2", "", mode === "add" ? "Where should this pick go?" : `${action} pick to a group`);
         heading.id = "pick-placement-title";
         body.append(heading, element("p", "", `${name} · ${pickGoal({ side }, target)} ${trackerStats[stat].label}`));
         const identity = trackerKey(name, eventId, stat, side);
@@ -7553,7 +7557,9 @@
           ...(pickCopyIn(identity, "") ? ["your single picks"] : [])];
         if (homes.length) {
           const where = homes.length > 1 ? `${homes.slice(0, -1).join(", ")} and ${homes[homes.length - 1]}` : homes[0];
-          body.append(element("p", "pick-placement-note", `Already in ${where}. Adding it somewhere else keeps it there too.`));
+          body.append(element("p", "pick-placement-note", `Already in ${where}. ${mode === "move"
+            ? "Only this copy leaves its current group; other copies stay put."
+            : "Adding it somewhere else keeps it there too."}`));
         }
         let result = null;
         const finish = value => {
@@ -7565,12 +7571,15 @@
           list.setAttribute("role", "group");
           list.setAttribute("aria-label", "Existing parlays");
           for (const parlay of parlays) {
+            if (parlay.id === excludeParlay) continue;
             const count = trackers.filter(item => item.parlay === parlay.id).length;
             const copy = pickCopyIn(identity, parlay.id);
-            const choice = element("button", "", copy ? `🎟 Update in ${parlay.name}` : `🎟 Add to ${parlay.name}`);
+            const choice = element("button", "", copy
+              ? `🎟 ${mode === "add" ? "Update" : `${action} & update`} in ${parlay.name}`
+              : `🎟 ${action} to ${parlay.name}`);
             choice.type = "button";
             const book = parlay.sportsbook ? ` · ${sportsbookTitle(parlay.sportsbook)}` : "";
-            const has = copy ? `Has this pick at ${copyGoal(copy)} · ` : "";
+            const has = copy ? `Has this pick at ${copyGoal(copy)}${mode === "add" ? "" : "; its line will be updated"} · ` : "";
             choice.append(element("small", "", `${has}${count} ${count === 1 ? "pick" : "picks"}${book}`));
             choice.addEventListener("click", () => finish(parlay.id));
             list.append(choice);
@@ -7583,7 +7592,7 @@
         nameInput.maxLength = 40;
         nameInput.placeholder = "New parlay name (optional)";
         nameInput.setAttribute("aria-label", "New parlay name");
-        const create = element("button", "", "Create & add");
+        const create = element("button", "", `Create & ${action.toLowerCase()}`);
         create.type = "submit";
         newRow.append(nameInput, create);
         newRow.addEventListener("submit", event => {
@@ -7591,13 +7600,16 @@
           finish(createParlay(nameInput.value).id);
         });
         const actions = element("div", "pick-placement-actions");
-        const single = element("button", "", pickCopyIn(identity, "") ? "Update single pick" : "Keep as single pick");
+        const single = element("button", "", mode === "add"
+          ? pickCopyIn(identity, "") ? "Update single pick" : "Keep as single pick"
+          : `${action}${pickCopyIn(identity, "") ? " & update" : ""} to single picks`);
         single.type = "button";
         single.addEventListener("click", () => finish(""));
         const cancel = element("button", "pick-placement-cancel", "Cancel");
         cancel.type = "button";
         cancel.addEventListener("click", () => finish(null));
-        actions.append(single, cancel);
+        if (excludeParlay !== "") actions.append(single);
+        actions.append(cancel);
         body.append(newRow, actions);
         dialog.append(body);
         dialog.addEventListener("click", event => { if (event.target === dialog) finish(null); });
@@ -9943,6 +9955,81 @@
       return tracker;
     }
 
+    function placeTrackedPick(key, parlayId, mode) {
+      const source = trackers.find(item => item.key === key);
+      if (!source || source.demo) throw new Error("This pick is no longer available. Reopen the Live tracker and try again.");
+      if (mode !== "move" && mode !== "copy") throw new Error("Choose Move or Copy for this pick.");
+      if (parlayId !== "" && !parlays.some(item => item.id === parlayId)) throw new Error("That parlay no longer exists. Choose another group.");
+      const from = pickSlot(source.parlay);
+      if (from === parlayId) throw new Error("This pick is already in that group. Choose another group.");
+      const existing = pickCopyIn(pickIdentity(source), parlayId);
+      let placed;
+      if (mode === "move" && !existing) {
+        forgetSuggestions(source);
+        source.parlay = parlayId;
+        // Keep the displayed line and live snapshot, not the old group's sportsbook adjustments or decisions.
+        delete source.requestedTarget;
+        delete source.bookLine;
+        delete source.dismissedLine;
+        delete source.suggestionsSettled;
+        placed = source;
+      } else {
+        const changedLine = existing && Number(existing.target) !== Number(source.target);
+        placed = addTracker(source.name, source.sport, source.eventId, source.stat, source.target, parlayId, trackerSide(source),
+          { id: source.eventId, home_team: source.home, away_team: source.away, commence_time: source.date });
+        if (!placed) throw new Error("Couldn't add this pick because its game is unavailable.");
+        if (changedLine) {
+          delete placed.dismissedLine;
+          delete placed.suggestionsSettled;
+        }
+        if (mode === "move") {
+          forgetSuggestions(source);
+          trackers = trackers.filter(item => item !== source);
+          trackerSnapshots.delete(source.key);
+        }
+      }
+      if (mode === "move") parlayBookState.delete(from);
+      parlayBookState.delete(parlayId);
+      saveTrackers();
+      syncTrackButtons();
+      renderTrackers();
+      void pollTrackers();
+      return placed;
+    }
+
+    async function chooseTrackedPickPlacement(tracker, mode) {
+      const destination = await choosePickPlacement(tracker.name, tracker.eventId, tracker.stat, tracker.target, trackerSide(tracker),
+        { mode, excludeParlay: pickSlot(tracker.parlay) });
+      if (destination === null) return;
+      try {
+        const placed = placeTrackedPick(tracker.key, destination, mode);
+        const parlay = parlays.find(item => item.id === destination);
+        if (parlay) revealTrackerParlay(parlay);
+        else {
+          parlayView = "singles";
+          saveParlayView();
+          collapsedTrackerWindows.delete(`singles:${placed.eventId}`);
+          setTrackerPanelOpen(true);
+        }
+        showActionToast(`${placed.name} ${mode === "move" ? "moved" : "copied"} to ${parlay ? parlay.name : "single picks"}.`, "kind-tracked");
+      } catch (error) {
+        showBanner(error.message || "Couldn't place this pick. Please try again.");
+      }
+    }
+
+    function createTrackerPlacementControls(tracker) {
+      const controls = element("div", "tracker-placement");
+      for (const mode of ["move", "copy"]) {
+        const action = mode === "move" ? "Move" : "Copy";
+        const button = element("button", "", `${action} to parlay`);
+        button.type = "button";
+        button.setAttribute("aria-label", `${action} ${tracker.name} ${pickGoal(tracker)} ${trackerStats[tracker.stat].label} to a parlay`);
+        button.addEventListener("click", () => void chooseTrackedPickPlacement(tracker, mode));
+        controls.append(button);
+      }
+      return controls;
+    }
+
     const historyKey = "courtside.history.v1";
     function readHistory() {
       try {
@@ -10875,6 +10962,7 @@
           top.prepend(dot);
         }
         head.append(gameRow, top);
+        if (!tracker.demo) head.append(createTrackerPlacementControls(tracker));
         card.append(head);
         const legParlay = parlays.find(item => item.id === tracker.parlay);
         if (legParlay?.sportsbook && tracker.bookLine?.book === legParlay.sportsbook && tracker.requestedTarget !== undefined) {
