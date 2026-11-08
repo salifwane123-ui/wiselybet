@@ -289,6 +289,11 @@ function normalizeEvent(event, sport) {
   };
 }
 
+// THE_ODDS_API_KEY is accepted because existing deployments stored the new SportsDataIO key under that name.
+export function sportsDataIOApiKey(env = {}) {
+  return String(env.SPORTSDATAIO_API_KEY || "").trim() || String(env.THE_ODDS_API_KEY || "").trim();
+}
+
 export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, now = () => Date.now() } = {}) {
   const scheduleCache = new Map();
   const schedulePending = new Map();
@@ -299,7 +304,7 @@ export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, 
 
   async function request(path) {
     if (!apiKey) {
-      const error = new Error("Set SPORTSDATAIO_API_KEY in the server environment.");
+      const error = new Error("Set SPORTSDATAIO_API_KEY (or THE_ODDS_API_KEY) in the server environment.");
       error.status = 503;
       throw error;
     }

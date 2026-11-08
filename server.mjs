@@ -6,7 +6,7 @@ import { deleteAccount, displayName, firebaseEnabled, firebaseSignIn, firebaseWe
 import { randomBytes } from "node:crypto";
 import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
 import { bestParlayMarkets, buildBestParlay, combineBestParlays, injuredPlayers, parlayBooks, parlayRules, propsTtlMs, selectSlate } from "./best-parlay.mjs";
-import { createSportsDataIO } from "./sportsdataio.mjs";
+import { createSportsDataIO, sportsDataIOApiKey } from "./sportsdataio.mjs";
 import soccerSupport from "./soccer.js";
 import playerSearch from "./player-search.js";
 
@@ -17,7 +17,7 @@ const oddsProvider = (process.env.ODDS_PROVIDER || "the-odds-api").trim().toLowe
 if (!["the-odds-api", "sportsdataio"].includes(oddsProvider)) {
   throw new Error("ODDS_PROVIDER must be either the-odds-api or sportsdataio.");
 }
-const sportsDataIO = createSportsDataIO({ apiKey: process.env.SPORTSDATAIO_API_KEY || "" });
+const sportsDataIO = createSportsDataIO({ apiKey: oddsProvider === "sportsdataio" ? sportsDataIOApiKey(process.env) : "" });
 const regions = process.env.ODDS_REGIONS || "us";
 const espnScoreboardSports = {
   basketball_nba: "basketball/nba",

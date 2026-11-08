@@ -65,8 +65,8 @@ All settings come from environment variables.
 | `HOST` | `127.0.0.1` | Address to listen on. Use `0.0.0.0` on a host. |
 | `NODE_ENV` | (none) | `production` adds HSTS and marks the session cookie `Secure`. |
 | `ODDS_PROVIDER` | `the-odds-api` | `the-odds-api` (legacy/local default) or `sportsdataio`. |
-| `SPORTSDATAIO_API_KEY` | (none) | Production key for SportsDataIO; required when `ODDS_PROVIDER=sportsdataio`. |
-| `THE_ODDS_API_KEY` | (none) | Legacy provider key; required only when `ODDS_PROVIDER=the-odds-api`. |
+| `SPORTSDATAIO_API_KEY` | (none) | Production key for SportsDataIO; required when `ODDS_PROVIDER=sportsdataio`. If empty, the server uses `THE_ODDS_API_KEY` as the SportsDataIO key. |
+| `THE_ODDS_API_KEY` | (none) | Legacy provider key; required when `ODDS_PROVIDER=the-odds-api`. With `ODDS_PROVIDER=sportsdataio`, it is used only as a fallback for an empty `SPORTSDATAIO_API_KEY`. |
 | `ODDS_REGIONS` | `us` | Bookmaker regions requested by The Odds API. |
 | `FIREBASE_KEY_JSON` | (none) | Firebase service-account JSON, raw or base64. |
 | `FIREBASE_KEY_FILE` | `./firebase-key.json` | Service-account file, used when `FIREBASE_KEY_JSON` is empty. |
@@ -86,7 +86,7 @@ Keep secrets such as `firebase-key.json` and `.env` out of git; both are listed 
 
 ### Odds providers and key changes
 
-The server reads provider settings once at startup. For Render, set `ODDS_PROVIDER=sportsdataio` and `SPORTSDATAIO_API_KEY` in the dashboard before deploying; refreshing the browser alone cannot activate a changed key. Keep the key in Render's environment settings, not in chat or source control. The SportsDataIO adapter sends the key in the `Ocp-Apim-Subscription-Key` header and never in the request URL.
+The server reads provider settings once at startup. For Render, set `ODDS_PROVIDER=sportsdataio` and `SPORTSDATAIO_API_KEY` in the dashboard before deploying; refreshing the browser alone cannot activate a changed key. Services that already hold the SportsDataIO key in `THE_ODDS_API_KEY` keep working, because the server falls back to that variable when `SPORTSDATAIO_API_KEY` is empty. Keep the key in Render's environment settings, not in chat or source control. The SportsDataIO adapter sends the key in the `Ocp-Apim-Subscription-Key` header and never in the request URL.
 
 Player props, previews and parlay pricing share cached event odds. Matching requests and market subsets reuse completed or in-flight requests. Populated pre-game prices refresh after 8 minutes within an hour of game time, or 15 minutes further out, with expiry capped at game time. Live, unknown-start and empty responses refresh after at most 60 seconds. Each server instance has its own in-memory cache, which clears on restart. Provider usage limits and costs depend on the account; caching does not change those provider terms.
 

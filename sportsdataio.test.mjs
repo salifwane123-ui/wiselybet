@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createSportsDataIO, normalizeSportsDataIOMarkets } from "./sportsdataio.mjs";
+import { createSportsDataIO, normalizeSportsDataIOMarkets, sportsDataIOApiKey } from "./sportsdataio.mjs";
 
 const now = Date.parse("2026-03-08T12:00:00Z");
 const event = {
@@ -160,6 +160,13 @@ test("SportsDataIO event odds retain the common event shape and use the betting-
   assert.equal(result.bookmakers[0].key, "draftkings");
   assert.deepEqual(result.bookmakers[0].markets[0].outcomes.map(outcome => outcome.name), ["Home", "Away"]);
   assert.ok(calls.some(call => call.url.pathname === "/v3/nba/odds/JSON/BettingMarkets/303"));
+});
+
+test("SportsDataIO key prefers SPORTSDATAIO_API_KEY and falls back to THE_ODDS_API_KEY", () => {
+  assert.equal(sportsDataIOApiKey({ SPORTSDATAIO_API_KEY: " primary ", THE_ODDS_API_KEY: "legacy" }), "primary");
+  assert.equal(sportsDataIOApiKey({ SPORTSDATAIO_API_KEY: "  ", THE_ODDS_API_KEY: " legacy\n" }), "legacy");
+  assert.equal(sportsDataIOApiKey({ THE_ODDS_API_KEY: "legacy" }), "legacy");
+  assert.equal(sportsDataIOApiKey({}), "");
 });
 
 test("SportsDataIO reports a missing key and redacts it from provider error messages", async () => {
