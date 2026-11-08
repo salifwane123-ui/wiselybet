@@ -321,6 +321,14 @@ function normalizeEvent(event, sport, names) {
 
 const distinct = values => [...new Set(values.filter(value => value !== undefined && value !== null && value !== "").map(String))].slice(0, 12);
 
+const scrambledText = value => /^scrambled$/i.test(String(value || "").trim());
+
+// SportsDataIO free-trial keys replace odds labels and sportsbook names with "Scrambled", which cannot be priced.
+function isScrambled(raw) {
+  return Array.isArray(raw) && raw.some(market => scrambledText(market?.BettingBetType) || scrambledText(market?.BettingMarketType) ||
+    (Array.isArray(market?.BettingOutcomes) && market.BettingOutcomes.some(outcome => scrambledText(sportsbookName(outcome)))));
+}
+
 // A key-free outline of an odds response that produced no prices, so feed-format changes show up in the server log.
 export function describeSportsDataIOMarkets(raw) {
   const markets = Array.isArray(raw) ? raw : [];
@@ -568,6 +576,11 @@ export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, 
       needsGame ? loadMarkets(sport, record, false) : [],
       needsProps ? loadMarkets(sport, record, true) : []
     ]);
+    if (isScrambled(gameMarkets) || isScrambled(propMarkets)) {
+      const error = new Error("SportsDataIO is sending scrambled free-trial odds. Odds and player props need a paid SportsDataIO production subscription.");
+      error.status = 503;
+      throw error;
+    }
     const bookmakers = normalizeSportsDataIOMarkets(sport, [gameMarkets, propMarkets].flat(), requested, parameters.bookmakers || "");
     if (!bookmakers.length) {
       for (const [kind, needed, raw] of [["game", needsGame, gameMarkets], ["props", needsProps, propMarkets]]) {

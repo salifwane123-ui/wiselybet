@@ -51,7 +51,7 @@ Open http://127.0.0.1:3000 and create an account. Without Firebase settings the 
 $env:ODDS_PROVIDER = "sportsdataio"; $env:SPORTSDATAIO_API_KEY = "your-production-key"; npm start
 ```
 
-Never paste API keys into chat or commit them to the repository. SportsDataIO trial keys may return scrambled data; use production access for the live board.
+Never paste API keys into chat or commit them to the repository. SportsDataIO free-trial keys return scrambled odds (market, outcome and sportsbook names read "Scrambled"); the server reports this as an error, and the live board needs a paid production subscription. Soccer leagues need a plan that includes those competitions.
 
 If a `firebase-key.json` file is in the project folder, the server switches to Firebase mode and uses that project. To force local accounts, set `FIREBASE_KEY_FILE` to a path that doesn't exist.
 

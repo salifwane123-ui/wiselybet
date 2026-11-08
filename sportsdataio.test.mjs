@@ -230,6 +230,21 @@ test("SportsDataIO explains denied feeds and logs a key-free outline of odds it 
   assert.ok(!outline[0].includes("test-key"));
 });
 
+test("SportsDataIO rejects scrambled free-trial odds with a subscription message", async () => {
+  const { fetchImpl } = mockProvider(url => {
+    if (/BettingEventsByDate/.test(url.pathname)) return [event];
+    if (/BettingPlayerPropsByGameID/.test(url.pathname)) return [{
+      BettingMarketType: "Scrambled", BettingBetType: "Scrambled", PlayerName: "Scrambled",
+      BettingOutcomes: [{ BettingOutcomeType: "Scrambled", Value: 12.5, PayoutAmerican: -110, SportsBook: { Name: "Scrambled" } }]
+    }];
+    return [];
+  });
+  const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now, logger: null });
+  await client.request("sports/basketball_nba/events/");
+  await assert.rejects(client.request("sports/basketball_nba/events/202/odds/", { markets: "player_points" }), error =>
+    error.status === 503 && /scrambled free-trial odds/.test(error.message) && /paid SportsDataIO production subscription/.test(error.message));
+});
+
 test("SportsDataIO reports a missing key and redacts it from provider error messages", async () => {
   const noKey = createSportsDataIO({ fetchImpl: async () => { throw new Error("must not fetch"); } });
   await assert.rejects(noKey.request("sports/basketball_nba/events/"), error =>
