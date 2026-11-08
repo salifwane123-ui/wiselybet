@@ -8,7 +8,7 @@ Live site: https://wiselybet.onrender.com
 
 ## Features
 
-- **Odds board**: games and bookmaker odds for basketball, hockey, baseball, football and seven soccer leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1, MLS and the Champions League) from The Odds API, with live scores and injury reports from ESPN.
+- **Odds board**: games and bookmaker odds for basketball, hockey, baseball, football and seven soccer leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1, MLS and the Champions League) from the configured odds provider, with live scores and injury reports from ESPN.
 - **Player props**: Over and Under tracking, form signals (good-form and warning icons) and followed players.
 - **Player search**: type a name in **Find a player** to see matching and similarly spelled players from every team in the selected sport, such as "lebrn" for LeBron James or "SGA" for Shai Gilgeous-Alexander. Names come from ESPN rosters (FBS teams for college football), refreshed every 6 hours. Each suggestion shows the team, position, number and the player's listed game; choose one to open that game's props, filtered to the player. Players without a listed game are shown but can't be chosen. Use the arrow keys and Enter to choose, or Escape to close. The same matching also filters the prop cards of the selected game.
 - **Trackers and parlays**: live progress for every pick, parlays that can share players, and a celebration when a parlay hits.
@@ -45,13 +45,13 @@ npm install
 npm start
 ```
 
-Open http://127.0.0.1:3000 and create an account. Without Firebase settings the server uses local accounts stored in `data/` (ignored by git). Without `THE_ODDS_API_KEY`, odds requests answer `503` with a message saying the key is missing.
-
-To use a key in PowerShell:
+Open http://127.0.0.1:3000 and create an account. Without Firebase settings the server uses local accounts stored in `data/` (ignored by git). The local default provider is The Odds API. To use SportsDataIO instead, set its provider and a production API key:
 
 ```powershell
-$env:THE_ODDS_API_KEY = "your-key"; npm start
+$env:ODDS_PROVIDER = "sportsdataio"; $env:SPORTSDATAIO_API_KEY = "your-production-key"; npm start
 ```
+
+Never paste API keys into chat or commit them to the repository. SportsDataIO trial keys may return scrambled data; use production access for the live board.
 
 If a `firebase-key.json` file is in the project folder, the server switches to Firebase mode and uses that project. To force local accounts, set `FIREBASE_KEY_FILE` to a path that doesn't exist.
 
@@ -64,8 +64,10 @@ All settings come from environment variables.
 | `PORT` | `3000` | HTTP port. |
 | `HOST` | `127.0.0.1` | Address to listen on. Use `0.0.0.0` on a host. |
 | `NODE_ENV` | (none) | `production` adds HSTS and marks the session cookie `Secure`. |
-| `THE_ODDS_API_KEY` | (none) | Key for [The Odds API](https://the-odds-api.com). Needed for odds. |
-| `ODDS_REGIONS` | `us` | Bookmaker regions requested from The Odds API. |
+| `ODDS_PROVIDER` | `the-odds-api` | `the-odds-api` (legacy/local default) or `sportsdataio`. |
+| `SPORTSDATAIO_API_KEY` | (none) | Production key for SportsDataIO; required when `ODDS_PROVIDER=sportsdataio`. |
+| `THE_ODDS_API_KEY` | (none) | Legacy provider key; required only when `ODDS_PROVIDER=the-odds-api`. |
+| `ODDS_REGIONS` | `us` | Bookmaker regions requested by The Odds API. |
 | `FIREBASE_KEY_JSON` | (none) | Firebase service-account JSON, raw or base64. |
 | `FIREBASE_KEY_FILE` | `./firebase-key.json` | Service-account file, used when `FIREBASE_KEY_JSON` is empty. |
 | `FIREBASE_WEB_JSON` | `./firebase-web.json` | Firebase web config (`apiKey`, `authDomain`, `projectId`, `appId`). |
@@ -82,13 +84,13 @@ All settings come from environment variables.
 
 Keep secrets such as `firebase-key.json` and `.env` out of git; both are listed in `.gitignore`.
 
-### Odds credits and key changes
+### Odds providers and key changes
 
-The server reads `THE_ODDS_API_KEY` once at startup. After changing it in Render, save and deploy the environment change; refreshing the browser alone cannot activate it. A provider response saying "Usage quota has been reached" means the active key's quota is exhausted, not that sign-in failed. Check that key's usage in The Odds API dashboard. Available credits are still required; caching cannot restore spent credits.
+The server reads provider settings once at startup. For Render, set `ODDS_PROVIDER=sportsdataio` and `SPORTSDATAIO_API_KEY` in the dashboard before deploying; refreshing the browser alone cannot activate a changed key. Keep the key in Render's environment settings, not in chat or source control. The SportsDataIO adapter sends the key in the `Ocp-Apim-Subscription-Key` header and never in the request URL.
 
-Player props, previews and parlay pricing share cached event odds. Matching requests and market subsets reuse completed or in-flight requests without fetching extra markets. Different games, regions, sportsbook selections and response options stay separate. Populated pre-game prices refresh after 8 minutes within an hour of game time, or 15 minutes further out, with expiry capped at game time. Live, unknown-start and empty responses refresh after at most 60 seconds. The page checks every minute but shows when prices were actually fetched, not a new timestamp for each cached check. Low remaining credits do not impose an app-level cutoff.
+Player props, previews and parlay pricing share cached event odds. Matching requests and market subsets reuse completed or in-flight requests. Populated pre-game prices refresh after 8 minutes within an hour of game time, or 15 minutes further out, with expiry capped at game time. Live, unknown-start and empty responses refresh after at most 60 seconds. Each server instance has its own in-memory cache, which clears on restart. Provider usage limits and costs depend on the account; caching does not change those provider terms.
 
-The provider charges by returned markets and regions, not just HTTP requests. One populated market in one region fetched every minute can use about 60 credits an hour; multi-game, multi-market parlays add more. These savings are not a monthly spending cap, and each server instance has its own cache, which clears on restart. See [The Odds API usage costs](https://the-odds-api.com/liveapi/guides/v4/#get-event-odds).
+The Odds API's market/region credit model applies only when `ODDS_PROVIDER=the-odds-api`; see [its usage-cost guide](https://the-odds-api.com/liveapi/guides/v4/#get-event-odds).
 
 ## Tests
 
@@ -109,7 +111,7 @@ Add every new test file to the `test` script in `package.json`. GitHub Actions (
 `render.yaml` describes the Render service, and every commit to `main` deploys to https://wiselybet.onrender.com.
 
 1. Create the service from the blueprint.
-2. In the Render dashboard, set `THE_ODDS_API_KEY`, `FIREBASE_KEY_JSON` and `FIREBASE_WEB_JSON`. Optionally add the `VAPID_*`, `SMTP_*`, `MAIL_TO` and `SUPPORT_EMAIL` settings.
+2. In the Render dashboard, set `SPORTSDATAIO_API_KEY` to a production key, and set `FIREBASE_KEY_JSON` and `FIREBASE_WEB_JSON`. `render.yaml` selects `ODDS_PROVIDER=sportsdataio`. Optionally add the `VAPID_*`, `SMTP_*`, `MAIL_TO` and `SUPPORT_EMAIL` settings.
 3. After a deploy, `GET /healthz` answers `ok`.
 
 Use Firebase mode in production. The free Render plan has no persistent disk, so local accounts in `DATA_DIR` would be lost on every deploy.

@@ -15,13 +15,14 @@ const endpoint = "sports/basketball_nba/events/test-event/odds/";
 const params = { regions: "us", markets: "player_points", oddsFormat: "decimal", includeLinks: "true" };
 const plain = value => JSON.parse(JSON.stringify(value));
 
-async function setup({ start = initialTime + 3 * 60 * minute, empty = false, missing = [], request } = {}) {
+async function setup({ start = initialTime + 3 * 60 * minute, empty = false, missing = [], request, oddsProvider = "the-odds-api" } = {}) {
   const { propsTtlMs, bestParlayMarkets } = await import("./best-parlay.mjs");
   let now = initialTime;
   const requests = [];
   const context = {
     Date: class extends Date { static now() { return now; } },
-    propsTtlMs, bestParlayMarkets, regions: "us", marketsWithoutAlternates: new Set(),
+    propsTtlMs, bestParlayMarkets, regions: "us", oddsProvider, marketsWithoutAlternates: new Set(),
+    sportsDataIO: { request: async () => { throw new Error("SportsDataIO was not expected"); } },
     requestOddsApi: async (path, parameters) => {
       requests.push({ path, parameters: plain(parameters) });
       if (request) await request(requests.length);
@@ -185,4 +186,30 @@ test("free sports and event listings retain their existing cache behavior and re
   advance(minute);
   await c.fetchOddsApi("sports/basketball_nba/events/");
   assert.equal(requests.length, 3);
+});
+
+test("SportsDataIO requests use the same event-odds cache and response timestamp", async () => {
+  const { context: c } = await setup({ oddsProvider: "sportsdataio" });
+  const requests = [];
+  c.sportsDataIO.request = async (path, parameters) => {
+    requests.push({ path, parameters });
+    if (path.endsWith("/events/")) return [{ id: "test-event" }];
+    return {
+      id: "test-event",
+      commence_time: new Date(initialTime + 3 * 60 * minute).toISOString(),
+      bookmakers: [{ key: "fanduel", markets: [{ key: "player_points", outcomes: [
+        { name: "Over", description: "Test Player", point: 20.5, price: 1.9 }
+      ] }] }]
+    };
+  };
+  const events = await c.fetchOddsApi("sports/basketball_nba/events/", {});
+  const odds = await c.fetchOddsApi(endpoint, params);
+  const parlay = await c.parlayEventOdds("basketball_nba", { id: "test-event" }, "fanduel", true, initialTime);
+  assert.deepEqual(plain(events), [{ id: "test-event" }]);
+  assert.equal(odds.bookmakers[0].key, "fanduel");
+  assert.equal(odds.oddsFetchedAt, new Date(initialTime).toISOString());
+  assert.equal(parlay.data.bookmakers[0].key, "fanduel");
+  assert.equal(requests.length, 3);
+  assert.equal(requests[1].path, endpoint.replace(/\/$/, ""));
+  assert.equal(requests[2].path, endpoint.replace(/\/$/, ""));
 });

@@ -6,12 +6,18 @@ import { deleteAccount, displayName, firebaseEnabled, firebaseSignIn, firebaseWe
 import { randomBytes } from "node:crypto";
 import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
 import { bestParlayMarkets, buildBestParlay, combineBestParlays, injuredPlayers, parlayBooks, parlayRules, propsTtlMs, selectSlate } from "./best-parlay.mjs";
+import { createSportsDataIO } from "./sportsdataio.mjs";
 import soccerSupport from "./soccer.js";
 import playerSearch from "./player-search.js";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 3000);
 const apiKey = process.env.THE_ODDS_API_KEY;
+const oddsProvider = (process.env.ODDS_PROVIDER || "the-odds-api").trim().toLowerCase();
+if (!["the-odds-api", "sportsdataio"].includes(oddsProvider)) {
+  throw new Error("ODDS_PROVIDER must be either the-odds-api or sportsdataio.");
+}
+const sportsDataIO = createSportsDataIO({ apiKey: process.env.SPORTSDATAIO_API_KEY || "" });
 const regions = process.env.ODDS_REGIONS || "us";
 const espnScoreboardSports = {
   basketball_nba: "basketball/nba",
@@ -98,12 +104,15 @@ async function sendJson(response, status, body) {
 }
 
 async function fetchOddsApi(endpoint, parameters = {}) {
+  const requestProvider = oddsProvider === "sportsdataio"
+    ? (path, params) => sportsDataIO.request(path, params)
+    : requestOddsApi;
   if (/\/events\/[^/]+\/odds\/?$/.test(endpoint)) {
-    const entry = await fetchEventOdds(endpoint, parameters);
+    const entry = await fetchEventOdds(endpoint, parameters, requestProvider);
     return { ...entry.data, oddsFetchedAt: new Date(entry.fetchedAt).toISOString() };
   }
   const ttl = endpoint === "sports/" ? cacheTtlMs.sports : cacheTtlMs.odds;
-  return cached(`odds:${endpoint}:${JSON.stringify(parameters)}`, ttl, () => requestOddsApi(endpoint, parameters));
+  return cached(`odds:${endpoint}:${JSON.stringify(parameters)}`, ttl, () => requestProvider(endpoint, parameters));
 }
 
 async function requestOddsApi(endpoint, parameters) {
@@ -658,7 +667,10 @@ function eventOddsTtlMs(entry, now = Date.now()) {
   return Math.max(0, entry.fetchedAt + duration - now);
 }
 
-async function fetchEventOdds(endpoint, parameters) {
+async function fetchEventOdds(endpoint, parameters, load) {
+  load ||= oddsProvider === "sportsdataio"
+    ? (path, params) => sportsDataIO.request(path, params)
+    : requestOddsApi;
   endpoint = endpoint.replace(/\/+$/, "");
   const params = Object.fromEntries(Object.entries(parameters).sort(([a], [b]) => a.localeCompare(b))
     .map(([name, value]) => [name, ["markets", "regions", "bookmakers"].includes(name)
@@ -694,7 +706,7 @@ async function fetchEventOdds(endpoint, parameters) {
     if (covers(candidate)) return select(await pending);
   }
   return cached(key, eventOddsTtlMs, async () => ({
-    data: await requestOddsApi(endpoint, params), fetchedAt: Date.now()
+    data: await load(endpoint, params), fetchedAt: Date.now()
   }));
 }
 
@@ -1545,7 +1557,10 @@ const server = createServer(async (request, response) => {
           : "Player props are not supported for this sport." });
         return;
       }
-      if (!/^[a-f0-9-]{20,}$/i.test(eventId)) {
+      const validEventId = oddsProvider === "sportsdataio"
+        ? /^\d{1,20}$/.test(eventId)
+        : /^[a-f0-9-]{20,}$/i.test(eventId);
+      if (!validEventId) {
         await sendJson(response, 400, { error: "Provide a valid event ID." });
         return;
       }
