@@ -41,7 +41,7 @@ test("SportsDataIO schedule routes cover every configured league and collapse so
     if (/BettingEventsByDate/.test(url.pathname)) return [event];
     return [];
   });
-  const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now });
+  const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now, logger: null });
   const sports = await client.request("sports/");
   assert.equal(sports.length, 13);
 
@@ -81,7 +81,7 @@ test("SportsDataIO converts Eastern wall times through both DST offsets and reje
       if (/BettingEventsByDate/.test(url.pathname)) return [{ ...event, GameStartTime: input }];
       return [];
     });
-    const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now });
+    const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now, logger: null });
     const listed = await client.request("sports/basketball_nba/events/");
     assert.equal(listed[0]?.commence_time || "", expected);
   }
@@ -125,7 +125,7 @@ test("SportsDataIO uses the subscription header and the correct NFL, CFB and WNB
     if (/BettingPlayerPropsBy/.test(url.pathname)) return [];
     return [];
   });
-  const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now });
+  const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now, logger: null });
   const routes = [
     ["americanfootball_nfl", "101", "/v3/nfl/odds/JSON/BettingPlayerPropsByScoreID/101"],
     ["americanfootball_ncaaf", "202", "/v3/cfb/odds/JSON/BettingPlayerPropsByGameID/202"],
@@ -153,7 +153,7 @@ test("SportsDataIO event odds retain the common event shape and use the betting-
     }];
     return [];
   });
-  const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now });
+  const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now, logger: null });
   const result = await client.request("sports/basketball_nba/events/202/odds/", { markets: "h2h" });
   assert.equal(result.id, "202");
   assert.equal(result.commence_time, "2026-03-08T19:00:00.000Z");
@@ -169,13 +169,74 @@ test("SportsDataIO key prefers SPORTSDATAIO_API_KEY and falls back to THE_ODDS_A
   assert.equal(sportsDataIOApiKey({}), "");
 });
 
+test("SportsDataIO events use full team names from the teams feed and fall back to team keys", async () => {
+  const teamEvent = { GameID: 24073, BettingEventID: 9001, GameStartTime: "2026-03-08T15:30:00", BettingEventType: "Game",
+    HomeTeam: "CHI", AwayTeam: "PHI", HomeTeamID: 4, AwayTeamID: 7 };
+  const { calls, fetchImpl } = mockProvider(url => {
+    if (url.pathname === "/v3/nba/scores/JSON/Teams") return [
+      { TeamID: 4, Key: "CHI", City: "Chicago", Name: "Bulls" },
+      { TeamID: 7, Key: "PHI", City: "Philadelphia", Name: "76ers" }
+    ];
+    if (url.pathname === "/v3/cfb/scores/JSON/Teams") return [{ TeamID: 1, Key: "ALA", School: "Alabama", Name: "Crimson Tide" }];
+    if (url.pathname === "/v3/nfl/scores/JSON/Teams") return [{ TeamID: 16, Key: "KC", City: "Kansas City", Name: "Chiefs", FullName: "Kansas City Chiefs" }];
+    if (url.pathname.startsWith("/v3/cfb/odds/JSON/BettingEventsByDate/")) return [{ ...teamEvent, HomeTeam: "ALA", HomeTeamID: 1, AwayTeam: "UGA", AwayTeamID: 2 }];
+    if (url.pathname.startsWith("/v3/nfl/odds/JSON/BettingEventsByDate/")) return [{ ...teamEvent, ScoreID: 55, HomeTeam: "KC", HomeTeamID: 99, AwayTeam: "BUF", AwayTeamID: 98 }];
+    if (/BettingEventsByDate/.test(url.pathname)) return [teamEvent];
+    return [];
+  });
+  const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now, logger: null });
+  const [nba] = await client.request("sports/basketball_nba/events/");
+  assert.deepEqual([nba.home_team, nba.away_team], ["Chicago Bulls", "Philadelphia 76ers"]);
+  const [cfb] = await client.request("sports/americanfootball_ncaaf/events/");
+  assert.deepEqual([cfb.home_team, cfb.away_team], ["Alabama Crimson Tide", "UGA"]);
+  const [nfl] = await client.request("sports/americanfootball_nfl/events/");
+  assert.equal(nfl.home_team, "Kansas City Chiefs");
+  assert.equal(calls.filter(call => call.url.pathname === "/v3/nba/scores/JSON/Teams").length, 1);
+
+  const warnings = [];
+  const denied = createSportsDataIO({ apiKey: "test-key", now: () => now, logger: { warn: (...args) => warnings.push(args.join(" ")) },
+    fetchImpl: async url => new URL(url).pathname.endsWith("/Teams") ? response({}, 403) : response([teamEvent]) });
+  const [fallback] = await denied.request("sports/basketball_nba/events/");
+  assert.deepEqual([fallback.home_team, fallback.away_team], ["CHI", "PHI"]);
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /team names unavailable/);
+  assert.ok(!warnings[0].includes("test-key"));
+});
+
+test("SportsDataIO explains denied feeds and logs a key-free outline of odds it cannot price", async () => {
+  const deniedClient = createSportsDataIO({ apiKey: "test-key", logger: null, fetchImpl: async () => new Response("", { status: 401 }) });
+  await assert.rejects(deniedClient.request("sports/soccer_epl/events/"), error =>
+    error.status === 401 && /denied access/.test(error.message) && /plan includes this league/.test(error.message));
+
+  const warnings = [];
+  const { fetchImpl } = mockProvider(url => {
+    if (/BettingEventsByDate/.test(url.pathname)) return [event];
+    if (/BettingPlayerPropsByGameID/.test(url.pathname)) return [{
+      BettingMarketType: "Player Prop", BettingBetType: "Mystery Stat", Name: "Mystery Stat", PlayerName: "A Player",
+      BettingOutcomes: [{ BettingOutcomeType: "Over", Value: 1.5, PayoutAmerican: 100, SportsBook: { Name: "DraftKings" } }]
+    }];
+    return [];
+  });
+  const client = createSportsDataIO({ apiKey: "test-key", fetchImpl, now: () => now,
+    logger: { warn: (...args) => warnings.push(args.join(" ")) } });
+  await client.request("sports/basketball_nba/events/");
+  const result = await client.request("sports/basketball_nba/events/202/odds/", { markets: "player_points" });
+  await client.request("sports/basketball_nba/events/202/odds/", { markets: "player_points" });
+  assert.deepEqual(result.bookmakers, []);
+  const outline = warnings.filter(warning => /props odds for basketball_nba produced no prices/.test(warning));
+  assert.equal(outline.length, 1);
+  assert.match(outline[0], /"betTypes":\["Mystery Stat"\]/);
+  assert.match(outline[0], /"sportsbooks":\["DraftKings"\]/);
+  assert.ok(!outline[0].includes("test-key"));
+});
+
 test("SportsDataIO reports a missing key and redacts it from provider error messages", async () => {
   const noKey = createSportsDataIO({ fetchImpl: async () => { throw new Error("must not fetch"); } });
   await assert.rejects(noKey.request("sports/basketball_nba/events/"), error =>
     error.status === 503 && /SPORTSDATAIO_API_KEY/.test(error.message));
 
   const { fetchImpl } = mockProvider(() => ({ Message: "Invalid subscription key: secret-key" }));
-  const client = createSportsDataIO({ apiKey: "secret-key", fetchImpl: async (url, options) => {
+  const client = createSportsDataIO({ apiKey: "secret-key", logger: null, fetchImpl: async (url, options) => {
     const result = await fetchImpl(url, options);
     return new Response(JSON.stringify({ Message: "Invalid subscription key: secret-key" }), { status: 401 });
   } });

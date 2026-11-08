@@ -275,7 +275,37 @@ export function normalizeSportsDataIOMarkets(sport, rawMarkets, requestedMarkets
   }));
 }
 
-function normalizeEvent(event, sport) {
+function teamDisplayName(team) {
+  const fullName = String(team?.FullName || "").trim();
+  if (fullName) return fullName;
+  return [team?.School || team?.City, team?.Name].map(part => String(part || "").trim()).filter(Boolean).join(" ");
+}
+
+// Maps TeamID and team key to full names ("CHI" -> "Chicago Bulls"), which the page and ESPN lookups match against.
+function teamNameMap(teams) {
+  const names = new Map();
+  for (const team of Array.isArray(teams) ? teams : []) {
+    const name = teamDisplayName(team);
+    if (!name) continue;
+    if (team.TeamID !== undefined && team.TeamID !== null) names.set(`id:${team.TeamID}`, name);
+    if (team.GlobalTeamID !== undefined && team.GlobalTeamID !== null) names.set(`global:${team.GlobalTeamID}`, name);
+    if (team.Key) names.set(`key:${String(team.Key).toUpperCase()}`, name);
+  }
+  return names;
+}
+
+function eventTeamName(event, side, names) {
+  const explicit = String(event[`${side}TeamName`] || "").trim();
+  if (explicit) return explicit;
+  const id = event[`${side}TeamID`] ?? event[`${side}TeamId`];
+  const globalId = event[`Global${side}TeamID`] ?? event[`Global${side}TeamId`];
+  const key = String(event[`${side}Team`] || "").trim();
+  return (id !== undefined && id !== null && names?.get(`id:${id}`)) ||
+    (globalId !== undefined && globalId !== null && names?.get(`global:${globalId}`)) ||
+    (key && names?.get(`key:${key.toUpperCase()}`)) || key || side;
+}
+
+function normalizeEvent(event, sport, names) {
   const id = gameId(event, sport);
   const commenceTime = eventDate(event);
   if (id === undefined || id === null || !commenceTime ||
@@ -284,8 +314,30 @@ function normalizeEvent(event, sport) {
     id: String(id),
     sport_key: sport,
     commence_time: commenceTime,
-    home_team: event.HomeTeamName || event.HomeTeam || "Home",
-    away_team: event.AwayTeamName || event.AwayTeam || "Away"
+    home_team: eventTeamName(event, "Home", names),
+    away_team: eventTeamName(event, "Away", names)
+  };
+}
+
+const distinct = values => [...new Set(values.filter(value => value !== undefined && value !== null && value !== "").map(String))].slice(0, 12);
+
+// A key-free outline of an odds response that produced no prices, so feed-format changes show up in the server log.
+export function describeSportsDataIOMarkets(raw) {
+  const markets = Array.isArray(raw) ? raw : [];
+  const outcomes = markets.flatMap(market => Array.isArray(market?.BettingOutcomes) ? market.BettingOutcomes : []);
+  return {
+    responseType: Array.isArray(raw) ? "array" : raw === null ? "null" : typeof raw,
+    markets: markets.length,
+    outcomes: outcomes.length,
+    marketTypes: distinct(markets.map(market => market?.BettingMarketType)),
+    betTypes: distinct(markets.map(market => market?.BettingBetType)),
+    periodTypes: distinct(markets.map(market => market?.BettingPeriodType)),
+    marketNames: distinct(markets.map(market => market?.Name)),
+    outcomeTypes: distinct(outcomes.map(outcome => outcome?.BettingOutcomeType)),
+    sportsbooks: distinct(outcomes.map(sportsbookName)),
+    available: distinct(outcomes.map(outcome => outcome?.IsAvailable)),
+    marketFields: Object.keys(markets[0] || (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {})).slice(0, 40),
+    outcomeFields: Object.keys(outcomes[0] || {}).slice(0, 40)
   };
 }
 
@@ -294,10 +346,13 @@ export function sportsDataIOApiKey(env = {}) {
   return String(env.SPORTSDATAIO_API_KEY || "").trim() || String(env.THE_ODDS_API_KEY || "").trim();
 }
 
-export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, now = () => Date.now() } = {}) {
+export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, now = () => Date.now(), logger = console } = {}) {
   const scheduleCache = new Map();
   const schedulePending = new Map();
   const eventById = new Map();
+  const teamCache = new Map();
+  const teamPending = new Map();
+  const reported = new Set();
   let competitions;
   let competitionsAt = 0;
   let competitionPending;
@@ -315,18 +370,56 @@ export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, 
     const text = await result.text();
     let body;
     try { body = text ? JSON.parse(text) : null; } catch {
-      const error = new Error("SportsDataIO returned an invalid JSON response.");
-      error.status = 502;
-      throw error;
+      if (!result.ok) body = null;
+      else {
+        const error = new Error("SportsDataIO returned an invalid JSON response.");
+        error.status = 502;
+        throw error;
+      }
     }
     if (!result.ok) {
-      let message = body?.Message || body?.message || body?.error || `SportsDataIO returned HTTP ${result.status}.`;
-      message = String(message).replaceAll(apiKey, "[redacted]");
+      const detail = String(body?.Message || body?.message || body?.Description || body?.error || "");
+      let message = detail || `SportsDataIO returned HTTP ${result.status}.`;
+      if (result.status === 401 || result.status === 403) {
+        message = `SportsDataIO denied access (HTTP ${result.status}). Check that the key is a production key and that the SportsDataIO plan includes this league.${detail ? ` ${detail}` : ""}`;
+      }
+      message = message.replaceAll(apiKey, "[redacted]");
       const error = new Error(message);
       error.status = result.status >= 400 && result.status < 600 ? result.status : 502;
       throw error;
     }
     return body;
+  }
+
+  function reportOnce(key, message, details) {
+    if (reported.has(key)) return;
+    reported.add(key);
+    logger?.warn?.(message, JSON.stringify(details));
+  }
+
+  // Full team names are optional: if the teams feed is unavailable, events keep the provider's team keys.
+  async function teamNames(sport) {
+    const config = sports[sport];
+    if (!config?.league) return null;
+    const cached = teamCache.get(config.league);
+    if (cached && cached.expires > now()) return cached.names;
+    if (teamPending.has(config.league)) return teamPending.get(config.league);
+    const pending = (async () => {
+      try {
+        const names = teamNameMap(await request(`/v3/${config.league}/scores/JSON/Teams`));
+        teamCache.set(config.league, { names, expires: now() + 24 * 60 * minute });
+        return names;
+      } catch (error) {
+        if (error.status === 503) throw error;
+        reportOnce(`teams:${config.league}`, `SportsDataIO ${config.title} team names unavailable; using team keys.`, { status: error.status || 0, error: error.message });
+        teamCache.set(config.league, { names: null, expires: now() + 10 * minute });
+        return null;
+      }
+    })().finally(() => {
+      if (teamPending.get(config.league) === pending) teamPending.delete(config.league);
+    });
+    teamPending.set(config.league, pending);
+    return pending;
   }
 
   async function soccerCompetitions() {
@@ -382,7 +475,7 @@ export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, 
     const pending = (async () => {
       const today = easternDate(new Date(now()));
       const dates = [today, addDays(today, 1)];
-      const feeds = await Promise.all(dates.map(async date => {
+      const [names, ...feeds] = await Promise.all([teamNames(sport), ...dates.map(async date => {
         const path = await schedulePath(sport, date);
         const result = await request(path);
         if (!Array.isArray(result)) {
@@ -391,10 +484,10 @@ export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, 
           throw error;
         }
         return result;
-      }));
+      })]);
       const unique = new Map();
       for (const event of feeds.flat()) {
-        const normalized = normalizeEvent(event, sport);
+        const normalized = normalizeEvent(event, sport, names);
         if (!normalized) continue;
         eventById.set(`${sport}:${normalized.id}`, { event, normalized, at: now() });
         unique.set(normalized.id, normalized);
@@ -471,14 +564,23 @@ export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, 
       key.startsWith("player_") || key.startsWith("batter_") || key.startsWith("pitcher_"));
     const needsGame = !marketList.length || marketList.some(key =>
       !key.startsWith("player_") && !key.startsWith("batter_") && !key.startsWith("pitcher_"));
-    const results = await Promise.all([
-      ...(needsGame ? [loadMarkets(sport, record, false)] : []),
-      ...(needsProps ? [loadMarkets(sport, record, true)] : [])
+    const [gameMarkets, propMarkets] = await Promise.all([
+      needsGame ? loadMarkets(sport, record, false) : [],
+      needsProps ? loadMarkets(sport, record, true) : []
     ]);
+    const bookmakers = normalizeSportsDataIOMarkets(sport, [gameMarkets, propMarkets].flat(), requested, parameters.bookmakers || "");
+    if (!bookmakers.length) {
+      for (const [kind, needed, raw] of [["game", needsGame, gameMarkets], ["props", needsProps, propMarkets]]) {
+        if (!needed) continue;
+        const details = describeSportsDataIOMarkets(raw);
+        reportOnce(`${kind}:${sport}:${details.markets ? "unmatched" : "empty"}`,
+          `SportsDataIO ${kind} odds for ${sport} produced no prices.`, { requested, ...details });
+      }
+    }
     return {
       id: String(id),
       commence_time: record.normalized.commence_time,
-      bookmakers: normalizeSportsDataIOMarkets(sport, results.flat(), requested, parameters.bookmakers || "")
+      bookmakers
     };
   }
 
