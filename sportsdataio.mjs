@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 const apiOrigin = "https://api.sportsdata.io";
 const minute = 60_000;
 
@@ -354,6 +356,34 @@ export function sportsDataIOApiKey(env = {}) {
   return String(env.SPORTSDATAIO_API_KEY || "").trim() || String(env.THE_ODDS_API_KEY || "").trim();
 }
 
+const hexKey = /^[0-9a-f]{32}$/i;
+const wrappingQuotes = /^["'`\u2018\u2019\u201c\u201d]+|["'`\u2018\u2019\u201c\u201d]+$/g;
+
+// Accepts a key pasted with quotes, a "key=" or "Ocp-Apim-Subscription-Key:" label, inside a URL, or several keys
+// separated by commas or spaces (for example one key per league).
+export function parseSportsDataIOKeys(value) {
+  const keys = [];
+  for (let part of (Array.isArray(value) ? value : [value]).flatMap(item => String(item ?? "").split(/[\s,;]+/))) {
+    const query = /[?&](?:key|subscription-key)=([^&#]+)/i.exec(part);
+    if (query) {
+      try { part = decodeURIComponent(query[1]); } catch { part = query[1]; }
+    }
+    part = part.replace(wrappingQuotes, "").replace(/^[a-z_-]*(?:key|token)\s*[:=]/i, "").replace(wrappingQuotes, "").trim();
+    if (/[a-z0-9]/i.test(part) && !keys.includes(part)) keys.push(part);
+  }
+  const hex = keys.filter(key => hexKey.test(key));
+  return hex.length ? hex : keys;
+}
+
+// A key-free description for logs: length, shape and a short one-way fingerprint to tell keys apart between deploys.
+function describeKey(key) {
+  return { length: key.length, format: hexKey.test(key) ? "32-hex" : "unexpected", fingerprint: createHash("sha256").update(key).digest("hex").slice(0, 8) };
+}
+
+function keyScope(path) {
+  return /^\/v\d+\/[a-z]+/i.exec(path)?.[0] || "";
+}
+
 export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, now = () => Date.now(), logger = console } = {}) {
   const scheduleCache = new Map();
   const schedulePending = new Map();
@@ -361,42 +391,58 @@ export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, 
   const teamCache = new Map();
   const teamPending = new Map();
   const reported = new Set();
+  const keys = parseSportsDataIOKeys(apiKey);
+  const workingKey = new Map();
   let competitions;
   let competitionsAt = 0;
   let competitionPending;
 
+  const redact = message => keys.reduce((text, key) => text.replaceAll(key, "[redacted]"), String(message));
+
   async function request(path) {
-    if (!apiKey) {
+    if (!keys.length) {
       const error = new Error("Set SPORTSDATAIO_API_KEY (or THE_ODDS_API_KEY) in the server environment.");
       error.status = 503;
       throw error;
     }
-    const result = await fetchImpl(new URL(path, apiOrigin), {
-      headers: { Accept: "application/json", "Ocp-Apim-Subscription-Key": apiKey },
-      signal: AbortSignal.timeout(15000)
-    });
-    const text = await result.text();
-    let body;
-    try { body = text ? JSON.parse(text) : null; } catch {
-      if (!result.ok) body = null;
-      else {
-        const error = new Error("SportsDataIO returned an invalid JSON response.");
-        error.status = 502;
-        throw error;
+    const scope = keyScope(path);
+    const preferred = workingKey.get(scope);
+    const order = preferred ? [preferred, ...keys.filter(key => key !== preferred)] : keys;
+    let failure;
+    for (const key of order) {
+      const result = await fetchImpl(new URL(path, apiOrigin), {
+        headers: { Accept: "application/json", "Ocp-Apim-Subscription-Key": key },
+        signal: AbortSignal.timeout(15000)
+      });
+      const text = await result.text();
+      let body;
+      try { body = text ? JSON.parse(text) : null; } catch {
+        if (!result.ok) body = null;
+        else {
+          const error = new Error("SportsDataIO returned an invalid JSON response.");
+          error.status = 502;
+          throw error;
+        }
       }
-    }
-    if (!result.ok) {
-      const detail = String(body?.Message || body?.message || body?.Description || body?.error || "");
-      let message = detail || `SportsDataIO returned HTTP ${result.status}.`;
-      if (result.status === 401 || result.status === 403) {
-        message = `SportsDataIO denied access (HTTP ${result.status}). Check that the key is a production key and that the SportsDataIO plan includes this league.${detail ? ` ${detail}` : ""}`;
+      if (result.ok) {
+        workingKey.set(scope, key);
+        return body;
       }
-      message = message.replaceAll(apiKey, "[redacted]");
-      const error = new Error(message);
-      error.status = result.status >= 400 && result.status < 600 ? result.status : 502;
-      throw error;
+      failure = { status: result.status, detail: String(body?.Message || body?.message || body?.Description || body?.error || "") };
+      // Another configured key may cover this league; any other failure is final.
+      if (result.status !== 401 && result.status !== 403) break;
     }
-    return body;
+    const { status, detail } = failure;
+    let message = detail || `SportsDataIO returned HTTP ${status}.`;
+    if ((status === 401 || status === 403) && /subscription key/i.test(detail)) {
+      message = "SportsDataIO rejected the API key saved on the server (invalid subscription key). Copy the active production key from your SportsDataIO account into SPORTSDATAIO_API_KEY on Render, then redeploy.";
+      reportOnce("invalid-key", "SportsDataIO rejected every configured key.", { status, scope, keys: keys.map(describeKey) });
+    } else if (status === 401 || status === 403) {
+      message = `SportsDataIO denied access (HTTP ${status}). Check that the key is a production key and that the SportsDataIO plan includes this league.${detail ? ` ${detail}` : ""}`;
+    }
+    const error = new Error(redact(message));
+    error.status = status >= 400 && status < 600 ? status : 502;
+    throw error;
   }
 
   function reportOnce(key, message, details) {

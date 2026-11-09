@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createSportsDataIO, normalizeSportsDataIOMarkets, sportsDataIOApiKey } from "./sportsdataio.mjs";
+import { createSportsDataIO, normalizeSportsDataIOMarkets, parseSportsDataIOKeys, sportsDataIOApiKey } from "./sportsdataio.mjs";
 
 const now = Date.parse("2026-03-08T12:00:00Z");
 const event = {
@@ -250,11 +250,53 @@ test("SportsDataIO reports a missing key and redacts it from provider error mess
   await assert.rejects(noKey.request("sports/basketball_nba/events/"), error =>
     error.status === 503 && /SPORTSDATAIO_API_KEY/.test(error.message));
 
-  const { fetchImpl } = mockProvider(() => ({ Message: "Invalid subscription key: secret-key" }));
-  const client = createSportsDataIO({ apiKey: "secret-key", logger: null, fetchImpl: async (url, options) => {
-    const result = await fetchImpl(url, options);
-    return new Response(JSON.stringify({ Message: "Invalid subscription key: secret-key" }), { status: 401 });
-  } });
+  const client = createSportsDataIO({ apiKey: "secret-key", logger: null, fetchImpl: async () =>
+    new Response(JSON.stringify({ Message: "Rate limit exceeded for secret-key" }), { status: 403 }) });
   await assert.rejects(client.request("sports/basketball_nba/events/"), error =>
-    error.status === 401 && !error.message.includes("secret-key") && error.message.includes("[redacted]"));
+    error.status === 403 && !error.message.includes("secret-key") && error.message.includes("[redacted]"));
+});
+
+test("SportsDataIO cleans pasted keys and accepts several keys", () => {
+  const key = "0123456789abcdef0123456789abcdef";
+  const other = "fedcba9876543210fedcba9876543210";
+  assert.deepEqual(parseSportsDataIOKeys(key), [key]);
+  assert.deepEqual(parseSportsDataIOKeys(` "${key}" `), [key]);
+  assert.deepEqual(parseSportsDataIOKeys(`\u201c${key}\u201d`), [key]);
+  assert.deepEqual(parseSportsDataIOKeys(`Ocp-Apim-Subscription-Key: ${key}`), [key]);
+  assert.deepEqual(parseSportsDataIOKeys(`SPORTSDATAIO_API_KEY=${key}`), [key]);
+  assert.deepEqual(parseSportsDataIOKeys(`https://api.sportsdata.io/v3/nba/scores/json/Teams?key=${key}`), [key]);
+  assert.deepEqual(parseSportsDataIOKeys(`NBA: ${key}, NFL: ${other}, ${key}`), [key, other]);
+  assert.deepEqual(parseSportsDataIOKeys("test-key"), ["test-key"]);
+  assert.deepEqual(parseSportsDataIOKeys(" \n"), []);
+});
+
+test("SportsDataIO falls through rejected keys, remembers the working key per league and explains an invalid key", async () => {
+  const good = "0123456789abcdef0123456789abcdef";
+  const stale = "fedcba9876543210fedcba9876543210";
+  const used = [];
+  const fetchImpl = async (url, options) => {
+    const key = options.headers["Ocp-Apim-Subscription-Key"];
+    used.push(key);
+    if (key !== good) return response({ statusCode: 401, message: "Access denied due to invalid subscription key. Make sure to provide a valid key for an active subscription." }, 401);
+    return response(/BettingEventsByDate/.test(new URL(url).pathname) ? [event] : []);
+  };
+  const client = createSportsDataIO({ apiKey: `${stale},${good}`, fetchImpl, now: () => now, logger: null });
+  const [first] = await client.request("sports/basketball_nba/events/");
+  assert.equal(first.id, "202");
+  assert.ok(used.includes(stale) && used.includes(good));
+  used.length = 0;
+  await client.request("sports/basketball_nba/events/202/odds/", { markets: "h2h" });
+  assert.deepEqual([...new Set(used)], [good]);
+
+  const warnings = [];
+  const rejected = createSportsDataIO({ apiKey: `"${stale}"`, now: () => now, fetchImpl,
+    logger: { warn: (...args) => warnings.push(args.join(" ")) } });
+  await assert.rejects(rejected.request("sports/basketball_nba/events/"), error =>
+    error.status === 401 && /rejected the API key/.test(error.message) && /SPORTSDATAIO_API_KEY on Render/.test(error.message) &&
+    !error.message.includes(stale));
+  assert.equal(used.filter(key => key.includes('"')).length, 0);
+  const keyWarnings = warnings.filter(warning => /rejected every configured key/.test(warning));
+  assert.equal(keyWarnings.length, 1);
+  assert.match(keyWarnings[0], /"format":"32-hex"/);
+  assert.ok(!warnings.some(warning => warning.includes(stale)));
 });
