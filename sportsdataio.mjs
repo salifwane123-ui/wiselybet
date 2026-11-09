@@ -375,9 +375,32 @@ export function parseSportsDataIOKeys(value) {
   return hex.length ? hex : keys;
 }
 
-// A key-free description for logs: length, shape and a short one-way fingerprint to tell keys apart between deploys.
-function describeKey(key) {
-  return { length: key.length, format: hexKey.test(key) ? "32-hex" : "unexpected", fingerprint: createHash("sha256").update(key).digest("hex").slice(0, 8) };
+const otherServiceKeys = [
+  [/^gh[opsur]_|^github_pat_/, "GitHub token"],
+  [/^rnd_/, "Render API key"],
+  [/^(?:sk|pk|rk)_(?:live|test)_/, "Stripe key"],
+  [/^sk-/, "OpenAI-style secret key"],
+  [/^AKIA/, "AWS access key"],
+  [/^AIza/, "Google API key"],
+  [/^xox[abposr]-/, "Slack token"],
+  [/^SG\./, "SendGrid key"],
+  [/^re_/, "Resend key"]
+];
+
+// A key-free description for logs: length, character mix, a short one-way fingerprint to tell keys apart between
+// deploys, and the kind of credential when the value is clearly not a SportsDataIO key.
+export function describeSportsDataIOKey(key) {
+  const description = { length: key.length, format: hexKey.test(key) ? "32-hex" : "unexpected",
+    fingerprint: createHash("sha256").update(key).digest("hex").slice(0, 8) };
+  if (description.format === "32-hex") return description;
+  const letters = key.replace(/[^a-z]/gi, "");
+  description.characters = /^[0-9a-f]+$/i.test(key) ? "hex only" : /^[a-z0-9]+$/i.test(key) ? "letters and digits" : "letters, digits and symbols";
+  description.letterCase = !letters ? "none" : letters === letters.toLowerCase() ? "lower" : letters === letters.toUpperCase() ? "upper" : "mixed";
+  description.symbols = [...new Set(key.replace(/[a-z0-9]/gi, ""))].join("");
+  description.contains32Hex = /[0-9a-f]{32}/i.test(key);
+  const other = otherServiceKeys.find(([pattern]) => pattern.test(key));
+  if (other) description.looksLike = other[1];
+  return description;
 }
 
 function keyScope(path) {
@@ -435,8 +458,13 @@ export function createSportsDataIO({ apiKey = "", fetchImpl = globalThis.fetch, 
     const { status, detail } = failure;
     let message = detail || `SportsDataIO returned HTTP ${status}.`;
     if ((status === 401 || status === 403) && /subscription key/i.test(detail)) {
-      message = "SportsDataIO rejected the API key saved on the server (invalid subscription key). Copy the active production key from your SportsDataIO account into SPORTSDATAIO_API_KEY on Render, then redeploy.";
-      reportOnce("invalid-key", "SportsDataIO rejected every configured key.", { status, scope, keys: keys.map(describeKey) });
+      const outlines = keys.map(describeSportsDataIOKey);
+      const odd = outlines.filter(outline => outline.format !== "32-hex");
+      const shape = odd.length === outlines.length
+        ? ` The saved value is ${odd.map(outline => `${outline.length} characters${outline.looksLike ? ` and looks like a ${outline.looksLike}` : ""}`).join(" / ")}, but SportsDataIO keys are exactly 32 characters (digits 0-9 and letters a-f).`
+        : "";
+      message = `SportsDataIO rejected the API key saved on the server (invalid subscription key).${shape} Copy the active production key from your SportsDataIO account into SPORTSDATAIO_API_KEY on Render, then redeploy.`;
+      reportOnce("invalid-key", "SportsDataIO rejected every configured key.", { status, scope, keys: outlines });
     } else if (status === 401 || status === 403) {
       message = `SportsDataIO denied access (HTTP ${status}). Check that the key is a production key and that the SportsDataIO plan includes this league.${detail ? ` ${detail}` : ""}`;
     }

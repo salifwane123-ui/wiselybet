@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createSportsDataIO, normalizeSportsDataIOMarkets, parseSportsDataIOKeys, sportsDataIOApiKey } from "./sportsdataio.mjs";
+import { createSportsDataIO, describeSportsDataIOKey, normalizeSportsDataIOMarkets, parseSportsDataIOKeys, sportsDataIOApiKey } from "./sportsdataio.mjs";
 
 const now = Date.parse("2026-03-08T12:00:00Z");
 const event = {
@@ -268,6 +268,22 @@ test("SportsDataIO cleans pasted keys and accepts several keys", () => {
   assert.deepEqual(parseSportsDataIOKeys(`NBA: ${key}, NFL: ${other}, ${key}`), [key, other]);
   assert.deepEqual(parseSportsDataIOKeys("test-key"), ["test-key"]);
   assert.deepEqual(parseSportsDataIOKeys(" \n"), []);
+});
+
+test("SportsDataIO describes a wrong key without revealing it", async () => {
+  const github = `ghp_${"xY3".repeat(12)}`;
+  const outline = describeSportsDataIOKey(github);
+  assert.deepEqual({ ...outline, fingerprint: undefined }, { length: 40, format: "unexpected", fingerprint: undefined,
+    characters: "letters, digits and symbols", letterCase: "mixed", symbols: "_", contains32Hex: false, looksLike: "GitHub token" });
+  assert.match(outline.fingerprint, /^[0-9a-f]{8}$/);
+  assert.equal(describeSportsDataIOKey("0123456789abcdef0123456789abcdef").characters, undefined);
+  assert.equal(describeSportsDataIOKey("0123456789abcdef0123456789abcdef01234567").contains32Hex, true);
+
+  const client = createSportsDataIO({ apiKey: github, logger: null, fetchImpl: async () =>
+    response({ statusCode: 401, message: "Access denied due to invalid subscription key." }, 401) });
+  await assert.rejects(client.request("sports/basketball_nba/events/"), error =>
+    /40 characters and looks like a GitHub token, but SportsDataIO keys are exactly 32 characters/.test(error.message) &&
+    !error.message.includes(github));
 });
 
 test("SportsDataIO falls through rejected keys, remembers the working key per league and explains an invalid key", async () => {
