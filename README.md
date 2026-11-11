@@ -45,13 +45,13 @@ npm install
 npm start
 ```
 
-Open http://127.0.0.1:3000 and create an account. Without Firebase settings the server uses local accounts stored in `data/` (ignored by git). The local default provider is The Odds API. To use SportsDataIO instead, set its provider and a production API key:
+Open http://127.0.0.1:3000 and create an account. Without Firebase settings the server uses local accounts stored in `data/` (ignored by git). The default provider for local development and Render is The Odds API. Set its provider and API key before starting:
 
 ```powershell
-$env:ODDS_PROVIDER = "sportsdataio"; $env:SPORTSDATAIO_API_KEY = "your-production-key"; npm start
+$env:ODDS_PROVIDER = "the-odds-api"; $env:THE_ODDS_API_KEY = "your-api-key"; npm start
 ```
 
-Never paste API keys into chat or commit them to the repository. SportsDataIO free-trial keys return scrambled odds (market, outcome and sportsbook names read "Scrambled"); the server reports this as an error, and the live board needs a paid production subscription. Soccer leagues need a plan that includes those competitions.
+Never paste API keys into chat or commit them to the repository. SportsDataIO remains available as an opt-in provider (see below).
 
 If a `firebase-key.json` file is in the project folder, the server switches to Firebase mode and uses that project. To force local accounts, set `FIREBASE_KEY_FILE` to a path that doesn't exist.
 
@@ -64,9 +64,9 @@ All settings come from environment variables.
 | `PORT` | `3000` | HTTP port. |
 | `HOST` | `127.0.0.1` | Address to listen on. Use `0.0.0.0` on a host. |
 | `NODE_ENV` | (none) | `production` adds HSTS and marks the session cookie `Secure`. |
-| `ODDS_PROVIDER` | `the-odds-api` | `the-odds-api` (legacy/local default) or `sportsdataio`. |
+| `ODDS_PROVIDER` | `the-odds-api` | `the-odds-api` (local and Render default) or `sportsdataio`. |
 | `SPORTSDATAIO_API_KEY` | (none) | Production key for SportsDataIO; required when `ODDS_PROVIDER=sportsdataio`. If empty, the server uses `THE_ODDS_API_KEY` as the SportsDataIO key. |
-| `THE_ODDS_API_KEY` | (none) | Legacy provider key; required when `ODDS_PROVIDER=the-odds-api`. With `ODDS_PROVIDER=sportsdataio`, it is used only as a fallback for an empty `SPORTSDATAIO_API_KEY`. |
+| `THE_ODDS_API_KEY` | (none) | The Odds API key; required when `ODDS_PROVIDER=the-odds-api`. With `ODDS_PROVIDER=sportsdataio`, it is used only as a fallback for an empty `SPORTSDATAIO_API_KEY`. |
 | `ODDS_REGIONS` | `us` | Bookmaker regions requested by The Odds API. |
 | `FIREBASE_KEY_JSON` | (none) | Firebase service-account JSON, raw or base64. |
 | `FIREBASE_KEY_FILE` | `./firebase-key.json` | Service-account file, used when `FIREBASE_KEY_JSON` is empty. |
@@ -86,7 +86,9 @@ Keep secrets such as `firebase-key.json` and `.env` out of git; both are listed 
 
 ### Odds providers and key changes
 
-The server reads provider settings once at startup. For Render, set `ODDS_PROVIDER=sportsdataio` and `SPORTSDATAIO_API_KEY` in the dashboard before deploying; refreshing the browser alone cannot activate a changed key. Services that already hold the SportsDataIO key in `THE_ODDS_API_KEY` keep working, because the server falls back to that variable when `SPORTSDATAIO_API_KEY` is empty. The value may contain several keys separated by commas (for example one key per league); the server tries each and remembers the one that works for each league. Surrounding quotes and labels such as `key=` are ignored. If SportsDataIO rejects every key, the server logs each key's length, format and a short fingerprint (never the key) and asks for the active production key. Keep the key in Render's environment settings, not in chat or source control. The SportsDataIO adapter sends the key in the `Ocp-Apim-Subscription-Key` header and never in the request URL.
+The server reads provider settings once at startup. For Render, set `ODDS_PROVIDER=the-odds-api` and save your active key from [The Odds API dashboard](https://dash.the-odds-api.com/) in `THE_ODDS_API_KEY`, then save and deploy; refreshing the browser alone cannot activate a changed key. When switching back from SportsDataIO, make sure `THE_ODDS_API_KEY` contains a key issued by The Odds API, not a SportsDataIO key stored there during the previous setup. `SPORTSDATAIO_API_KEY` is ignored when The Odds API is selected. Keep keys in Render's environment settings, not in chat or source control.
+
+To opt into SportsDataIO, set `ODDS_PROVIDER=sportsdataio` and `SPORTSDATAIO_API_KEY` to a production key, then restart or deploy. If that variable is empty, the server falls back to `THE_ODDS_API_KEY`, which must then contain a SportsDataIO key instead. The SportsDataIO value may contain several keys separated by commas (for example one key per league); the server tries each and remembers the one that works for each league. Surrounding quotes and labels such as `key=` are ignored. If SportsDataIO rejects every key, the server logs each key's length, format and a short fingerprint (never the key) and asks for the active production key. The adapter sends the key in the `Ocp-Apim-Subscription-Key` header and never in the request URL. SportsDataIO free-trial keys return scrambled odds (market, outcome and sportsbook names read "Scrambled"); the server reports this as an error, and the live board needs a paid production subscription. Soccer leagues need a plan that includes those competitions.
 
 Player props, previews and parlay pricing share cached event odds. Matching requests and market subsets reuse completed or in-flight requests. Populated pre-game prices refresh after 8 minutes within an hour of game time, or 15 minutes further out, with expiry capped at game time. Live, unknown-start and empty responses refresh after at most 60 seconds. Each server instance has its own in-memory cache, which clears on restart. Provider usage limits and costs depend on the account; caching does not change those provider terms.
 
@@ -111,7 +113,7 @@ Add every new test file to the `test` script in `package.json`. GitHub Actions (
 `render.yaml` describes the Render service, and every commit to `main` deploys to https://wiselybet.onrender.com.
 
 1. Create the service from the blueprint.
-2. In the Render dashboard, set `SPORTSDATAIO_API_KEY` to a production key, and set `FIREBASE_KEY_JSON` and `FIREBASE_WEB_JSON`. `render.yaml` selects `ODDS_PROVIDER=sportsdataio`. Optionally add the `VAPID_*`, `SMTP_*`, `MAIL_TO` and `SUPPORT_EMAIL` settings.
+2. In the Render dashboard, set `THE_ODDS_API_KEY` to your active key from The Odds API, and set `FIREBASE_KEY_JSON` and `FIREBASE_WEB_JSON`. `render.yaml` selects `ODDS_PROVIDER=the-odds-api`; for an existing service, also verify that its environment has this provider value and save and deploy after any key change. Optionally add the `VAPID_*`, `SMTP_*`, `MAIL_TO` and `SUPPORT_EMAIL` settings.
 3. After a deploy, `GET /healthz` answers `ok`.
 
 Use Firebase mode in production. The free Render plan has no persistent disk, so local accounts in `DATA_DIR` would be lost on every deploy.

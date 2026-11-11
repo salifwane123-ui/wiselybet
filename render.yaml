@@ -16,8 +16,8 @@ services:
       - key: SUBSCRIPTIONS_DEMO
         value: "1"
       - key: ODDS_PROVIDER
-        value: sportsdataio
-      - key: SPORTSDATAIO_API_KEY
+        value: the-odds-api
+      - key: THE_ODDS_API_KEY
         sync: false
       - key: FIREBASE_KEY_JSON
         sync: false
