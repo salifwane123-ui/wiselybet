@@ -2659,6 +2659,67 @@
     html[data-theme="light"] .score-pop::before { background-image: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.9) 47%, rgba(255,255,255,.35) 55%, transparent 64%); }
     html[data-theme="light"] .score-pop-num { background-image: linear-gradient(180deg, var(--c2) 0%, var(--c) 100%); filter: drop-shadow(0 2px 6px var(--glow)); }
     html[data-theme="light"] .score-pop-bar { background: rgba(40,58,22,.1); }
+    /* Broadcast styling shares the existing tracker state, layout and settlement logic. */
+    #tracker-dock { --monitor-surface: #101b24; --monitor-raised: #192832; --monitor-border: #344752; --monitor-text: #edf3f6; --monitor-muted: #a6b7c1; }
+    #tracker-panel { padding: 10px; border-color: var(--monitor-border); border-radius: 18px; background: var(--monitor-surface); box-shadow: 0 18px 60px #0007, inset 0 1px #ffffff0d; }
+    .tracker-broadcast-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; padding: 4px 4px 12px; color: var(--monitor-muted); font-size: .64rem; }
+    .tracker-broadcast-heading strong { color: var(--monitor-text); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; }
+    #tracker-panel .tracker-window { --window-pad: 10px; --window-tint: transparent; --window-base: var(--monitor-surface); padding: var(--window-pad); border: 1px solid var(--monitor-border); border-top: 3px solid #93af69; border-radius: 12px; background: var(--monitor-surface); }
+    #tracker-panel .tracker-window.tone-hype { border-top-color: #3ddc84; }
+    #tracker-panel .tracker-window.tone-bad { border-top-color: #ee7777; }
+    .tracker-window-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 5px 8px; padding-bottom: 10px; }
+    .tracker-window-summary::before { grid-column: 1; grid-row: 1; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--monitor-border); border-radius: 6px; font-size: .9rem; }
+    .tracker-window-summary .tracker-parlay-title, .tracker-window-summary .tracker-game-title { grid-column: 2; grid-row: 1; margin: 0; color: var(--monitor-text); font-size: .76rem; text-transform: none; letter-spacing: 0; }
+    .tracker-window-summary .tracker-parlay-badge { grid-column: 2 / -1; grid-row: 2; justify-self: start; margin-top: 2px; }
+    .tracker-window-summary .tracker-window-live { grid-column: 3; grid-row: 1; }
+    .tracker-window-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 7px; }
+    .tracker-window-summary .tracker-dot-badge { width: 22px; height: 22px; background: var(--monitor-raised); color: #c9ef5b; border: 1px solid var(--monitor-border); }
+    #tracker-panel .tracker-card { --pick-accent: #99afbc; --pick-wash: #99afbc0b; margin-bottom: 10px; padding: 12px; border: 1px solid var(--monitor-border); border-left: 3px solid var(--pick-accent); border-radius: 9px; background: linear-gradient(110deg, var(--pick-wash), transparent), var(--monitor-raised); box-shadow: none; animation: none; }
+    #tracker-panel .tracker-card:last-child { margin-bottom: 0; }
+    #tracker-panel .tracker-card.level-hit { --pick-accent: #62d99a; --pick-wash: #3ddc8412; }
+    #tracker-panel .tracker-card.level-close { --pick-accent: #edcd74; --pick-wash: #edcd740d; }
+    #tracker-panel .tracker-card.level-far { --pick-accent: #f18f8f; --pick-wash: #ee77770d; }
+    #tracker-panel .tracker-card-head { margin: -12px -12px 12px; padding: 10px 12px; border-color: var(--monitor-border); background: #ffffff03; }
+    #tracker-panel .tracker-card-head .tracker-top h3 { color: var(--monitor-text); font-size: .9rem; line-height: 1.4; }
+    #tracker-panel .tracker-card-head .tracker-leg-game { color: var(--monitor-muted); font-size: .61rem; line-height: 1.5; }
+    .tracker-score { flex-wrap: wrap; column-gap: 6px; row-gap: 5px; margin: 8px 0 12px; }
+    .tracker-score-label { flex-basis: 100%; color: var(--monitor-muted); font-size: .58rem; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+    #tracker-panel .tracker-current { color: var(--monitor-text); font-size: 2.1rem; font-weight: 850; letter-spacing: -.05em; line-height: 1; }
+    .tracker-target { font-size: .87rem; color: var(--monitor-muted); }
+    .tracker-score .tracker-side { margin-left: auto; padding: 3px 8px; border-radius: 5px; font-size: .6rem; }
+    #tracker-panel .tracker-bar { height: 6px; border-radius: 3px; background: #ffffff12; box-shadow: none; }
+    #tracker-panel .tracker-bar span { background: var(--pick-accent); border-radius: 3px; box-shadow: none; animation: none; }
+    #tracker-panel .tracker-bar span::before, #tracker-panel .tracker-bar span::after { display: none; }
+    .tracker-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(34px, 1fr)); gap: 4px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--monitor-border); font-size: .55rem; text-align: center; }
+    .tracker-mini li { min-width: 0; overflow-wrap: anywhere; }
+    #tracker-panel .tracker-mini strong { display: block; margin: 0 0 2px; color: var(--monitor-text); font-size: .76rem; font-variant-numeric: tabular-nums; }
+    #tracker-panel .tracker-verdict { padding: 8px 10px; margin-top: 10px; border: 0; border-left: 2px solid currentColor; border-radius: 0 6px 6px 0; }
+    .tracker-verdict strong { font-size: .71rem; line-height: 1.5; }
+    .tracker-verdict p { font-size: .67rem; line-height: 1.5; }
+    #tracker-panel .tracker-remove, #tracker-panel .tracker-placement button { min-height: 28px; border-radius: 5px; }
+    .tracker-window-tools { padding-top: 10px; gap: 6px; }
+    .tracker-window-tools .tracker-parlay-btn, .tracker-window-tools select, .tracker-window-tools .tracker-book-open { min-height: 34px; }
+    .tracker-book-status { line-height: 1.55; }
+    #tracker-dock #tracker-toggle { min-height: 44px; border-radius: 12px; background: #17252f !important; border-color: #415b63 !important; box-shadow: 0 8px 30px #0005; }
+    #tracker-dock #tracker-toggle:hover { background: #22343e !important; }
+    #tracker-dock .tracker-empty { padding: 24px 12px; margin: 0; color: var(--monitor-muted); font-size: .8rem; line-height: 1.6; }
+    html[data-theme="light"] #tracker-dock { --monitor-surface: #f8faf5; --monitor-raised: #fff; --monitor-border: #d2dccb; --monitor-text: #223025; --monitor-muted: #576957; }
+    html[data-theme="light"] #tracker-panel .tracker-card.level-hit { --pick-accent: #25804a; }
+    html[data-theme="light"] #tracker-panel .tracker-card.level-close { --pick-accent: #9a710d; }
+    html[data-theme="light"] #tracker-panel .tracker-card.level-far { --pick-accent: #bd4545; }
+    html[data-theme="light"] #tracker-panel .tracker-bar { background: #263d2614; }
+    html[data-theme="light"] .tracker-window-summary .tracker-dot-badge { color: #3d6208; }
+    html[data-theme="light"] #tracker-dock #tracker-toggle { background: #f8faf5 !important; border-color: #bacab0 !important; box-shadow: 0 8px 30px #283a1620; }
+    html[data-theme="light"] #tracker-dock #tracker-toggle:hover { background: #edf3e5 !important; }
+    @media (max-width: 560px) {
+      #tracker-panel { padding: 8px; max-height: 68dvh; }
+      #tracker-panel .tracker-window { --window-pad: 8px; max-height: 52dvh; }
+      #tracker-panel .tracker-remove, #tracker-panel .tracker-placement button { min-height: 34px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #tracker-panel .tracker-bar span, #tracker-panel .tracker-card { transition: none; }
+      #tracker-panel .tracker-card.bumped .tracker-current, #tracker-panel .tracker-court-dot { animation: none; }
+    }
   </style>
 </head>
 <body>
@@ -10898,7 +10959,7 @@
         top.append(title, remove);
 
         const score = element("div", "tracker-score");
-        score.append(element("span", "tracker-current", String(snapshot.current)));
+        score.append(element("span", "tracker-score-label", "Recorded"), element("span", "tracker-current", String(snapshot.current)));
         // An Under shows its line (he must stay below it); an Over shows the total he must reach.
         const targetWrap = element("span", "tracker-target", `/ ${under ? line : tracker.target}`);
         targetWrap.setAttribute("aria-label", under
@@ -11079,6 +11140,9 @@
           ? "No picks in this view. Choose another option above."
           : "Nothing tracked yet. On a player card in Player props (NBA), click 🎯 Track, choose points, rebounds or assists, pick Over or Under, and set your number."));
       }
+      const monitorHeading = element("div", "tracker-broadcast-heading");
+      monitorHeading.append(element("strong", "", "Pick monitor"), element("span", "", `${countedTrackers.length} ${countedTrackers.length === 1 ? "pick" : "picks"} in this view`));
+      trackerPanel.prepend(monitorHeading);
       for (const group of trackerPanel.querySelectorAll(".tracker-window")) {
         group.scrollTop = windowScrollPositions.get(group.dataset.windowKey) || 0;
         if (group.dataset.windowKey === focusedWindowKey) {

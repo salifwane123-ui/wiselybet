@@ -18,6 +18,20 @@ const fromHoop = (spot, end) => {
 };
 const play = fields => ({ id: "4019092851", text: "", x: null, y: null, ...fields });
 
+test("broadcast scores precede the playing surface and sport diagrams keep their proportions", () => {
+  const frame = html.slice(html.indexOf('<section class="court-card"'), html.indexOf("  </section>", html.indexOf('<section class="court-card"')));
+  assert.ok(frame.indexOf('<div class="court-score">') < frame.indexOf('<div class="court">'));
+  assert.ok(frame.indexOf('id="soccer-events"') > frame.indexOf('<div class="court">'));
+  for (const id of ["home-score", "away-score", "home-logo", "away-logo", "clock", "period"]) {
+    assert.equal((frame.match(new RegExp(`id="${id}"`, "g")) || []).length, 1);
+  }
+  for (const [sport, width, height] of [["football", 1200, 533], ["baseball", 900, 580], ["hockey", 1000, 425]]) {
+    assert.match(frame, new RegExp(`class="${sport}-${sport === "hockey" ? "rink" : "field"}-lines" viewBox="0 0 ${width} ${height}"`));
+    assert.match(html, new RegExp(`\\.${sport}-scoreboard \\.court \\{ aspect-ratio: ${width} / ${height};`));
+  }
+  assert.match(frame, /Playing surfaces are illustrative, not live player positions/);
+});
+
 test("only basketball games get the live court", () => {
   assert.equal(court.isBasketballSport("basketball_nba"), true);
   assert.equal(court.isBasketballSport("basketball_wnba"), true);

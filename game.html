@@ -127,7 +127,6 @@
     .court-card.football-scoreboard .court svg { stroke: rgba(235, 248, 218, .76); }
     .court-card.football-scoreboard .baseball-field-lines { display: none; }
     .court-card.football-scoreboard .football-field-lines { display: block; }
-    .court-card.football-scoreboard .court-score { border-color: rgba(220, 244, 218, .22); }
     .court-card.hockey-scoreboard .court {
       border-color: #d7e8f4;
       background:
@@ -139,10 +138,6 @@
     .court-card.hockey-scoreboard .baseball-field-lines,
     .court-card.hockey-scoreboard .football-field-lines { display: none; }
     .court-card.hockey-scoreboard .hockey-rink-lines { display: block; }
-    .court-card.hockey-scoreboard .court-score {
-      border-color: rgba(215, 232, 244, .45);
-      background: rgba(16, 25, 38, .94);
-    }
     .court-card.soccer-scoreboard .court {
       display: block;
       width: min(100%, 920px);
@@ -157,16 +152,6 @@
       stroke: rgba(239, 249, 226, .84);
       stroke-width: 4;
     }
-    .court-card.soccer-scoreboard .court-score {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: min(680px, calc(100% - 24px));
-      padding: 14px 18px;
-      transform: translate(-50%, -50%);
-      border-color: rgba(235, 248, 218, .32);
-    }
-    .court-card.soccer-scoreboard .team-score img { width: 42px; height: 42px; }
     .soccer-events {
       position: absolute;
       z-index: 2;
@@ -233,9 +218,6 @@
       border-color: #2c3546;
       background: radial-gradient(ellipse at 50% 0%, #29334a 0%, #141a26 72%);
     }
-    .court-card.basketball-scoreboard .court-score { width: min(680px, 100%); padding: 14px 18px; }
-    .court-card.basketball-scoreboard .score { font-size: clamp(1.9rem, 6vw, 3.1rem); }
-    .court-card.basketball-scoreboard .team-score img { width: 42px; height: 42px; }
     .court-card.basketball-scoreboard .play-stage {
       position: relative;
       display: block;
@@ -534,13 +516,8 @@
       .game-clock { min-width: 88px; }
       .court-card, .panel { padding: 12px; }
       .court-card.basketball-scoreboard .court { gap: 8px; padding: 8px; }
-      .court-card.basketball-scoreboard .court-score { padding: 10px 6px; }
-      .court-card.basketball-scoreboard .team-score img { width: 34px; height: 34px; }
       .court-card.basketball-scoreboard .play-caption { padding: 6px 9px; font-size: .8rem; }
       .court-paint-label { font-size: 36px; }
-      .court-card.soccer-scoreboard .court-score { padding: 7px 5px; }
-      .court-card.soccer-scoreboard .team-score img { width: 30px; height: 30px; }
-      .court-card.soccer-scoreboard .game-clock { min-width: 70px; }
       .soccer-events { right: 5px; bottom: 5px; left: 5px; gap: 3px; }
       .soccer-event { padding: 3px 6px; font-size: .65rem; }
     }
@@ -576,7 +553,7 @@
     html[data-theme="light"] .player-table th, html[data-theme="light"] .player-table td { border-bottom-color: rgba(40, 58, 22, .12); }
     html[data-theme="light"] .period-table th:first-child, html[data-theme="light"] .period-table td:first-child,
     html[data-theme="light"] .player-table th:first-child, html[data-theme="light"] .player-table td:first-child { background: #fff; }
-    html[data-theme="light"] .court-score, html[data-theme="light"] .court-card.hockey-scoreboard .court-score { border-color: rgba(40, 58, 22, .14); background: rgba(255, 255, 255, .93); box-shadow: 0 12px 28px rgba(27, 36, 24, .18); }
+    html[data-theme="light"] .court-score { border-color: rgba(40, 58, 22, .14); background: rgba(255, 255, 255, .93); box-shadow: 0 12px 28px rgba(27, 36, 24, .18); }
     html[data-theme="light"] .court-card.basketball-scoreboard .court { border-color: rgba(40, 58, 22, .16); background: radial-gradient(ellipse at 50% 0%, #ffffff 0%, #e8eedf 72%); }
     html[data-theme="light"] .court-card.basketball-scoreboard .play-stage { box-shadow: 0 0 0 1px rgba(80, 40, 15, .25), inset 0 0 40px rgba(80, 40, 15, .22), 0 10px 22px rgba(40, 58, 22, .2); }
     html[data-theme="light"] .court-card.basketball-scoreboard .play-caption { background: rgba(255, 255, 255, .94); color: #1b2418; box-shadow: 0 2px 8px rgba(40, 58, 22, .1); }
@@ -587,6 +564,60 @@
     .site-footer a { color: #c9ef5b; }
     html[data-theme="light"] .site-footer { border-top-color: rgba(40, 58, 22, .15); color: #5b6658; }
     html[data-theme="light"] .site-footer a { color: #3d6208; }
+    /* Broadcast frame stays outside the playing surface, so scores never obscure the action. */
+    .court-card { padding: 20px; border-radius: 20px; overflow: hidden; }
+    .broadcast-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 14px; color: #9cabb9; font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .broadcast-heading strong { color: #c9ef5b; }
+    .court-card .court-score { position: relative; inset: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(88px, .65fr) minmax(0, 1fr); gap: 0; width: 100%; margin: 0 0 18px; padding: 0; transform: none; overflow: hidden; border: 1px solid #35414b; border-radius: 14px; background: #101921; box-shadow: 0 8px 24px #0003; }
+    .court-card .team-score { --team-accent: #83939f; position: relative; display: grid; grid-template-columns: 42px minmax(0, 1fr); justify-items: start; gap: 4px 12px; height: 100%; padding: 20px; border-top: 3px solid var(--team-accent); background: linear-gradient(135deg, color-mix(in srgb, var(--team-accent) 18%, transparent), transparent 80%); text-align: left; }
+    .court-card .team-score img { width: 42px; height: 42px; grid-column: 1; grid-row: 1 / 3; filter: drop-shadow(0 3px 5px #0005); }
+    .court-card .team-name { grid-column: 2; min-width: 0; font-size: .82rem; font-weight: 750; line-height: 1.3; overflow-wrap: anywhere; }
+    .court-card .score { grid-column: 2; font-size: clamp(2rem, 5vw, 3.4rem); font-weight: 850; letter-spacing: -.06em; line-height: 1.1; }
+    .court-card .game-clock { display: flex; flex-direction: column; justify-content: center; align-self: stretch; min-width: 0; padding: 12px 6px; border-inline: 1px solid #ffffff12; background: #0002; }
+    .court-card .game-clock strong { font-size: clamp(.9rem, 2.5vw, 1.35rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .court-card .game-clock span { margin-top: 4px; font-size: .68rem; letter-spacing: .03em; }
+    .court-card .court { width: 100%; min-height: 0; border-width: 5px; border-radius: 12px; box-shadow: inset 0 0 40px #0003, 0 12px 24px #0003; }
+    .court-card.basketball-scoreboard .court { padding: 14px; gap: 12px; border: 1px solid #35414b; background: #0c131b; }
+    .court-card.basketball-scoreboard .play-stage { width: 100%; border: 8px solid #24363b; border-radius: 5px; background: repeating-linear-gradient(90deg, #6335110b 0 1px, transparent 1px 4px), repeating-linear-gradient(0deg, transparent 0 24px, #5837183b 24px 25px), repeating-linear-gradient(90deg, #e3b980 0 96px, #d8a96f 96px 192px, #ebc48c 192px 288px); box-shadow: 0 0 0 1px #a6bbba55, inset 0 0 45px #613b2033, 0 10px 24px #0005; }
+    .court-card .court-lines { stroke: #fff4db; stroke-width: 2.5; }
+    .court-card .court-paint { fill-opacity: .52; }
+    .court-card.basketball-scoreboard .play-caption { width: 100%; flex-wrap: wrap; padding: 10px 12px; border-left: 3px solid #c9ef5b; border-radius: 0 7px 7px 0; background: #19252e; }
+    .court-card.baseball-scoreboard .court { aspect-ratio: 900 / 580; border-color: #254d38; background: repeating-linear-gradient(125deg, #30734b 0 65px, #368053 65px 130px); }
+    .court-card.football-scoreboard .court { aspect-ratio: 1200 / 533; border-color: #cbd7c1; background: repeating-linear-gradient(90deg, #24593c 0 8.333%, #2c6845 8.333% 16.666%); }
+    .court-card .football-field-lines { stroke-width: 2; }
+    .field-endzone { fill: #142e38; stroke: none; }
+    .field-numbers { fill: #f0f4df; stroke: none; font: 700 24px "Segoe UI", sans-serif; text-anchor: middle; }
+    .court-card.hockey-scoreboard .court { aspect-ratio: 1000 / 425; border: 7px solid #aebcc6; border-radius: 16% / 37%; background: radial-gradient(ellipse at 50% 40%, #fff 0, #eaf4f9 65%, #d4e4ed); }
+    .court-card .hockey-rink-lines { stroke: #d74954; stroke-width: 2; }
+    .rink-blue { stroke: #3181b5; stroke-width: 5; }
+    .rink-center { stroke: #d74954; stroke-width: 4; }
+    .rink-crease { fill: #94d5ec99; stroke: #d74954; }
+    .court-card.soccer-scoreboard .court { width: 100%; aspect-ratio: 1000 / 640; border-color: #a7bb99; background: repeating-linear-gradient(90deg, #286141 0 10%, #31734b 10% 20%); }
+    .court-card .soccer-events { right: 8px; bottom: 8px; left: 8px; }
+    .court-note { padding: 12px 2px 0; margin: 0; color: #a5b3bc; font-size: .72rem; line-height: 1.6; }
+    html[data-theme="light"] .broadcast-heading { color: #5b6658; }
+    html[data-theme="light"] .broadcast-heading strong { color: #3d6208; }
+    html[data-theme="light"] .court-card .court-score { border-color: #cbd5c6; background: #fff; box-shadow: 0 6px 20px #283a1610; }
+    html[data-theme="light"] .court-card .game-clock { border-color: #283a161a; background: #edf2e8; }
+    html[data-theme="light"] .court-card.basketball-scoreboard .court { background: #e3e9de; border-color: #c0cdb6; }
+    html[data-theme="light"] .court-card.basketball-scoreboard .play-caption { border-color: #58800f; background: #fff; }
+    html[data-theme="light"] .court-note { color: #5b6658; }
+    @media (max-width: 600px) {
+      .court-card { padding: 12px; border-radius: 15px; }
+      .broadcast-heading { margin-bottom: 10px; font-size: .6rem; letter-spacing: .08em; }
+      .court-card .court-score { grid-template-columns: minmax(0, 1fr) 80px minmax(0, 1fr); margin-bottom: 12px; }
+      .court-card .team-score { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 5px; padding: 12px 6px; text-align: center; }
+      .court-card .team-score img { grid-column: 1; grid-row: auto; width: 32px; height: 32px; }
+      .court-card .team-name, .court-card .score { grid-column: 1; }
+      .court-card .team-name { font-size: .7rem; }
+      .court-card .score { font-size: 2.2rem; }
+      .court-card.basketball-scoreboard .court { padding: 6px; gap: 8px; }
+      .court-card.basketball-scoreboard .play-stage { border-width: 4px; }
+      .court-card.basketball-scoreboard .play-caption { font-size: .74rem; }
+      .court-card .court { border-width: 3px; }
+      .court-card.hockey-scoreboard .court { border-width: 4px; }
+      .court-card .game-clock { min-width: 0; }
+    }
   </style>
 </head>
 <body>
@@ -607,46 +638,62 @@
   <p id="error" role="alert"></p>
 
   <section class="court-card" aria-label="Live game scoreboard">
+    <div class="broadcast-heading"><strong>Game center</strong><span>Scoreboard &amp; play-by-play</span></div>
+    <div class="court-score">
+      <div class="team-score">
+        <img id="away-logo" alt="" hidden>
+        <span id="away-name" class="team-name">Away</span>
+        <span id="away-score" class="score">—</span>
+      </div>
+      <div class="game-clock">
+        <strong id="clock">—</strong>
+        <span id="period">Waiting for game</span>
+      </div>
+      <div class="team-score">
+        <img id="home-logo" alt="" hidden>
+        <span id="home-name" class="team-name">Home</span>
+        <span id="home-score" class="score">—</span>
+      </div>
+    </div>
     <div class="court">
-      <svg class="baseball-field-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
-        <rect x="4" y="4" width="892" height="372" rx="3"></rect>
-        <path d="M450 340 L610 215 L450 90 L290 215 Z"></path>
-        <path d="M450 340 L450 220 L610 215 M450 220 L290 215"></path>
-        <circle cx="450" cy="220" r="12"></circle>
-        <rect x="443" y="333" width="14" height="14" transform="rotate(45 450 340)"></rect>
-        <rect x="603" y="208" width="14" height="14" transform="rotate(45 610 215)"></rect>
-        <rect x="443" y="83" width="14" height="14" transform="rotate(45 450 90)"></rect>
-        <rect x="283" y="208" width="14" height="14" transform="rotate(45 290 215)"></rect>
+      <svg class="baseball-field-lines" viewBox="0 0 900 580" aria-hidden="true">
+        <path d="M150 140 Q450 -40 750 140 L450 530 Z" fill="#388653" stroke="#d7c097" stroke-width="8"></path>
+        <path d="M450 530 L600 380 L450 230 L300 380 Z" fill="#bf915f" stroke="none"></path>
+        <path d="M450 475 L545 380 L450 285 L355 380 Z" fill="#378052" stroke="none"></path>
+        <path d="M150 140 L450 530 L750 140 M450 520 L590 380 L450 240 L310 380 Z"></path>
+        <circle cx="450" cy="380" r="20" fill="#c59a6b" stroke="none"></circle>
+        <path d="M442 380h16" stroke-width="5"></path>
+        <path d="M443 518h14v8l-7 7-7-7z" fill="#fff"></path>
+        <g fill="#fff" stroke="none">
+          <rect x="583" y="373" width="14" height="14" transform="rotate(45 590 380)"></rect>
+          <rect x="443" y="233" width="14" height="14" transform="rotate(45 450 240)"></rect>
+          <rect x="303" y="373" width="14" height="14" transform="rotate(45 310 380)"></rect>
+        </g>
       </svg>
-      <svg class="football-field-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
-        <rect x="4" y="4" width="892" height="372" rx="3"></rect>
-        <line x1="94" y1="5" x2="94" y2="375"></line>
-        <line x1="183" y1="5" x2="183" y2="375"></line>
-        <line x1="272" y1="5" x2="272" y2="375"></line>
-        <line x1="361" y1="5" x2="361" y2="375"></line>
-        <line x1="450" y1="5" x2="450" y2="375"></line>
-        <line x1="539" y1="5" x2="539" y2="375"></line>
-        <line x1="628" y1="5" x2="628" y2="375"></line>
-        <line x1="717" y1="5" x2="717" y2="375"></line>
-        <line x1="806" y1="5" x2="806" y2="375"></line>
-        <path d="M92 150h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12m77-80h12m-12 80h12"></path>
-        <path d="M94 110v160m712-160v160"></path>
+      <svg class="football-field-lines" viewBox="0 0 1200 533" aria-hidden="true">
+        <defs><pattern id="field-hashes" x="100" width="10" height="533" patternUnits="userSpaceOnUse"><path d="M0 8v10m0 215v10m0 47v10m0 215v10" stroke="#eaf0db" stroke-width="1.5"></path></pattern></defs>
+        <rect class="field-endzone" width="100" height="533"></rect>
+        <rect class="field-endzone" x="1100" width="100" height="533"></rect>
+        <rect x="100" width="1000" height="533" fill="url(#field-hashes)" stroke="none"></rect>
+        <path d="M100 0v533m100-533v533m100-533v533m100-533v533m100-533v533m100-533v533m100-533v533m100-533v533m100-533v533m100-533v533m100-533v533"></path>
+        <rect x="2" y="2" width="1196" height="529"></rect>
+        <g class="field-numbers">
+          <text x="200" y="450">10</text><text x="300" y="450">20</text><text x="400" y="450">30</text><text x="500" y="450">40</text><text x="600" y="450">50</text><text x="700" y="450">40</text><text x="800" y="450">30</text><text x="900" y="450">20</text><text x="1000" y="450">10</text>
+          <g transform="rotate(180 600 266.5)"><text x="200" y="450">10</text><text x="300" y="450">20</text><text x="400" y="450">30</text><text x="500" y="450">40</text><text x="600" y="450">50</text><text x="700" y="450">40</text><text x="800" y="450">30</text><text x="900" y="450">20</text><text x="1000" y="450">10</text></g>
+        </g>
       </svg>
-      <svg class="hockey-rink-lines" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
-        <rect x="4" y="4" width="892" height="372" rx="3"></rect>
-        <line x1="290" y1="5" x2="290" y2="375"></line>
-        <line x1="610" y1="5" x2="610" y2="375"></line>
-        <line x1="450" y1="5" x2="450" y2="375"></line>
-        <circle cx="450" cy="190" r="52"></circle>
-        <circle cx="170" cy="100" r="38"></circle>
-        <circle cx="170" cy="280" r="38"></circle>
-        <circle cx="730" cy="100" r="38"></circle>
-        <circle cx="730" cy="280" r="38"></circle>
-        <path d="M55 120 A75 75 0 0 1 55 260 M845 120 A75 75 0 0 0 845 260"></path>
-        <circle cx="170" cy="100" r="3" fill="currentColor"></circle>
-        <circle cx="170" cy="280" r="3" fill="currentColor"></circle>
-        <circle cx="730" cy="100" r="3" fill="currentColor"></circle>
-        <circle cx="730" cy="280" r="3" fill="currentColor"></circle>
+      <svg class="hockey-rink-lines" viewBox="0 0 1000 425" aria-hidden="true">
+        <rect x="4" y="4" width="992" height="417" rx="136" stroke="#71899b" stroke-width="4"></rect>
+        <path class="rink-blue" d="M375 4v417m250-417v417"></path>
+        <path class="rink-center" d="M500 4v417"></path>
+        <path d="M55 32v361m890-361v361"></path>
+        <circle cx="500" cy="212.5" r="75" stroke="#3181b5"></circle>
+        <circle cx="500" cy="212.5" r="5" fill="#3181b5" stroke="none"></circle>
+        <circle cx="155" cy="105" r="75"></circle><circle cx="155" cy="320" r="75"></circle>
+        <circle cx="845" cy="105" r="75"></circle><circle cx="845" cy="320" r="75"></circle>
+        <path class="rink-crease" d="M55 182.5a30 30 0 0 1 0 60z M945 182.5a30 30 0 0 0 0 60z"></path>
+        <path d="M55 197.5H35v30h20 M945 197.5h20v30h-20" stroke-width="4"></path>
+        <g fill="#d74954" stroke="none"><circle cx="155" cy="105" r="5"></circle><circle cx="155" cy="320" r="5"></circle><circle cx="845" cy="105" r="5"></circle><circle cx="845" cy="320" r="5"></circle></g>
       </svg>
       <svg class="soccer-field-lines" viewBox="0 0 1000 640" preserveAspectRatio="none" aria-hidden="true">
         <rect x="14" y="14" width="972" height="612" rx="2"></rect>
@@ -662,23 +709,7 @@
         <path d="M164 255 A80 80 0 0 1 164 385 M836 255 A80 80 0 0 0 836 385"></path>
         <path d="M14 285 H0 V355 H14 M986 285 H1000 V355 H986"></path>
       </svg>
-      <div class="court-score">
-        <div class="team-score">
-          <img id="away-logo" alt="" hidden>
-          <span id="away-name" class="team-name">Away</span>
-          <span id="away-score" class="score">—</span>
-        </div>
-        <div id="soccer-events" class="soccer-events" aria-label="Recent goals, cards, and substitutions"></div>
-        <div class="game-clock">
-          <strong id="clock">—</strong>
-          <span id="period">Waiting for game</span>
-        </div>
-        <div class="team-score">
-          <img id="home-logo" alt="" hidden>
-          <span id="home-name" class="team-name">Home</span>
-          <span id="home-score" class="score">—</span>
-        </div>
-      </div>
+      <div id="soccer-events" class="soccer-events" aria-label="Recent goals, cards, and substitutions"></div>
       <!-- A 94 × 50 ft floor at 10 units per foot; the away team shoots at the left hoop, the home team at the right. -->
       <div class="play-stage" aria-hidden="true">
         <svg class="court-plan" viewBox="-6 -6 952 512" preserveAspectRatio="none">
@@ -713,7 +744,7 @@
       <p class="play-caption" aria-hidden="true"></p>
     </div>
     <p class="court-note muted">
-      Live scoreboard—not a video stream.
+      Live scoreboard—not a video stream. Playing surfaces are illustrative, not live player positions.
       Live scoreboard data is provided by ESPN and refreshes about every 15 seconds.
       <span class="court-note-plays">Each new play is re-created on the court from ESPN’s play-by-play, so spots are approximate.</span>
       <span class="soccer-court-note">The pitch is illustrative. Event markers show play type and time only; player and event locations are not inferred.</span>
@@ -991,6 +1022,9 @@
 
       for (const [side, team] of [["away", away], ["home", home]]) {
         const logo = document.querySelector(`#${side}-logo`);
+        const teamScore = logo.closest(".team-score");
+        teamScore.style.removeProperty("--team-accent");
+        setTeamColor(teamScore, side);
         if (team.logo) {
           logo.src = team.logo;
           logo.alt = `${team.name} logo`;
