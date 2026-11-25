@@ -494,6 +494,10 @@ test("live-performance mixes odds signs and ranks court performance above price 
   assert.deepEqual(result.legs.map(leg => leg.player), ["Strong Player", "Weak Player"]);
   assert.ok(result.legs[0].probability < result.legs[1].probability, "live signals change market-only ordering");
   assert.ok(result.legs[0].rankingScore > result.legs[1].rankingScore);
+  assert.ok(result.legs[0].estimatedHitProbability > result.legs[1].estimatedHitProbability);
+  for (const leg of result.legs) {
+    assert.ok(Math.abs(leg.estimatedHitProbability - (leg.probability + leg.performanceAdjustment)) < 0.00011);
+  }
   assert.ok(result.legs[0].read.remainingMinutes > result.legs[1].read.remainingMinutes);
   assert.ok(result.legs.every(leg => leg.read.notes.some(note => /Substitute readiness/.test(note.text))));
   assert.ok(result.legs[0].read.responsibility > 0);
@@ -508,6 +512,44 @@ test("live-performance mixes odds signs and ranks court performance above price 
     assert.equal(build([game("live", now - hour, true)], { live: eventOdds({
       draftkings: { player_points: [["Strong Player", 25.5, 1.9, 2]] }
     }) }, { ...options, liveGames: new Map([["live", { ...box, state }]]) }).legs.length, 0);
+  }
+});
+
+test("live hit estimates stay inside probability bounds at extreme prices, including alternates", () => {
+  const players = ["Short Price", "Long Price"];
+  const quotes = eventOdds({ draftkings: { player_points_alternate: [
+    [players[0], 25.5, 1.01, 250], [players[1], 25.5, 500, 1.01]
+  ] } });
+  const box = hoopsGame(2, "0.0", [side("HOME", 50, players.map(name => hooper(name, { MIN: 20, PTS: 18 }))), side("AWAY", 48, [])], "Halftime");
+  const result = build([game("live", now - hour, true)], { live: quotes }, { sport: "basketball_nba", rankBy: "live-performance",
+    sideFilter: "over", liveGames: new Map([["live", box]]), maxLegs: 1 });
+  assert.equal(result.legs.length, 1);
+  assert.equal(result.alternates.length, 1);
+  for (const leg of [...result.legs, ...result.alternates]) {
+    assert.ok(leg.estimatedHitProbability > leg.probability && leg.estimatedHitProbability < 1);
+    assert.ok(leg.performanceAdjustment < 0.005, "a strong live read should barely move the most extreme odds");
+  }
+});
+
+test("bettor counts belong only to the selected book's exact outcome and never affect the estimate", () => {
+  const quotes = eventOdds({
+    draftkings: { player_points_alternate: [["Role Player", 22.5, 1.5, 2.4]] },
+    fanduel: { player_points: [["Role Player", 25.5, 1.5, 2.4]] }
+  });
+  const [over, under] = quotes.bookmakers[0].markets[0].outcomes;
+  under.bettorCount = 110;
+  quotes.bookmakers[1].markets[0].outcomes[0].bettorCount = 300;
+  Object.assign(over, { tickets: 1200, publicPickCount: 9, betPercentage: 75 });
+  const get = () => build([game("next", now + hour)], { next: quotes }, { rankBy: "pregame-probability", sideFilter: "over" }).legs[0];
+  const original = get();
+  assert.equal(original.line, 22.5);
+  assert.equal(original.bettorCount, undefined);
+  assert.equal(original.estimatedHitProbability, undefined, "no live adjustment for an upcoming pick");
+  for (const count of [null, "8", -1, 1.5, 0, 12345]) {
+    over.bettorCount = count;
+    const leg = get();
+    assert.equal(leg.bettorCount, count === 0 || count === 12345 ? count : undefined);
+    assert.equal(leg.probability, original.probability);
   }
 });
 
@@ -539,6 +581,7 @@ test("performance read rewards clean fouls and less bench competition, reverses 
   assert.ok(read(0, 0).bonus > read(3, 0).bonus);
   assert.ok(read(0, 0).bonus > read(0, 2).bonus);
   assert.ok(read(3, 0, "under").bonus > read(0, 0, "under").bonus);
+  assert.ok(read(4, 0, "under").read.remainingMinutes <= read(3, 0, "under").read.remainingMinutes);
   assert.equal(read(4, 0).skip, "fouls");
   const incomplete = hoopsGame(2, "0.0", [side("HOME", 50, [{
     name: "Role Player", stats: [{ label: "PTS", value: "18" }, { label: "MIN", value: "20" }]

@@ -318,7 +318,8 @@ function basketballRead({ sport, market, line, game, clock, found, stats, read, 
   const oneAway = fouls >= 3 && fouls === foulLimit - 1;
   const rate = (read.current + (line / Math.max(total * 0.25, share * total)) * 10) / (minutes + 10);
   // One foul from trouble, he is likely to sit for part of what is left.
-  const foulMinutesFactor = performance && fouls >= shape.foulOut ? 0 : oneAway ? 0.85 : 1;
+  const reducedMinutes = oneAway || (performance && fouls >= foulLimit);
+  const foulMinutesFactor = performance && fouls >= shape.foulOut ? 0 : reducedMinutes ? 0.85 : 1;
   const projected = read.current + rate * clock.left * share * foulMinutesFactor;
   const ratio = projected / line;
   if (under ? (early ? ratio > 1.2 : ratio >= 1) : (early ? ratio < 0.8 : ratio < 1)) return { skip: under ? "ahead" : "behind" };
@@ -694,12 +695,12 @@ export function buildBestParlay({
               }
               livePassed.add(key);
             }
-            const score = rankBy === "live-performance" ? probability + live.bonus
-              : rankBy === "live-positive" || pregame ? probability : probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0);
-            if (rankBy === "live-performance") live.read.notes.push({
-              tone: "neutral",
-              text: "Ranked by market-implied probability plus live performance and availability signals. The displayed chance is the market estimate, not a validated performance forecast."
-            });
+            // Apply the full live signal at even odds and taper it toward either extreme.
+            // The bounded bonus (at most 0.12) cannot turn an undecided pick into a certainty.
+            const estimatedHitProbability = rankBy === "live-performance"
+              ? probability + 4 * probability * (1 - probability) * live.bonus : null;
+            const score = estimatedHitProbability ??
+              (rankBy === "live-positive" || pregame ? probability : probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0));
             const leg = {
               player,
               market,
@@ -709,6 +710,8 @@ export function buildBestParlay({
               price,
               probability: round4(probability),
               books,
+              // Only an explicit unique-person count for this book's exact outcome, never ticket or book volume.
+              ...(Number.isSafeInteger(outcome.bettorCount) && outcome.bettorCount >= 0 ? { bettorCount: outcome.bettorCount } : {}),
               edge: round4(edge),
               eventId: event.id,
               home: event.home_team || "",
@@ -719,7 +722,9 @@ export function buildBestParlay({
               marketLink: httpsLink(marketLinkMarket.link),
               eventLink: httpsLink(target.link),
               ...(live ? { read: live.read } : {}),
-              ...(rankBy === "live-performance" ? { performanceAdjustment: live.bonus, rankingScore: round4(score) } : {}),
+              ...(estimatedHitProbability !== null ? {
+                estimatedHitProbability, performanceAdjustment: round4(estimatedHitProbability - probability), rankingScore: round4(score)
+              } : {}),
               score
             };
             const seen = best.get(key);

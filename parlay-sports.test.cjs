@@ -12,6 +12,27 @@ const slice = (text, start, end) => {
 };
 const supportedSports = ["basketball_nba", "icehockey_nhl", "basketball_wnba", ...Object.keys(soccerSupport.leagues)];
 
+test("parlay pick evidence distinguishes live, odds-only, missing minutes and unreported people; totals use the shown basis", () => {
+  const node = (tag, cls, text = "") => ({ tag, text, children: [], dataset: {}, style: { setProperty() {} },
+    setAttribute() {}, append(...values) { this.children.push(...values); } });
+  const content = el => typeof el === "string" ? el : [el.text, ...el.children.map(content)].filter(Boolean).join(" ");
+  const c = { element: node, countText: (n, noun) => `${n} ${noun}`, marketHeatClass: () => "heat-warm",
+    sportsbookTitle: () => "FanDuel", parlayLegTarget: () => 2, formatAmericanOdds: String, formatPayout: String,
+    document: { createDocumentFragment: node }, bpStats: { replaceChildren(...items) { this.items = items; } } };
+  runInNewContext(slice(html, "    function parlayPickEstimate(", "    function createBestParlayLeg(") +
+    slice(html, "    function formatParlayChance(", "    function formatPayout(") +
+    slice(html, "    function renderBestParlayStats(", "    function renderBestParlayDetails("), c);
+  const live = { probability: 0.5, estimatedHitProbability: 0.6, books: 3, price: 2 };
+  const upcoming = { probability: 0.7, books: 8, price: 1.4, bettorCount: 0 };
+  const render = (leg, read) => content(c.createParlayEvidence(leg, read, "fanduel"));
+  assert.match(render(live, { remainingMinutes: 14.8 }), /Est. hit chance: 60% \(live; odds 50%\) Playing time: ~15 more court min Bettors: Not reported/);
+  assert.match(render(upcoming, null), /70% \(odds only\) Playing time: Not projected Bettors: 0$/);
+  assert.match(render({ ...live, bettorCount: 1324 }, { left: 19 }), /Playing time: Not projected Bettors: 1,324$/);
+  assert.match(render({ ...live, estimatedHitProbability: 0.998 }, { remainingMinutes: 0 }), />99% .*Playing time: ~0 more court min/);
+  c.renderBestParlayStats([live, upcoming], { book: "fanduel", scope: "mixed" });
+  assert.match(content(c.bpStats.items.at(-1)), /Est. parlay chance 42%$/);
+});
+
 test("explicit game filters use only the chosen slate and Both merges live with upcoming", async () => {
   const calls = [];
   const events = [{ id: "live", live: true }, { id: "future", commence_time: new Date(Date.now() + 3600000).toISOString() }];

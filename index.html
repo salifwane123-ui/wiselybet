@@ -2236,7 +2236,11 @@
     .bp-nav .icon-play { fill: currentColor; stroke-width: 1.2; }
     .bp-nav .icon-play, .best-parlay.is-paused .bp-nav .icon-pause { display: none; }
     .best-parlay.is-paused .bp-nav .icon-play { display: block; }
-    .bp-leg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "num main odds remove"; align-items: center; gap: 4px 10px; min-width: 0; }
+    .bp-leg { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "num main odds remove" "evidence evidence evidence evidence"; align-items: center; gap: 4px 10px; min-width: 0; }
+    .bp-evidence { grid-area: evidence; display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 3px 0 0; font-size: .72rem; line-height: 1.4; }
+    .bp-evidence > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; }
+    .bp-evidence dt, .bp-baseline { color: var(--muted); }
+    .bp-evidence dd { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 4px; margin: 0; }
     .bp-num { display: grid; grid-area: num; width: 24px; height: 24px; place-items: center; border-radius: 50%; background: rgba(201,239,91,.14); color: #d9f58a; font-size: .7rem; font-weight: 850; font-variant-numeric: tabular-nums; }
     .bp-leg-main { grid-area: main; min-width: 0; }
     .bp-leg-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 7px; min-width: 0; line-height: 1.3; }
@@ -2344,8 +2348,8 @@
     .bp-leg-list > li { padding: 8px 0; border-bottom: 1px solid rgba(225,233,229,.06); }
     .bp-leg-list > li.is-new { animation: bp-new 1.8s ease-out; }
     @keyframes bp-new { from { background-color: rgba(201,239,91,.16); } }
-    .bp-leg-list .bp-leg { grid-template-areas: "num main odds remove" "num main link remove"; }
-    .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds remove" "num main link remove" ". why why why"; }
+    .bp-leg-list .bp-leg { grid-template-areas: "num main odds remove" "num main link remove" "evidence evidence evidence evidence"; }
+    .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds remove" "num main link remove" "evidence evidence evidence evidence" ". why why why"; }
     /* Why a live leg made the parlay: one line per check, colored by how it reads for the Over */
     .bp-why { display: flex; grid-area: why; flex-wrap: wrap; gap: 2px 16px; margin: 3px 0 0; padding: 0; color: var(--muted); font-size: .68rem; line-height: 1.45; list-style: none; }
     .bp-why li { position: relative; padding-left: 11px; }
@@ -2378,8 +2382,8 @@
       .bp-sub { display: block; }
       .bp-actions { padding: 8px 12px; border-top: 1px solid rgba(225,233,229,.08); }
       .bp-track { flex: 0 1 auto; }
-      .bp-leg-list .bp-leg { grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas: "num main odds link remove"; }
-      .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds link remove" ". why why why why"; }
+      .bp-leg-list .bp-leg { grid-template-columns: auto minmax(0, 1fr) auto auto auto; grid-template-areas: "num main odds link remove" ". evidence evidence evidence evidence"; }
+      .bp-leg-list .bp-leg.has-why { grid-template-areas: "num main odds link remove" ". evidence evidence evidence evidence" ". why why why why"; }
     }
     /* Wide screens: totals sit beside the title, the Add to tracker button beside the slides */
     @container bp (min-width: 1100px) {
@@ -4251,6 +4255,7 @@
     }
     function formatParlayChance(probability) {
       const percent = probability * 100;
+      if (percent >= 99.5) return ">99%";
       if (percent >= 9.5) return `${Math.round(percent)}%`;
       return percent >= 0.1 ? `${percent.toFixed(1)}%` : "<0.1%";
     }
@@ -4498,6 +4503,51 @@
       if (Date.now() - state.loadedAt > (live ? bestParlayLiveRefreshMs : bestParlayRefreshMs)) void loadBestParlay();
     }
 
+    function parlayPickEstimate(leg) {
+      return Number.isFinite(leg.estimatedHitProbability) ? leg.estimatedHitProbability : leg.probability;
+    }
+    function parlayPercentLabel(percent) {
+      return percent === 100 ? ">99%" : percent === 0 ? "<1%" : `${percent}%`;
+    }
+    function parlayPlayingTime(read) {
+      return Number.isFinite(read?.remainingMinutes) ? `~${Math.round(read.remainingMinutes)} more court min` : "Not projected";
+    }
+    function parlayBettors(leg) {
+      return Number.isSafeInteger(leg.bettorCount) && leg.bettorCount >= 0 ? leg.bettorCount.toLocaleString("en-US") : "Not reported";
+    }
+    function createParlayEvidence(leg, read, book) {
+      const evidence = element("dl", "bp-evidence");
+      const field = (label, ...values) => {
+        const group = element("div");
+        const detail = element("dd");
+        detail.append(...values);
+        group.append(element("dt", "", `${label}:`), detail);
+        evidence.append(group);
+      };
+      const percent = Math.round(parlayPickEstimate(leg) * 100);
+      const label = parlayPercentLabel(percent);
+      const adjusted = Number.isFinite(leg.estimatedHitProbability);
+      const market = parlayPercentLabel(Math.round(leg.probability * 100));
+      const chance = element("span", `bp-chance ${marketHeatClass(percent / 100)}`);
+      chance.dataset.percent = String(percent);
+      chance.style.setProperty("--bp-pct", String(percent / 100));
+      chance.title = `${market} from odds with the sportsbook margin removed (${countText(leg.books, "book")}). ${adjusted
+        ? "The live estimate adjusts for recorded performance and available playing-time signals. It is not a validated prediction."
+        : "No player performance or playing-time adjustment."}`;
+      const flame = element("span", "heat-flame");
+      flame.setAttribute("aria-hidden", "true");
+      flame.append(element("span", "flame-core"));
+      const value = element("span", "bp-chance-value");
+      value.dataset.final = label;
+      value.append(element("span", "bp-chance-num", label));
+      chance.append(flame, value);
+      field("Est. hit chance", chance, element("span", "bp-baseline", adjusted ? `(live; odds ${market})` : "(odds only)"));
+      field("Playing time", parlayPlayingTime(read));
+      const bettors = element("span", "", parlayBettors(leg));
+      bettors.title = `Unique bettors on this side and line at ${sportsbookTitle(book)}. Odds, tickets and public picks are not counts of people.`;
+      field("Bettors", bettors);
+      return evidence;
+    }
     function createBestParlayLeg(leg, number, sport, book, detailed = false) {
       const row = element("div", "bp-leg");
       const badge = element("span", "bp-num", String(number));
@@ -4516,26 +4566,11 @@
       const odds = element("div", "bp-odds");
       const price = element("span", "bp-price", formatAmericanOdds(leg.price));
       price.title = `${sportsbookTitle(book)} price`;
-      const percent = Math.round(leg.probability * 100);
-      // Heat-colored with a flame like the Player Props percentages, by the shown value so equal numbers match.
-      const chance = element("span", `bp-chance ${marketHeatClass(percent / 100)}`);
-      chance.dataset.percent = String(percent);
-      chance.style.setProperty("--bp-pct", String(percent / 100));
-      const flame = element("span", "heat-flame");
-      flame.setAttribute("aria-hidden", "true");
-      flame.append(element("span", "flame-core"));
-      const value = element("span", "bp-chance-value");
-      value.dataset.final = `${percent}%`;
-      value.append(element("span", "bp-chance-num", `${percent}%`));
-      chance.append(flame, value);
-      odds.append(price, chance);
+      odds.append(price);
       const read = liveLegRead(leg);
       if (read) {
         // Live: the clock, time left and score, then his numbers so far; the pace chip sits in the title when
         // there is room, else under the odds.
-        chance.title = leg.books === 1
-          ? `About ${percent}% to hit, from ${sportsbookTitle(book)}'s live no-vig odds`
-          : `About ${percent}% to hit, from the live no-vig odds at ${countText(leg.books, "sportsbook")}`;
         const titlePace = createLivePace(read, "title");
         if (titlePace) title.append(titlePace);
         meta.append(element("b", "bp-live", "LIVE"), element("span", "bp-clock", read.clock), element("span", "bp-left", read.leftText || read.clock));
@@ -4549,12 +4584,11 @@
         const sidePace = createLivePace(read, "side");
         if (sidePace) odds.append(sidePace);
       } else {
-        chance.title = `About ${percent}% to hit, from the no-vig odds at ${countText(leg.books, "sportsbook")}`;
         if (legStarted(leg)) meta.append(element("b", "bp-live", "LIVE"), element("span", "", matchup));
         else meta.append(element("span", "", `${formatSlateTime(leg.start)} · ${matchup}`));
         main.append(title, meta);
       }
-      row.append(badge, main, odds);
+      row.append(badge, main, odds, createParlayEvidence(leg, read, book));
       // In "All legs", each live leg lists what his read found, colored by how it bodes for the Over.
       const notes = read && detailed && Array.isArray(read.notes) ? read.notes.filter(note => note?.text) : [];
       if (notes.length) {
@@ -4583,7 +4617,7 @@
       for (const { chip } of runs) {
         window.cancelAnimationFrame(bestParlayChanceFrames.get(chip));
         chip.classList.remove("is-counting", "is-igniting");
-        chip.querySelector(".bp-chance-num").textContent = `${chip.dataset.percent}%`;
+        chip.querySelector(".bp-chance-num").textContent = parlayPercentLabel(Number(chip.dataset.percent));
       }
       if (!runs.length || document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       // Lets a leg that counted before play its CSS animations again.
@@ -4599,7 +4633,7 @@
         number.textContent = `${from}%`;
         const step = now => {
           const progress = Math.min(1, Math.max(0, (now - start) / 900));
-          number.textContent = `${Math.round(from + (to - from) * (1 - (1 - progress) ** 3))}%`;
+          number.textContent = progress === 1 ? parlayPercentLabel(to) : `${Math.round(from + (to - from) * (1 - (1 - progress) ** 3))}%`;
           if (progress < 1 && number.isConnected) bestParlayChanceFrames.set(chip, window.requestAnimationFrame(step));
         };
         bestParlayChanceFrames.set(chip, window.requestAnimationFrame(step));
@@ -4795,7 +4829,7 @@
     function renderBestParlayStats(legs, data, removedCount = 0) {
       const target = parlayLegTarget();
       const odds = legs.reduce((product, leg) => product * leg.price, 1);
-      const chance = legs.reduce((product, leg) => product * leg.probability, 1);
+      const chance = legs.reduce((product, leg) => product * parlayPickEstimate(leg), 1);
       const stat = (className, label, value, title = "") => {
         const item = element("div", `bp-stat ${className}`);
         const detail = element("dd");
@@ -4810,13 +4844,13 @@
       const pregame = data.rankBy === "pregame-probability";
       const short = removedCount
         ? `Only ${countText(legs.length, "leg")} left after you removed ${countText(removedCount, "player")}`
-        : pregame ? `Only ${countText(legs.length, "pick")} at 50%+ market-implied probability right now` : `Selected up to ${target} shortest-priced legs from the available candidates`;
+        : pregame ? `Only ${countText(legs.length, "pick")} at 50%+ market-implied probability right now` : `Only ${countText(legs.length, "pick")} passed the selected filters`;
       const items = [
         stat("bp-stat-legs", "Legs", count, legs.length < target ? short
-          : pregame ? `Up to ${target} legs with the highest Player Props percentages, highest first` : `Up to ${target} legs, ordered by shortest ${sportsbookTitle(data.book)} price`),
+          : `Up to ${target} eligible picks, highest estimated hit chance first`),
         stat("bp-stat-odds", "Odds", formatAmericanOdds(odds), `Combined odds at ${sportsbookTitle(data.book)} for the selected legs`),
         stat("bp-stat-pays", "$10 pays", formatPayout(10 * odds), "Total return on a $10 stake, including the stake"),
-        stat("bp-stat-chance", "Hit chance", formatParlayChance(chance), `About 1 in ${Math.max(1, Math.round(1 / chance)).toLocaleString("en-US")}. Every leg must hit.`)
+        stat("bp-stat-chance", "Est. parlay chance", formatParlayChance(chance), "Multiplies the leg estimates assuming independent outcomes. Same-game picks can be correlated.")
       ];
       if (data.stale) {
         const badge = element("span", "bp-stale", "Delayed");
@@ -4871,17 +4905,17 @@
         note(`Choose your state so ${title} links open your state's ${title} site.`, true);
       }
       const pregame = data.rankBy === "pregame-probability";
-      const gamesOn = pregame && data.live?.games > 0 ? data.live : null;
-      const onNow = gamesOn ? `the ${countText(gamesOn.games, "game")} on now` : "";
       if (window.wiselyPremium) note(`Add to tracker follows the whole parlay live in your tracker, set to ${title}, without opening ${title}. A leg's own link opens that pick at ${title} and adds it to your tracker too.`);
-      note(pregame
-        ? `${!gamesOn ? "No game is live right now" : gamesOn.bookGames ? `Too few live picks qualify in ${onNow}` : `${title} isn't pricing live player props for ${onNow}`}, so these are pre-game picks: the upcoming player props with the highest percentages on Player Props, highest first, from the main or alternate lines ${title} offers. Where ${title} lacks the exact line, its nearest easier line carries that line's percentage as a conservative estimate. Live picks take over once ${gamesOn ? "enough qualify" : "a game starts"}.`
-        : `The suggestion uses up to ${parlayLegTarget()} eligible legs, choosing each pick's lowest available line at ${title}. Candidates are ordered by market and available live strength signals.`);
+      if (legs.some(leg => Number.isFinite(leg.estimatedHitProbability))) {
+        note("Live hit estimates start with sportsbook odds after removing the margin. The player's performance adjusts that baseline. In basketball, more expected court time favors an Over; fewer minutes favor an Under. Coaching decisions can change the rotation.");
+      }
+      if (legs.some(leg => !leg.live)) {
+        note(`Upcoming picks use odds only, without a player performance or playing-time forecast. If ${title} offers an easier line, its estimate can come from a harder line on Player Props.`);
+      }
+      note("Bettors counts people on the exact pick at the selected sportsbook, not tickets, public posts or the number of books offering odds. Popularity does not change the estimate.");
+      note("The parlay estimate multiplies the leg estimates as if they were independent. Related picks can hit or miss together. These estimates are not validated predictions.");
       note("Check the sportsbook betslip before placing the bet; it may reject combinations or correlated picks.", true);
       if (sport === "all") {
-        const represented = [...new Set(legs.map(leg => (leg.sport || "").split("_").pop().toUpperCase()).filter(Boolean))];
-        if (!pregame) note(`Cross-sport candidates use market consensus across ${represented.join(", ") || "supported leagues"} and each pick's lowest sportsbook line; live legs also use current box-score pace, minutes, fouls and game context.`);
-        note("Pregame historical form, expected minutes and historical foul rates are unavailable in the current feeds, so they are not used in the ranking.", true);
         if (data.scope === "mixed") note("This suggestion combines live picks and upcoming-game prices.");
         if (data.sportsUnavailable?.length) {
           const unavailable = data.sportsUnavailable.map(item => item.split("_").pop().toUpperCase());
@@ -4894,22 +4928,12 @@
       if (data.scope === "live") {
         const readAt = new Date(data.generatedAt);
         const readTime = Number.isNaN(readAt.getTime()) ? "" : `; clocks and box scores as of ${readAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
-        note("Each live leg is checked against the player's box score: his pace for the line, personal fouls, minutes, the bench players at his position and the score.");
         const skipped = liveSkipText(live?.skipped);
         if (skipped && live.checked) note(`Of the ${countText(live.checked, "player")} the live odds favor, we left out ${skipped}.`);
         note(`Live prices from ${title}${time}${readTime}. In-play lines move fast, so check each leg in the betslip before you bet.`);
-        note("Hit chance is an estimate from the live no-vig odds and treats the legs as independent. The live read only decides the order of the picks.");
       } else {
         note(`Prices from ${title}${time}. Lines move, so check each leg in the betslip before you bet.`);
-        note(pregame
-          ? "Each percentage comes from the best Over and Under prices across sportsbooks at that line, with the margin removed. Hit chance multiplies them and treats the legs as independent."
-          : "Hit chance is an estimate from the no-vig odds of several sportsbooks and treats the legs as independent.");
-        if (sport === "all" && !pregame) {
-          const represented = [...new Set(legs.map(leg => (leg.sport || "").split("_").pop().toUpperCase()).filter(Boolean))];
-          note(`Cross-sport ranking uses market consensus across ${represented.join(", ") || "supported leagues"}; live legs also use current box-score pace, minutes, fouls and game context.`);
-          note("Pregame historical form, expected minutes and historical foul rates are not available in the current feeds, so they are not used in the ranking.", true);
-        }
-        if (live?.games && sport !== "all" && !pregame) {
+        if (live?.games && sport !== "all" && !pregame && !data.gameFilter) {
           const games = countText(live.games, "game is", "games are");
           note(live.bookGames
             ? `${games} in progress, but fewer than 2 live legs pass our checks, so these are pre-game picks. We check again every minute.`
@@ -5315,7 +5339,9 @@
         `WiselyBet best parlay · ${data.sport === "all" ? "All sports" : data.sport.split("_").pop().toUpperCase()} · ${sportsbookTitle(data.book)}${data.scope === "live" ? " · Live" : data.rankBy === "pregame-probability" ? " · Pre-game" : ""}`,
         ...legs.map((leg, index) => {
           const read = liveLegRead(leg);
-          return `${index + 1}. ${bestParlayLegText(leg, data.sport)} (${formatAmericanOdds(leg.price)}) · ${leg.away} @ ${leg.home}${read ? ` · ${liveStatText(read)}` : ""}`;
+          const chance = parlayPercentLabel(Math.round(parlayPickEstimate(leg) * 100));
+          const basis = Number.isFinite(leg.estimatedHitProbability) ? "live-adjusted" : "odds only";
+          return `${index + 1}. ${bestParlayLegText(leg, data.sport)} (${formatAmericanOdds(leg.price)}) · ${leg.away} @ ${leg.home}${read ? ` · ${liveStatText(read)}` : ""} · Est. hit chance: ${chance} (${basis}) · Playing time: ${parlayPlayingTime(read)} · Bettors: ${parlayBettors(leg)}`;
         }),
         `Parlay odds ${formatAmericanOdds(odds)} · $10 pays ${formatPayout(10 * odds)}`
       ].join("\n");
