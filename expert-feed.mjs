@@ -18,7 +18,11 @@ export function publicFeed(snapshot, now) {
     Date.parse(p.publishedAt) <= checked && Date.parse(p.startTime) > now &&
     Array.isArray(p.legs) && p.legs.length >= 2 && p.legs.length <= 8 && p.legs.every(s => text(s, 125)) &&
     (p.odds === null || /^[+-]\d{3,6}$/.test(p.odds))
-  ).slice(0, 20).map(p => ({ ...p, publisher: publisher(p.sourceUrl) }));
+  ).slice(0, 20).map(p => {
+    const price = Number(p.odds);
+    const implied = Math.abs(price) < 100 ? null : price > 0 ? 100 / (price + 100) : -price / (100 - price);
+    return { ...p, publisher: publisher(p.sourceUrl), implied, smart: implied !== null && implied >= 0.5 && p.legs.length <= 3 };
+  });
   return { status: "ready", checkedAt: snapshot.checkedAt, expiresAt: new Date(checked + freshnessMs).toISOString(), picks };
 }
 

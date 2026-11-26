@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   bestParlayMarkets, buildBestParlay, combineBestParlays, injuredPlayers, liveClock, liveRead, normalizePlayerName, parlayBooks,
-  propsTtlMs, selectSlate
+  propsTtlMs, selectSlate, smartTicket
 } from "./best-parlay.mjs";
 
 const now = Date.parse("2025-01-15T20:00:00Z");
@@ -44,6 +44,22 @@ function build(events, odds, options = {}) {
   const oddsByEvent = new Map(Object.entries(odds).map(([id, data]) => [id, { data, fetchedAt: now }]));
   return buildBestParlay({ events, oddsByEvent, book: "draftkings", markets: nba, ...options });
 }
+
+test("smart pair uses exact fresh two-sided lines in distinct games; neither a weak leg nor a singleton fills a ticket", () => {
+  const market = (...rows) => ({ player_points_alternate: rows });
+  const a = ["Alpha", 12.5, ...prices(.82)], b = ["Bravo", 14.5, ...prices(.90)], c = ["Charlie", 10.5, ...prices(.2)];
+  const strong = eventOdds({ draftkings: market(a, b), fanduel: market(a, b) });
+  const quote = (second, stamp = now) => eventOdds({ draftkings: market(c), fanduel: market(second) }, stamp);
+  const go = (other, at = now) => smartTicket(build([game("a", now + hour), game("b", now + hour)], { a: strong, b: other },
+    { rankBy: "pregame-probability", smart: true, now: at }));
+  assert.deepEqual(go(quote(c)).legs.map(p => [p.player, p.side, p.books]), [["Bravo", "over", 2], ["Charlie", "under", 2]]);
+  for (const other of [quote(["Charlie", 10.5, ...prices(.251)]), quote(["Charlie", 11.5, ...prices(.2)]),
+    quote(c, now + minute), eventOdds({ draftkings: market(c) })]) assert.deepEqual(go(other).legs, []);
+  const oneSided = quote(c);
+  oneSided.bookmakers[1].markets[0].outcomes.pop();
+  assert.deepEqual(go(oneSided).legs, []);
+  assert.deepEqual(go(quote(c), now + 21 * minute).legs, []);
+});
 
 test("each sport's first core market is the one guests can open", () => {
   assert.deepEqual(Object.keys(bestParlayMarkets).sort(), [
@@ -478,6 +494,19 @@ test("live-positive rejects stale, pregame and unverified quote timestamps", () 
   delete missing.bookmakers[0].last_update;
   delete missing.bookmakers[0].markets[0].last_update;
   assert.equal(build([event], { live: missing }, options).legs.length, 0);
+});
+
+test("a favorable live box score cannot promote a sub-threshold or single-book line into a smart pair", () => {
+  const box = hoopsGame(2, "0.0", [side("HOME", 50, [hooper("Strong Player", { MIN: 22, PTS: 18, PF: 0, FG: "7-11" })]), side("AWAY", 48, [])], "Halftime");
+  const options = { sport: "basketball_nba", rankBy: "live-performance", sideFilter: "over", now, liveGames: new Map([["live", box]]) };
+  const run = (p, smart, two = true) => {
+    const market = { player_points: [["Strong Player", 25.5, ...prices(p)]] };
+    return build([game("live", now - hour, true)], { live: eventOdds({ draftkings: market, ...(two ? { fanduel: market } : {}) }) }, { ...options, smart }).legs;
+  };
+  assert.ok(run(.74, false)[0].estimatedHitProbability > .75);
+  assert.deepEqual(run(.74, true), []);
+  assert.deepEqual(run(.80, true, false), []);
+  assert.equal(run(.80, true)[0].probability, .80);
 });
 
 test("live-performance mixes odds signs and ranks court performance above price alone", () => {

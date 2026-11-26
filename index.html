@@ -2915,6 +2915,12 @@
           <section id="expert-picks" aria-labelledby="expert-heading">
             <h2 id="expert-heading">Expert parlay suggestions</h2>
             <p>Published by analysts, collected with AI. Odds are as published, not live.</p>
+            <label for="expert-view">Show</label>
+            <select id="expert-view">
+              <option value="smart" selected>Smart filter · shorter tickets</option>
+              <option value="all">All published tickets</option>
+            </select>
+            <p id="expert-rule">Two or three legs with a published price implying at least 50% for the whole ticket. This includes the sportsbook margin, not a verified win rate.</p>
             <p id="expert-status" role="status">Loading expert picks…</p>
             <div id="expert-cards"></div>
           </section>
@@ -3457,6 +3463,7 @@
       parlayBook: "",
       parlayState: "",
       parlayLegs: 8,
+      parlayStrategy: "smart",
       reminder: 60
     };
     function readSettings() {
@@ -4243,6 +4250,7 @@
       return sportsbookTitles.has(settings.parlayBook) ? settings.parlayBook : "";
     }
     function parlayLegTarget() {
+      if (settings.parlayStrategy !== "standard") return 2;
       const count = Math.round(Number(settings.parlayLegs));
       return Number.isFinite(count) ? Math.min(8, Math.max(2, count)) : 8;
     }
@@ -4427,12 +4435,12 @@
         );
       }
       if (bpBookSelect.options.length < 2) bpBookSelect.append(...sportsbooks.map(book => new Option(book.title, book.key)));
-      if (!bpLegsSelect.options.length) bpLegsSelect.append(...parlayLegCounts.map(count => new Option(`${count} legs`, String(count))));
+      if (!bpLegsSelect.options.length) bpLegsSelect.append(new Option("Smart pair · 2 games", "smart"), ...parlayLegCounts.map(count => new Option(`Standard · ${count} legs`, String(count))));
       fillStateOptions(bpStateSelect);
       bpSideSelect.value = bestParlaySide();
       bpGamesSelect.value = bestParlayGames();
       bpBookSelect.value = bestParlayBook();
-      bpLegsSelect.value = String(parlayLegTarget());
+      bpLegsSelect.value = settings.parlayStrategy === "standard" ? String(parlayLegTarget()) : "smart";
     }
 
     function fillBestParlaySportCheckboxes() {
@@ -4482,7 +4490,8 @@
       const side = bestParlaySide();
       const games = bestParlayGames();
       const book = bestParlayBook();
-      if (state.sport !== sport || state.side !== side || state.book !== book || state.games !== games) Object.assign(state, { sport, side, book, games, data: null, error: "", index: 0 });
+      const strategy = settings.parlayStrategy === "standard" ? "standard" : "smart";
+      if (state.sport !== sport || state.side !== side || state.book !== book || state.games !== games || state.strategy !== strategy) Object.assign(state, { sport, side, book, games, strategy, data: null, error: "", index: 0 });
       const request = ++state.request;
       if (!sport || !book) {
         state.loading = false;
@@ -4493,7 +4502,7 @@
       if (!state.data) renderBestParlay();
       try {
         const scope = sport.includes(",") ? `sport=all&sports=${encodeURIComponent(sport)}` : `sport=${encodeURIComponent(sport)}`;
-        const data = await getJson(`/api/best-parlay?${scope}&side=${encodeURIComponent(side)}&book=${encodeURIComponent(book)}&games=${encodeURIComponent(games)}`);
+        const data = await getJson(`/api/best-parlay?${scope}&side=${encodeURIComponent(side)}&book=${encodeURIComponent(book)}&games=${encodeURIComponent(games)}&strategy=${strategy}`);
         if (request !== state.request) return;
         if (!Array.isArray(data?.legs)) throw new Error("We couldn't build a parlay right now. Please try again in a minute.");
         state.data = data;
@@ -4691,6 +4700,8 @@
         }
         return bestParlayMessage("Couldn't load the parlay.", bestParlayState.error || "Please try again in a minute.", true);
       }
+      if (data.smart) return bestParlayMessage("No qualifying smart pair.",
+        `Need two different games in your selection. Each leg needs fresh, two-sided prices on the exact line from at least two books, each implying 75% or more after removing the margin. Live picks must also pass the performance check.`);
       if (data.gameFilter) return bestParlayMessage("Not enough qualifying picks.",
         `At least two eligible ${data.gameFilter === "both" ? "live or upcoming" : data.gameFilter} picks from ${title} are needed. We will check again automatically.`);
       if (data.rankBy === "live-positive") {
@@ -4722,9 +4733,10 @@
       return bestParlayMessage("No legs pass our checks right now.", `Each leg needs a ${title} price, the same line at 2+ sportsbooks and a 50%+ hit chance. Check back soon.`);
     }
 
-    function bestParlayAllRemovedSlide(removed, liveOnly = false) {
+    function bestParlayAllRemovedSlide(removed, liveOnly = false, smart = false) {
       const one = removed.length === 1;
-      const slide = liveOnly
+      const slide = smart ? bestParlayMessage("No qualifying smart pair.", "After removals, fewer than two games qualify. Restore players or wait for new lines.")
+        : liveOnly
         ? bestParlayMessage("Not enough qualifying live picks.", "At least two eligible live picks are needed. Restore removed players or wait for new qualifying picks.")
         : bestParlayMessage(one ? "You removed the only pick." : `You removed all ${removed.length} picks.`, "New picks show up as the games and prices change.");
       const button = element("button", "bp-retry", one ? "Bring it back" : "Bring them back");
@@ -4777,7 +4789,7 @@
       const state = bestParlayState;
       const book = bestParlayBook();
       const data = state.data?.sport === sport && state.data.side === bestParlaySide() && state.data.book === book &&
-        state.data.gameFilter === bestParlayGames() ? state.data : null;
+        state.data.gameFilter === bestParlayGames() && Boolean(state.data.smart) === (settings.parlayStrategy !== "standard") ? state.data : null;
       const { legs, removed } = bestParlayLegsFor(data);
       dropStaleRemovedToast(data);
       bpSportLabel.textContent = parlaySportTitle(sport);
@@ -4802,6 +4814,10 @@
         bpSubText.textContent = "Live and upcoming games · live performance plus upcoming market estimates";
         bpSubText.title = "Both can form a mixed parlay. Only live picks have live-performance checks; upcoming picks use market estimates.";
       }
+      if (settings.parlayStrategy !== "standard") {
+        bpSubText.textContent = "Smart pair · two different games · 75%+ per leg at two or more books";
+        bpSubText.title = "Each book must price both sides of the exact line. The combined estimate assumes independent games; it is not a measured win rate.";
+      }
       window.clearTimeout(state.leaveTimer);
       state.shown = legs.length ? { legs, data } : null;
       if (!legs.length) {
@@ -4809,10 +4825,10 @@
         bpViewport.replaceChildren(!sport
           ? bestParlayMessage("Select at least one sport", "Suggestions are paused. Enable a sport above to resume.")
           : removed.length
-          ? bestParlayAllRemovedSlide(removed, ["live-positive", "live-performance"].includes(data?.rankBy))
+          ? bestParlayAllRemovedSlide(removed, ["live-positive", "live-performance"].includes(data?.rankBy), data?.smart)
           : book
             ? bestParlayEmptySlide(data, book)
-            : bestParlayMessage("Choose your sportsbook", "and we'll build the best player-prop parlay from your selected games at its odds, ready to add to your Live tracker."));
+            : bestParlayMessage("Choose your sportsbook", settings.parlayStrategy !== "standard" ? "to look for a two-game smart pair. We skip the ticket if fewer than two games qualify." : "and we'll build a player-prop parlay from your selected games at its odds, ready to add to your Live tracker."));
         bpStats.replaceChildren();
         bpDetails.replaceChildren();
         setBestParlayExpanded(false);
@@ -4923,7 +4939,9 @@
       if (legs.some(leg => Number.isFinite(leg.estimatedHitProbability))) {
         note("Live hit estimates start with sportsbook odds after removing the margin. The player's performance adjusts that baseline. In basketball, more expected court time favors an Over; fewer minutes favor an Under. Coaching decisions can change the rotation.");
       }
-      if (legs.some(leg => !leg.live)) {
+      if (data.smart) {
+        note("Smart pair uses one player per game. At least two books must each imply 75% or more after removing the margin on the exact line; a live pick must also clear 75% after its performance adjustment. Upcoming picks have no performance forecast.");
+      } else if (legs.some(leg => !leg.live)) {
         note(`Upcoming picks use odds only, without a player performance or playing-time forecast. If ${title} offers an easier line, its estimate can come from a harder line on Player Props.`);
       }
       note("Bettors counts people on the exact pick at the selected sportsbook, not tickets, public posts or the number of books offering odds. Popularity does not change the estimate.");
@@ -5479,9 +5497,12 @@
 
     if (bestParlayElement) {
       bpLegsSelect.addEventListener("change", () => {
-        settings.parlayLegs = Number(bpLegsSelect.value);
+        const previous = settings.parlayStrategy;
+        settings.parlayStrategy = bpLegsSelect.value === "smart" ? "smart" : "standard";
+        if (settings.parlayStrategy === "standard") settings.parlayLegs = Number(bpLegsSelect.value);
         saveSettings();
-        renderBestParlay();
+        if (previous !== settings.parlayStrategy) void loadBestParlay();
+        else renderBestParlay();
       });
       bpSportSelect.addEventListener("change", event => {
         if (event.target.matches('input[type="checkbox"]')) changeBestParlaySports(event.target);
@@ -11473,7 +11494,7 @@
         applyVolume();
         if (settings.parlayBook !== previous.parlayBook || settings.parlaySport !== previous.parlaySport ||
             JSON.stringify(settings.parlaySports) !== JSON.stringify(previous.parlaySports) || settings.parlaySide !== previous.parlaySide ||
-            settings.parlayGames !== previous.parlayGames) void loadBestParlay();
+            settings.parlayGames !== previous.parlayGames || settings.parlayStrategy !== previous.parlayStrategy) void loadBestParlay();
         else if (["parlayState", "parlayLegs", "oddsFormat"].some(key => settings[key] !== previous[key])) renderBestParlay();
         if (settings.parlayState !== previous.parlayState) renderTrackers();
       } else if (event.key === historyKey) {
@@ -12456,18 +12477,21 @@
 <script>
 (() => {
   const status = document.getElementById("expert-status"), list = document.getElementById("expert-cards");
+  const view = document.getElementById("expert-view");
   const localTime = value => new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
   let feed, failed = false, loading = false, expiry, signature = "";
   function render() {
     clearTimeout(expiry);
     const now = Date.now(), fresh = Date.parse(feed?.expiresAt) > now;
-    const picks = fresh ? feed.picks.filter(p => Date.parse(p.startTime) > now) : [];
+    const smart = view.value === "smart";
+    const picks = fresh ? feed.picks.filter(p => Date.parse(p.startTime) > now && (!smart || p.smart)) : [];
+    if (smart) picks.sort((a, b) => b.implied - a.implied || a.legs.length - b.legs.length);
     const state = feed?.expiresAt && !fresh ? "stale" : feed?.status;
     let message;
     if (state === "stale") message = "The feed is out of date. Picks are hidden until the next successful check.";
     else if (failed && !fresh || state === "unavailable") message = "Expert picks are temporarily unavailable.";
     else if (state === "pending") message = "Awaiting the first published feed.";
-    else message = (picks.length ? `${picks.length} upcoming ${picks.length === 1 ? "parlay" : "parlays"}.` : "No verified upcoming parlays.") +
+    else message = (picks.length ? `${picks.length} upcoming ${picks.length === 1 ? "parlay" : "parlays"}.` : smart ? "No published ticket qualifies for the smart filter." : "No verified upcoming parlays.") +
       ` ${failed || state === "cached" ? "Refresh unavailable. Last checked" : "Last checked"} ${localTime(feed.checkedAt)}.`;
     if (status.textContent !== message) status.textContent = message;
     const next = JSON.stringify(picks);
@@ -12480,6 +12504,7 @@
         }
         add(card, "h3", p.event);
         add(card, "small", `${localTime(p.startTime)} · ${p.odds ? `Published odds: ${p.odds}` : "Combined odds not listed"}`);
+        if (Number.isFinite(p.implied)) add(card, "p", `${(p.implied * 100).toFixed(1)}% implied by the published ticket price (includes margin).`);
         const ul = add(card, "ul", "");
         for (const leg of p.legs) add(ul, "li", leg);
         const link = add(card, "a", `${p.analyst} · ${p.publisher}`);
@@ -12504,6 +12529,10 @@
       loading = false; render();
     }
   }
+  view.addEventListener("change", () => {
+    document.getElementById("expert-rule").hidden = view.value !== "smart";
+    if (feed || failed) render();
+  });
   refresh();
   setInterval(refresh, 5 * 60_000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { if (feed) render(); refresh(); } });

@@ -76,3 +76,13 @@ test("HTTP reader shares loads, rechecks expiry on cache hits, and never treats 
   assert.throws(() => publicFeed({ picks }, now), /Invalid/);
   assert.deepEqual(publicFeed({ ...snapshot, picks: [{ ...picks[0], sourceUrl: "javascript:alert(1)" }] }, now).picks, []);
 });
+
+test("expert screen uses the complete ticket price, excludes unpriced and long tickets, and leaves the author's legs intact", () => {
+  const tickets = ["+100", "-150", "+101", "+600", null, "-150"].map((odds, i) => ({
+    ...picks[0], odds, legs: i === 5 ? ["A", "B", "C", "D"] : picks[0].legs
+  }));
+  const all = publicFeed({ checkedAt: iso(now), picks: tickets }, now).picks;
+  assert.deepEqual(all.filter(p => p.smart).map(p => [p.odds, p.implied]), [["+100", .5], ["-150", .6]]);
+  assert.equal(all[4].implied, null);
+  assert.deepEqual(all.map(p => p.legs), tickets.map(p => p.legs));
+});

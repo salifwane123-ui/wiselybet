@@ -70,7 +70,11 @@ test("game preference defaults to Live and changes the request while invalidatin
   runInNewContext(slice(html, "    async function loadBestParlay(", "    function refreshBestParlayIfOld("), c);
   await c.loadBestParlay();
   assert.equal(new URL(paths[0], "https://example.com").searchParams.get("games"), "both");
+  assert.equal(new URL(paths[0], "https://example.com").searchParams.get("strategy"), "smart");
   assert.equal(c.bestParlayState.games, "both");
+  c.settings.parlayStrategy = "standard";
+  await c.loadBestParlay();
+  assert.equal(new URL(paths[1], "https://example.com").searchParams.get("strategy"), "standard");
 });
 
 test("client selected game mode gates all legs and replacements and pauses below two", () => {
@@ -472,7 +476,7 @@ test("one qualifying live leg from each selected sport forms a cross-sport parla
 
 test("a failed refresh clears previous live suggestions", async () => {
   const c = {
-    bestParlayElement: {}, embedMode: false,
+    bestParlayElement: {}, embedMode: false, settings: {},
     bestParlayState: { sport: "basketball_nba", side: "all", book: "fanduel", request: 0, data: { legs: [{ price: 2 }] } },
     bestParlaySport: () => "basketball_nba", bestParlaySide: () => "all", bestParlayBook: () => "fanduel", bestParlayGames: () => "live",
     renderBestParlay() {}, getJson: async () => { throw new Error("Feed unavailable"); }
@@ -492,6 +496,6 @@ test("live-performance client accepts both odds signs but still pauses below two
   assert.equal(c.bestParlayLegsFor(data).legs.length, 2);
   data.legs[1].removed = true;
   assert.equal(c.bestParlayLegsFor(data).legs.length, 0);
-  assert.ok(server.includes('bestParlayForAllSports(book, premium, sideFilter, "live-performance", selectedSports, gameFilter)'));
-  assert.ok(server.includes('bestParlayFor(sport, book, premium, { sideFilter, rankBy: "live-performance", gameFilter })'));
+  assert.ok(server.includes('bestParlayForAllSports(book, premium, sideFilter, "live-performance", selectedSports, gameFilter, smart)'));
+  assert.ok(server.includes('bestParlayFor(sport, book, premium, { sideFilter, rankBy: "live-performance", gameFilter, smart })'));
 });

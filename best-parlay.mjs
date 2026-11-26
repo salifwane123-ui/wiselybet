@@ -40,6 +40,7 @@ export const parlayRules = {
   minLiveBooks: 1,
   minLiveLegs: 2,
   minProbability: 0.5,
+  smartMinProbability: 0.75,
   minPrice: 1.25,
   maxPrice: 3.5,
   minEdge: -0.08
@@ -598,7 +599,8 @@ const round4 = value => Math.round(value * 10_000) / 10_000;
 // normalized): its own line's, or that of a harder line it beats. 50% or more, highest first across all games.
 export function buildBestParlay({
   events = [], oddsByEvent = new Map(), book, markets = [], injured = new Set(), maxLegs = parlayRules.maxLegs,
-  alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null, includeScore = false, sideFilter = "all", rankBy = "strength"
+  alternateLegs = parlayRules.alternateLegs, sport = "", liveGames = null, includeScore = false, sideFilter = "all", rankBy = "strength",
+  smart = false, now = Date.now()
 }) {
   const games = [];
   const liveOnly = ["live-positive", "live-performance"].includes(rankBy);
@@ -625,6 +627,10 @@ export function buildBestParlay({
     const minBooks = inPlay || rankBy === "lowest-line" ? parlayRules.minLiveBooks : parlayRules.minBooks;
     const eligibleQuote = (quotedMarket, bookmaker) => {
       if (!quoteIsFresh(quotedMarket, bookmaker, fetchedAt, staleLimit)) return false;
+      if (smart) {
+        const updated = Date.parse(quotedMarket?.last_update || bookmaker?.last_update || "");
+        if (!(updated <= fetchedAt && fetchedAt <= now && now - updated <= staleLimit)) return false;
+      }
       if (!liveOnly) return true;
       const updated = Date.parse(quotedMarket?.last_update || bookmaker?.last_update || "");
       return Number.isFinite(fetchedAt) && Number.isFinite(updated) &&
@@ -641,41 +647,49 @@ export function buildBestParlay({
       if (!freshTargetMarkets.length) continue;
       const marketLinkMarket = freshTargetMarkets.find(item => item.key === market) || freshTargetMarkets[0];
       const quotes = [];
+      const seenBooks = new Set();
       for (const bookmaker of bookmakers) {
         // Pre-game percentages come from every book's main lines alone, as on the Player Props page.
-        const bookMarkets = (bookmaker?.markets || []).filter(item => (pregame ? item?.key === market : marketKeys.includes(item?.key)) &&
+        const bookMarkets = (bookmaker?.markets || []).filter(item => (pregame && !smart ? item?.key === market : marketKeys.includes(item?.key)) &&
           eligibleQuote(item, bookmaker));
-        if (bookMarkets.length) quotes.push(playerLinesAcrossMarkets(bookMarkets));
+        if (bookMarkets.length && (!smart || bookmaker.key && !seenBooks.has(bookmaker.key))) {
+          quotes.push(playerLinesAcrossMarkets(bookMarkets));
+          seenBooks.add(bookmaker.key);
+        }
       }
       for (const [key, { player, lines }] of playerLinesAcrossMarkets(freshTargetMarkets)) {
         const selectedLines = liveOnly || pregame
           ? [...lines].filter(([, pair]) => pregame || (pair.over && pair.under)).map(([point, pair]) => ({ point, ...pair }))
           : [mainLine(lines, sideFilter, rankBy)];
         // This player's Player Props percentages, for pre-game picks.
-        const percentages = pregame ? playerPropsPercentages(quotes, key) : [];
+        const percentages = pregame && !smart ? playerPropsPercentages(quotes, key) : [];
         for (const main of selectedLines) {
-          if (!main) continue;
+          // At an integer line, two-way prices can be conditional on there being no push.
+          if (!main || smart && (main.point % 1 !== 0.5 || !main.over || !main.under)) continue;
           if (injured.has(key)) {
             skipped.add(key);
             continue;
           }
           let overProbability = 0;
           let lineBooks = 0;
-          if (!pregame) {
-            const chances = [];
+          const chances = [];
+          if (!pregame || smart) {
             for (const bookLines of quotes) {
               const pair = bookLines.get(key)?.lines.get(main.point);
-              if (pair?.over && pair?.under) chances.push(overChance(pair.over.price, pair.under.price));
+              if (pair?.over && pair?.under && (!smart || Number.isFinite(pair.over.price) && Number.isFinite(pair.under.price))) {
+                chances.push(overChance(pair.over.price, pair.under.price));
+              }
             }
-            if (chances.length < minBooks) continue;
+            if (chances.length < (smart ? parlayRules.minBooks : minBooks)) continue;
             overProbability = chances.reduce((sum, value) => sum + value, 0) / chances.length;
             lineBooks = chances.length;
           }
           for (const side of sides) {
             const outcome = main[side];
             if (!outcome) continue;
-            const support = pregame ? percentageFor(percentages, main.point, side) : null;
-            if (pregame && !support) continue;
+            const support = pregame && !smart ? percentageFor(percentages, main.point, side) : null;
+            if (pregame && !smart && !support) continue;
+            if (smart && chances.some(p => (side === "over" ? p : 1 - p) < parlayRules.smartMinProbability)) continue;
             const probability = support ? support.chance : side === "over" ? overProbability : 1 - overProbability;
             const books = support ? support.books : lineBooks;
             const price = outcome.price;
@@ -699,6 +713,7 @@ export function buildBestParlay({
             // The bounded bonus (at most 0.12) cannot turn an undecided pick into a certainty.
             const estimatedHitProbability = rankBy === "live-performance"
               ? probability + 4 * probability * (1 - probability) * live.bonus : null;
+            if (smart && estimatedHitProbability !== null && !(estimatedHitProbability >= parlayRules.smartMinProbability)) continue;
             const score = estimatedHitProbability ??
               (rankBy === "live-positive" || pregame ? probability : probability + 0.5 * Math.max(-0.08, Math.min(0.08, edge)) + (live ? live.bonus : 0));
             const leg = {
@@ -735,9 +750,11 @@ export function buildBestParlay({
     }
     if (offered) bookGames += 1;
     if (best.size) {
-      games.push([...best.values()].sort(byStrength));
+      const sorted = [...best.values()].sort(byStrength);
+      games.push(smart ? sorted.slice(0, 1) : sorted);
       if (Number.isFinite(fetchedAt)) pricesAt = Math.min(pricesAt, fetchedAt);
     }
+
   }
   const ranked = [];
   const used = new Set();
@@ -792,4 +809,16 @@ export function combineBestParlays(results, { maxLegs = parlayRules.maxLegs, alt
   }
   const clean = selected.map(({ _rank, ...leg }) => leg);
   return { legs: clean.slice(0, maxLegs), alternates: clean.slice(maxLegs) };
+}
+
+// Keep singleton candidates for internal cross-sport merges, but never present one as a ticket.
+export function smartTicket(data) {
+  const seen = new Set();
+  const pool = [...data.legs, ...data.alternates].filter(leg => {
+    const key = `${leg.sport || data.sport}|${leg.eventId}`;
+    if (!leg.eventId || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { ...data, smart: true, legs: pool.length >= 2 ? pool.slice(0, 2) : [], alternates: pool.slice(2) };
 }
