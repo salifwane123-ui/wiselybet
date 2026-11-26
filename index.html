@@ -2724,6 +2724,14 @@
       #tracker-panel .tracker-bar span, #tracker-panel .tracker-card { transition: none; }
       #tracker-panel .tracker-card.bumped .tracker-current, #tracker-panel .tracker-court-dot { animation: none; }
     }
+    #expert-picks { min-width: 0; margin: 0 0 16px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    #expert-picks h2, #expert-picks h3, #expert-picks p { margin: 0 0 5px; }
+    #expert-picks h3 { font-size: 1rem; }
+    #expert-picks p, #expert-picks small { color: var(--muted); font-size: .84rem; }
+    #expert-picks a { color: var(--accent); }
+    #expert-cards { display: grid; grid-auto-flow: column; grid-auto-columns: min(88%, 320px); overflow-x: auto; gap: 10px; scroll-snap-type: x proximity; }
+    #expert-cards article { scroll-snap-align: start; margin-top: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); }
+    #expert-cards ul { padding-left: 20px; margin: 8px 0; }
   </style>
 </head>
 <body>
@@ -2904,6 +2912,12 @@
 
       <div class="dashboard-grid">
         <main class="main-column">
+          <section id="expert-picks" aria-labelledby="expert-heading">
+            <h2 id="expert-heading">Expert parlay suggestions</h2>
+            <p>Published by analysts, collected with AI. Odds are as published, not live.</p>
+            <p id="expert-status" role="status">Loading expert picks…</p>
+            <div id="expert-cards"></div>
+          </section>
           <div class="dashboard-heading" id="game-list">
             <div>
               <h2>Games</h2>
@@ -12439,5 +12453,61 @@
       window.addEventListener("scroll", fit, { passive: true });
     })();
   </script>
+<script>
+(() => {
+  const status = document.getElementById("expert-status"), list = document.getElementById("expert-cards");
+  const localTime = value => new Date(value).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+  let feed, failed = false, loading = false, expiry, signature = "";
+  function render() {
+    clearTimeout(expiry);
+    const now = Date.now(), fresh = Date.parse(feed?.expiresAt) > now;
+    const picks = fresh ? feed.picks.filter(p => Date.parse(p.startTime) > now) : [];
+    const state = feed?.expiresAt && !fresh ? "stale" : feed?.status;
+    let message;
+    if (state === "stale") message = "The feed is out of date. Picks are hidden until the next successful check.";
+    else if (failed && !fresh || state === "unavailable") message = "Expert picks are temporarily unavailable.";
+    else if (state === "pending") message = "Awaiting the first published feed.";
+    else message = (picks.length ? `${picks.length} upcoming ${picks.length === 1 ? "parlay" : "parlays"}.` : "No verified upcoming parlays.") +
+      ` ${failed || state === "cached" ? "Refresh unavailable. Last checked" : "Last checked"} ${localTime(feed.checkedAt)}.`;
+    if (status.textContent !== message) status.textContent = message;
+    const next = JSON.stringify(picks);
+    if (signature !== next) {
+      signature = next;
+      list.replaceChildren(...picks.map(p => {
+        const card = document.createElement("article");
+        function add(parent, tag, text) {
+          const el = document.createElement(tag); el.textContent = text; parent.append(el); return el;
+        }
+        add(card, "h3", p.event);
+        add(card, "small", `${localTime(p.startTime)} · ${p.odds ? `Published odds: ${p.odds}` : "Combined odds not listed"}`);
+        const ul = add(card, "ul", "");
+        for (const leg of p.legs) add(ul, "li", leg);
+        const link = add(card, "a", `${p.analyst} · ${p.publisher}`);
+        link.href = p.sourceUrl; link.target = "_blank"; link.rel = "noopener noreferrer";
+        return card;
+      }));
+    }
+    if (fresh) expiry = setTimeout(render, Math.min(Date.parse(feed.expiresAt), ...picks.map(p => Date.parse(p.startTime))) - now + 1);
+  }
+  async function refresh() {
+    if (loading || document.hidden || document.documentElement.classList.contains("on-break")) return;
+    loading = true;
+    try {
+      const res = await fetch("/api/expert-picks", { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data.picks)) throw new Error("Invalid feed");
+      feed = data; failed = false;
+    } catch {
+      failed = true;
+    } finally {
+      loading = false; render();
+    }
+  }
+  refresh();
+  setInterval(refresh, 5 * 60_000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { if (feed) render(); refresh(); } });
+})();
+</script>
 </body>
 </html>

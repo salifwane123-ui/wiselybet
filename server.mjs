@@ -7,10 +7,12 @@ import { randomBytes } from "node:crypto";
 import { addSubscription, removeSubscription, sendTest, startPushChecker, vapidPublicKey, pushEnabled } from "./push.mjs";
 import { bestParlayMarkets, buildBestParlay, combineBestParlays, injuredPlayers, parlayBooks, parlayRules, propsTtlMs, selectSlate } from "./best-parlay.mjs";
 import { createSportsDataIO, sportsDataIOApiKey } from "./sportsdataio.mjs";
+import { createFeedReader } from "./expert-feed.mjs";
 import soccerSupport from "./soccer.js";
 import playerSearch from "./player-search.js";
 
 const directory = dirname(fileURLToPath(import.meta.url));
+const readExpertFeed = createFeedReader();
 const port = Number(process.env.PORT || 3000);
 const apiKey = process.env.THE_ODDS_API_KEY;
 const oddsProvider = (process.env.ODDS_PROVIDER || "the-odds-api").trim().toLowerCase();
@@ -1389,6 +1391,7 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/football.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "football.js")));
     if (url.pathname === "/player-search.js") return sendStatic(response, "text/javascript; charset=utf-8", await readFile(join(directory, "player-search.js")));
     if (url.pathname === "/healthz") return sendStatic(response, "text/plain", "ok");
+    if (url.pathname === "/api/expert-picks") return await sendJson(response, 200, await readExpertFeed());
     if (url.pathname === "/api/auth/config") return await sendJson(response, 200, { firebase: firebaseWebConfig() });
     if (Object.hasOwn(publicPages, url.pathname)) return await sendPage(response, 200, publicPages[url.pathname]);
     if (url.pathname === "/legal.css") return sendStatic(response, "text/css; charset=utf-8", await readFile(join(directory, "legal.css")));

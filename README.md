@@ -98,6 +98,20 @@ Player props, previews and parlay pricing share cached event odds. Matching requ
 
 The Odds API's market/region credit model applies only when `ODDS_PROVIDER=the-odds-api`; see [its usage-cost guide](https://the-odds-api.com/liveapi/guides/v4/#get-event-odds).
 
+## Automatic expert-picks feed
+
+The dashboard's **Expert parlay suggestions** section shows upcoming same-game parlays from TheLines and SportsGambler. It is separate from Best parlay, requires no login, and does not place bets or add picks to a tracker. Every card links to the analyst's article. Combined American odds appear only if quoted for that ticket; they are not live prices.
+
+To activate:
+
+1. Deploy the app changes to `main`. In GitHub **Settings → Secrets and variables → Actions**, add an Actions repository secret named `OPENAI_API_KEY` for a funded OpenAI project with access to `gpt-4.1-mini`. Do not put the key in Render, client code, the repo, or chat.
+2. Enable GitHub Actions. Allow the **Publish expert picks** workflow to write its `expert-feed` data branch. Run it once from **Actions → Publish expert picks → Run workflow** on `main`; it is subsequently scheduled every three hours, including when Render sleeps. GitHub scheduled runs can be delayed.
+3. Check the run and open the dashboard (or `GET /api/expert-picks`). Allow several minutes for GitHub and the app's read cache. Before first publication the board says it is waiting; a successful check with no qualifying games is a distinct empty state.
+
+The collector checks the next 48 hours of confirmed NFL, NBA and men's NCAA basketball fixtures on ESPN. It looks for recent, explicitly grouped tickets on the two publisher sites, not arbitrary singles. At most one paid model request per run processes a bounded batch of public article excerpts; no user, tracker or sportsbook-account data is sent. The model selects source rows, not new picks. Each public snapshot contains just the attributed tickets, prices when supported, source URLs and dates. It lives on the public `expert-feed` branch of `salifwane123-ui/wiselybet`; refreshing the dashboard never calls the model or redeploys the app.
+
+If a collector, publisher, schedule or model request fails, the workflow fails without overwriting the last snapshot. Check the failed run in Actions. Picks disappear at their scheduled start, and snapshots older than nine hours are not shown. Disable the workflow to stop future model calls.
+
 ## Tests
 
 ```bash
