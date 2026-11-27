@@ -564,6 +564,15 @@
     .site-footer a { color: #c9ef5b; }
     html[data-theme="light"] .site-footer { border-top-color: rgba(40, 58, 22, .15); color: #5b6658; }
     html[data-theme="light"] .site-footer a { color: #3d6208; }
+    .watch-cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(210px,100%),1fr)); gap: 10px; }
+    .watch-cards h3, .watch-cards p { margin: 0 0 5px; overflow-wrap: anywhere; }
+    #watch-status, .watch-cards p, #watch-quote { font-size: .87rem; }
+    #watch-quote { margin-top: 12px; }
+    #watch-quote summary { cursor: pointer; }
+    .watch-inputs { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 10px 0; }
+    .watch-inputs label { display: grid; gap: 3px; max-width: 100%; }
+    .watch-inputs :is(select,input) { min-height: 38px; max-width: 100%; padding: 4px 8px; font: inherit; }
+    .watch-inputs input { width: 9em; }
     /* Broadcast frame stays outside the playing surface, so scores never obscure the action. */
     .court-card { padding: 20px; border-radius: 20px; overflow: hidden; }
     .broadcast-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 14px; color: #9cabb9; font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
@@ -751,6 +760,23 @@
     </p>
   </section>
 
+  <section id="watch-panel" class="panel" aria-labelledby="watch-title" hidden>
+    <div class="section-heading"><h2 id="watch-title">Live player watchlist</h2></div>
+    <p id="watch-status" class="muted" role="status">Checking the game feed…</p>
+    <div id="watch-cards" class="watch-cards"></div>
+    <details id="watch-quote" hidden>
+      <summary>Compare a sportsbook line</summary>
+      <p>Use the same player and full-game market, not a remaining-game or period line. Enter a current quote from your book; these prices are not fetched or saved.</p>
+      <div class="watch-inputs">
+        <label>Player and market<select id="watch-market"><option value="">Choose a player</option></select></label>
+        <label>Side<select id="watch-side"><option>Over</option><option>Under</option></select></label>
+        <label>Half-point line<input id="watch-line" type="text" inputmode="decimal" placeholder="e.g. 19.5"></label>
+        <label>American odds<input id="watch-price" type="text" placeholder="e.g. −110"></label>
+      </div>
+      <p id="watch-result" role="status"></p>
+    </details>
+  </section>
+
   <section class="panel">
     <div class="section-heading">
       <h2>Latest game updates</h2>
@@ -876,7 +902,7 @@
 
     async function getGameData() {
       const params = new URLSearchParams(game);
-      const response = await fetch(`/api/live-game?${params}`);
+      const response = await fetch(`/api/live-game?${params}`, { signal: AbortSignal.timeout(12000) });
       const body = await response.json().catch(() => null);
       if (!response.ok) {
         throw new Error(body?.error || `Game data request failed (${response.status}).`);
@@ -2251,10 +2277,152 @@
       }
     }
 
+    function watchSport(sport) {
+      return ["basketball_nba", "americanfootball_nfl", "icehockey_nhl"].includes(sport) || isSoccerSport(sport);
+    }
+
+    // Rank observed workload and production against minimum samples, not estimated future outcomes.
+    function watchRows(data) {
+      if (data.state !== "in" || !watchSport(data.sport)) return [];
+      const rows = [];
+      const scores = data.teams.map(team => team.score);
+      const lopsided = data.period >= 4 && scores.length === 2 && scores.every(n => /^\d+$/.test(n)) &&
+        Math.abs(scores[0] - scores[1]) >= 20;
+      for (const team of data.teams) {
+        for (const player of team.players || []) {
+          if (!player.name || !Array.isArray(player.stats)) continue;
+          const injury = (data.injuries || []).find(i => i.name === player.name && (!i.teamId || i.teamId === team.id));
+          if (injury && /^(?:out|inactive|ruled out|suspended|injured reserve)$/i.test(injury.status)) continue;
+          const stats = new Map(player.stats.map(s => [String(s.label).trim().toUpperCase(), String(s.value ?? "").trim()]));
+          const count = label => /^\d+$/.test(stats.get(label) ?? "") ? Number(stats.get(label)) : null;
+          const attempts = label => {
+            const pair = /^(\d+)\s*[-/]\s*(\d+)$/.exec(stats.get(label) || "");
+            return pair && Number(pair[1]) <= Number(pair[2]) ? Number(pair[2]) : null;
+          };
+          const minutes = label => {
+            const time = /^(\d+)(?::([0-5]\d))?$/.exec(stats.get(label) || "");
+            return time ? Number(time[1]) + Number(time[2] || 0) / 60 : null;
+          };
+          let best = null;
+          const add = (market, current, strength, evidence, caution) => {
+            if (!best || strength > best.strength) best = {
+              id: JSON.stringify([team.id || team.name, player.id || player.name, market]),
+              name: player.name, team: team.abbreviation || team.name, market, current, strength, evidence,
+              caution: injury?.status ? `${caution} Injury report: ${injury.status}.` : caution
+            };
+          };
+          if (data.sport === "basketball_nba") {
+            const min = minutes("MIN"), fouls = count("PF");
+            if (!(min >= 8) || fouls >= 6) continue;
+            const note = [
+              fouls >= Math.min(Number(data.period) || 4, 4) + 1 ? `${fouls} fouls could limit minutes.` : "",
+              lopsided ? "A 20+ point gap could shorten the closing rotation." : "",
+              player.onCourt ? "Reported on court; remaining minutes are not guaranteed." : "Current floor time is not confirmed."
+            ].filter(Boolean).join(" ");
+            const shots = count("FGA") ?? attempts("FG"), pts = count("PTS"), ast = count("AST"), reb = count("REB");
+            const played = `${stats.get("MIN")} min`;
+            if (shots >= 6 && pts >= 8) add("points", pts, Math.min(shots / 6, pts / 8), `${pts} points on ${shots} field-goal attempts in ${played}.`, note);
+            if (ast >= 4) add("assists", ast, ast / 4, `${ast} assists in ${played}.`, note);
+            if (reb >= 5) add("rebounds", reb, reb / 5, `${reb} rebounds in ${played}.`, note);
+          } else if (data.sport === "americanfootball_nfl") {
+            const options = [
+              ["passing yards", count("PASSING YDS"), count("PASSING ATT") ?? attempts("PASSING C/ATT"), "pass attempts", 60, 8, 6],
+              ["rushing yards", count("RUSHING YDS"), count("RUSHING CAR"), "carries", 25, 5, 4],
+              ["receiving yards", count("RECEIVING YDS"), count("RECEIVING REC"), "receptions", 30, 3, 8]
+            ];
+            for (const [market, yards, volume, unit, minYards, minVolume, efficiency] of options) {
+              if (yards >= minYards && volume >= minVolume && yards / volume >= efficiency) {
+                add(market, yards, Math.min(yards / minYards, volume / minVolume), `${yards} ${market} on ${volume} ${unit}.`, "Possessions and play calling can change the remaining workload.");
+              }
+            }
+          } else if (data.sport === "icehockey_nhl") {
+            const shots = count("SOG") ?? count("S"), saves = count("SV"), faced = count("SA");
+            if (shots >= 3 && minutes("TOI") >= 5) add("shots on goal", shots, shots / 3, `${shots} shots on goal in ${stats.get("TOI")} of ice time.`, "Shift length and power-play time can change.");
+            if (saves >= 10 && faced >= saves && saves / faced >= .9) add("saves", saves, saves / 10, `${saves} saves on ${faced} shots faced.`, "Future shot volume and goalie changes matter.");
+          } else {
+            const shots = count("SH"), onTarget = count("SOT");
+            if (player.onCourt !== true || count("RC") > 0 || count("SUBOUT") > 0) continue;
+            if (shots >= 2 && onTarget >= 1 && onTarget <= shots) add("shots", shots, Math.min(shots / 2, onTarget), `${shots} shots, ${onTarget} on target; reported on the pitch.`,
+              count("YC") > 0 ? "Already booked; a second yellow would end their match." : "A substitution can end shot opportunities.");
+          }
+          if (best) rows.push(best);
+        }
+      }
+      return rows.sort((a, b) => b.strength - a.strength || a.name.localeCompare(b.name)).slice(0, 3);
+    }
+
+    function watchComparison(row, side, rawLine, rawPrice) {
+      if (!row) return "Choose a player and market first.";
+      if (!/^\d+\.5$/.test(rawLine.trim())) return "Enter a nonnegative half-point line, such as 19.5.";
+      const line = Number(rawLine);
+      if (!Number.isSafeInteger(Math.ceil(line))) return "That line is outside the supported range.";
+      const price = rawPrice.trim().replace(/^−/, "-");
+      if (!/^[+-]?\d+$/.test(price) || !Number.isSafeInteger(Number(price)) || Math.abs(Number(price)) < 100) return "Enter American odds such as −110 or +125.";
+      const odds = Number(price), floor = Math.floor(line), current = row.current;
+      const threshold = odds < 0 ? -odds / (100 - odds) : 100 / (100 + odds);
+      const progress = current > line ? `The current total is already above ${line}.` :
+        side === "Over" ? `Needs ${floor + 1 - current} more to go over ${line}.` : `Can add at most ${floor - current} and stay under ${line}.`;
+      return `${row.name}: ${current} ${row.market}. ${progress} At ${price}, break-even is ${(100 * threshold).toFixed(1)}%. That is the price threshold, not a forecast. Check the clock, current quote and settlement rules.`;
+    }
+
+    let currentWatchRows = [], watchExpiry;
+    const watchMarket = document.querySelector("#watch-market");
+    const watchLine = document.querySelector("#watch-line"), watchPrice = document.querySelector("#watch-price");
+    function updateWatchComparison() {
+      const text = watchComparison(currentWatchRows.find(row => row.id === watchMarket.value),
+        document.querySelector("#watch-side").value, watchLine.value, watchPrice.value);
+      const result = document.querySelector("#watch-result");
+      if (result.textContent !== text) result.textContent = text;
+    }
+    function clearWatchQuote() { watchLine.value = ""; watchPrice.value = ""; }
+    watchMarket.addEventListener("change", () => { clearWatchQuote(); updateWatchComparison(); });
+    document.querySelector("#watch-side").addEventListener("change", () => { watchPrice.value = ""; updateWatchComparison(); });
+    for (const field of [watchLine, watchPrice]) field.addEventListener("input", updateWatchComparison);
+
+    function renderWatchlist(data, unavailable = "") {
+      const panel = document.querySelector("#watch-panel");
+      panel.hidden = !watchSport(game.sport);
+      if (panel.hidden) return;
+      clearTimeout(watchExpiry);
+      const checked = Date.parse(data?.updatedAt), age = Date.now() - checked;
+      let rows = [], message;
+      if (unavailable) message = unavailable;
+      else if (data?.state === "pre") message = "Ready for game time. Player notes start after play begins and enough stats are reported. Keep this page open; it checks every 15 seconds while visible.";
+      else if (data?.state === "post") message = "Game finished. Live player notes are closed; the final box score is below.";
+      else if (data?.state !== "in" || /postponed|cancelled|canceled|suspended|abandoned|delayed|shootout/i.test(`${data.status} ${data.periodLabel}`)) message = "No active play to assess. Waiting for the game feed.";
+      else if (!Number.isFinite(age) || age >= 60000 || age < -60000) message = "Game snapshot is out of date. Player notes are paused until a fresh check.";
+      else {
+        rows = watchRows(data);
+        const context = [data.periodLabel || data.status, data.clock].filter(Boolean).join(" · ");
+        message = `${context ? context + " · " : ""}Checked ${new Date(checked).toLocaleTimeString()}. ` +
+          (rows.length ? "Notable workload and production so far, not a prediction or a betting edge." : "Not enough qualifying player stats yet. No one is flagged.");
+        watchExpiry = setTimeout(() => renderWatchlist(null, "No fresh game update. Player notes are paused."), 60000 - age);
+      }
+      const status = document.querySelector("#watch-status");
+      if (status.textContent !== message) status.textContent = message;
+      const selected = watchMarket.value;
+      const compareAvailable = rows.length > 0 && game.sport !== "soccer_uefa_champs_league";
+      const cards = document.querySelector("#watch-cards");
+      cards.replaceChildren(...rows.map(row => {
+        const card = element("article", "team-panel");
+        card.append(element("h3", "", `${row.name} · ${row.team}`), element("p", "", row.evidence), element("p", "muted", row.caution));
+        return card;
+      }));
+      if (JSON.stringify(currentWatchRows.map(r => r.id)) !== JSON.stringify(rows.map(r => r.id))) {
+        watchMarket.replaceChildren(new Option("Choose a player", ""), ...rows.map(row => new Option(`${row.name} · ${row.market}`, row.id)));
+        watchMarket.value = rows.some(row => row.id === selected) ? selected : "";
+        if (!watchMarket.value) clearWatchQuote();
+      }
+      currentWatchRows = rows;
+      document.querySelector("#watch-quote").hidden = !compareAvailable;
+      updateWatchComparison();
+    }
+
     async function refreshGame() {
       if (isLoading) return;
       if (!game.sport || !game.date || !game.home || !game.away) {
         errorElement.textContent = "This game link is missing matchup details. Go back and open the tracker from a supported game.";
+        renderWatchlist(null, "Open a complete matchup from the dashboard to start the watchlist.");
         loading.textContent = "";
         return;
       }
@@ -2263,9 +2431,12 @@
       refreshButton.disabled = true;
       errorElement.textContent = "";
       try {
-        renderScoreboard(await getGameData());
+        const data = await getGameData();
+        renderScoreboard(data);
+        renderWatchlist(data);
       } catch (error) {
         errorElement.textContent = error.message;
+        renderWatchlist(null, "Game data unavailable. No players are flagged; the next refresh will try again.");
         loading.textContent = "";
       } finally {
         isLoading = false;
@@ -2273,6 +2444,7 @@
       }
     }
 
+    document.querySelector("#watch-panel").hidden = !watchSport(game.sport);
     refreshButton.addEventListener("click", refreshGame);
     refreshGame();
     setInterval(() => {

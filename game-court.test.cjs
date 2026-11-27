@@ -18,6 +18,96 @@ const fromHoop = (spot, end) => {
 };
 const play = fields => ({ id: "4019092851", text: "", x: null, y: null, ...fields });
 
+const watchSource = html.slice(html.indexOf("    function watchSport("), html.indexOf("    async function refreshGame("));
+function watchFixture(sport, entries) {
+  return { sport, state: "in", period: 2, status: "In progress", updatedAt: new Date().toISOString(),
+    teams: [{ name: "Fixture team", id: "team", players: entries.map(([name, stats, extra]) => ({
+      name, stats: Object.entries(stats).map(([label, value]) => ({ label, value: String(value) })), ...extra
+    })) }] };
+}
+function watchPage(sport) {
+  const nodes = new Map(), timers = new Map();
+  const node = () => ({ value: "", textContent: "", hidden: false, children: [],
+    addEventListener() {}, append(...items) { this.children.push(...items); },
+    replaceChildren(...items) { this.children = items; } });
+  const get = id => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
+  const context = { game: { sport }, document: { querySelector: get }, element: node, Option: class {},
+    isSoccerSport: require("./soccer.js").isSoccer,
+    setTimeout(fn) { timers.set(fn, true); return fn; }, clearTimeout(id) { timers.delete(id); } };
+  return { ...runInNewContext(`${watchSource}\n({ watchRows, watchComparison, renderWatchlist })`, context), get, timers };
+}
+
+test("NBA watchlist requires meaningful minutes and opportunity; injuries and foul-outs take precedence", () => {
+  const sport = "basketball_nba", app = watchPage(sport);
+  const stats = { MIN: "08:20", PTS: 9, FG: "4-6", PF: 3 };
+  const data = watchFixture(sport, [["In rotation", stats], ["Quick burst", { ...stats, MIN: "07:59" }],
+    ["Missing attempts", { ...stats, FG: "—" }], ["Fouled out", { ...stats, PF: 6 }],
+    ["Injured", stats], ["Playmaker", { MIN: 12, AST: 6 }]]);
+  data.injuries = [{ name: "Injured", teamId: "team", status: "Out" }];
+  const rows = app.watchRows(data);
+  assert.deepEqual(Array.from(rows, r => [r.name, r.market]), [["Playmaker", "assists"], ["In rotation", "points"]]);
+  assert.match(rows[1].evidence, /9 points on 6 field-goal attempts/);
+  assert.match(rows[1].caution, /3 fouls/);
+});
+
+test("NFL compares similar workloads, selects one market per player, and caps the list at three", () => {
+  const sport = "americanfootball_nfl", app = watchPage(sport);
+  const rows = app.watchRows(watchFixture(sport, [
+    ["Quarterback", { "passing C/ATT": "12/16", "passing YDS": 160, "rushing CAR": 5, "rushing YDS": 30 }],
+    ["Runner", { "rushing CAR": 7, "rushing YDS": 45 }], ["Receiver", { "receiving REC": 4, "receiving YDS": 40 }],
+    ["One long catch", { "receiving REC": 1, "receiving YDS": 85 }], ["Few yards", { "rushing CAR": 12, "rushing YDS": 26 }],
+    ["Fourth eligible", { "receiving REC": 3, "receiving YDS": 31 }]
+  ]));
+  assert.deepEqual(Array.from(rows, r => r.market), ["passing yards", "rushing yards", "receiving yards"]);
+  assert.match(rows[0].evidence, /160 passing yards on 16 pass attempts/);
+});
+
+test("NHL distinguishes skater shots and goalie saves; soccer requires on-field shots and ignores bench and season totals", () => {
+  const app = watchPage("icehockey_nhl");
+  const hockey = app.watchRows(watchFixture("icehockey_nhl", [["Goalie", { SA: 14, SV: 13 }],
+    ["Skater", { S: 3, TOI: "05:15" }], ["No shots faced", { SV: 20 }], ["Short shift", { S: 3, TOI: "04:59" }]]));
+  assert.deepEqual(Array.from(hockey, r => r.market), ["saves", "shots on goal"]);
+  const soccer = app.watchRows(watchFixture("soccer_epl", [["Forward", { SH: 3, SOT: 2, YC: 1 }, { onCourt: true }],
+    ["Bench", { SH: 5, SOT: 3 }], ["Off", { SH: 5, SOT: 3, SUBOUT: 1 }, { onCourt: true }],
+    ["Season only", { seasonShots: 53 }, { onCourt: true }]]));
+  assert.deepEqual(Array.from(soccer, r => r.name), ["Forward"]);
+  assert.match(soccer[0].caution, /booked/);
+});
+
+test("watchlist handles scheduled, live, stale, failed and final updates without leaving a comparison on screen", () => {
+  const sport = "basketball_nba", app = watchPage(sport);
+  const data = watchFixture(sport, [["Guard", { MIN: 12, AST: 6 }]]);
+  app.renderWatchlist({ ...data, state: "pre" });
+  assert.match(app.get("#watch-status").textContent, /Ready for game time/);
+  const fresh = () => { app.renderWatchlist(data); assert.equal(app.get("#watch-quote").hidden, false); assert.equal(app.get("#watch-cards").children.length, 1); };
+  fresh();
+  app.get("#watch-market").value = app.watchRows(data)[0].id;
+  app.get("#watch-price").value = "-110";
+  app.renderWatchlist(data);
+  assert.equal(app.get("#watch-price").value, "-110");
+  Array.from(app.timers.keys())[0]();
+  assert.equal(app.get("#watch-price").value, "");
+  for (const [snapshot, failure] of [[{ ...data, state: "post" }], [{ ...data, status: "Suspended" }],
+    [{ ...data, updatedAt: new Date(Date.now() - 65000).toISOString() }], [null, "Feed unavailable"]]) {
+    fresh(); app.renderWatchlist(snapshot, failure);
+    assert.equal(app.get("#watch-cards").children.length, 0);
+    assert.equal(app.get("#watch-quote").hidden, true);
+  }
+  const cl = watchPage("soccer_uefa_champs_league");
+  cl.renderWatchlist(watchFixture("soccer_uefa_champs_league", [["Forward", { SH: 3, SOT: 1 }, { onCourt: true }]]));
+  assert.equal(cl.get("#watch-cards").children.length, 1);
+  assert.equal(cl.get("#watch-quote").hidden, true);
+});
+
+test("manual comparison uses full-game totals and the price threshold, not a win forecast", () => {
+  const { watchComparison } = watchPage("basketball_nba"), player = { name: "Guard", market: "points", current: 13 };
+  assert.match(watchComparison(player, "Over", "19.5", "−110"), /Needs 7 more.*52\.4%.*not a forecast/);
+  assert.match(watchComparison(player, "Under", "19.5", "+125"), /at most 6.*44\.4%/);
+  assert.match(watchComparison(player, "Under", "12.5", "+100"), /already above/);
+  assert.match(watchComparison(player, "Over", "19", "-110"), /half-point line/);
+  assert.match(watchComparison(player, "Over", "19.5", "1.91"), /American odds/);
+});
+
 test("broadcast scores precede the playing surface and sport diagrams keep their proportions", () => {
   const frame = html.slice(html.indexOf('<section class="court-card"'), html.indexOf("  </section>", html.indexOf('<section class="court-card"')));
   assert.ok(frame.indexOf('<div class="court-score">') < frame.indexOf('<div class="court">'));
