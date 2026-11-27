@@ -499,7 +499,7 @@
     .upcoming-teams span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .upcoming-time { padding-top: 8px; border-top: 1px solid rgba(180,188,219,.1); color: #989db0; font-size: .67rem; }
     .rail-note { margin: 13px 2px 1px; color: #83899e; font-size: .68rem; line-height: 1.5; }
-    .prop-market-panel { margin: 23px 0 0; border-color: var(--border); border-radius: 14px; background: linear-gradient(145deg, #171a26, #12141e); box-shadow: none; }
+    #player-picks.panel { margin: 23px 0 0; border-color: var(--border); border-radius: 14px; background: linear-gradient(145deg, #171a26, #12141e); box-shadow: none; }
     .panel-heading { padding: 17px 18px 13px; border-color: var(--border); }
     .panel-heading h2 { font-size: 1rem; }
     .panel-heading p { font-size: .75rem; }
@@ -809,7 +809,7 @@
     .upcoming-sport { color: #c5dc8e; }
     .upcoming-time { border-color: rgba(225,233,229,.08); color: #b5bcb1; }
     .rail-note { color: #9ea69a; }
-    .prop-market-panel {
+    #player-picks.panel {
       border-color: rgba(225,233,229,.11);
       background: linear-gradient(145deg, rgba(22,25,21,.96), rgba(14,17,15,.96));
       box-shadow: 0 16px 36px rgba(0,0,0,.15);
@@ -1690,7 +1690,7 @@
     html[data-theme="light"] .live-game-team strong { color: #17200f; }
     html[data-theme="light"] .date-filter { border-color: rgba(40,58,22,.14); background: rgba(255,255,255,.85); }
     html[data-theme="light"] select, html[data-theme="light"] input { border-color: rgba(40,58,22,.25); background: #fff; color: #1b2418; }
-    html[data-theme="light"] .match-card, html[data-theme="light"] .rail-panel, html[data-theme="light"] .prop-market-panel, html[data-theme="light"] #followed-players { border-color: rgba(40,58,22,.14); background: #fff; box-shadow: 0 8px 22px rgba(40,58,22,.08); }
+    html[data-theme="light"] .match-card, html[data-theme="light"] .rail-panel, html[data-theme="light"] #player-picks.panel, html[data-theme="light"] #followed-players { border-color: rgba(40,58,22,.14); background: #fff; box-shadow: 0 8px 22px rgba(40,58,22,.08); }
     html[data-theme="light"] .upcoming-card, html[data-theme="light"] .price, html[data-theme="light"] .prop-player, html[data-theme="light"] .followed-card { border-color: rgba(40,58,22,.13); background: #f5f8ef; }
     html[data-theme="light"] button.upcoming-card:hover:not(:disabled) { border-color: rgba(77,122,11,.4); background: #eaf2d8; color: #1b2418; }
     html[data-theme="light"] .prop-side { border-color: rgba(40,58,22,.14); background: #fff; }
@@ -1888,6 +1888,21 @@
       html[data-theme="light"] .prop-line-number { color: #3d6208; }
     }
     @media (max-width: 560px) {
+      .app-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "deals"
+          "topbar"
+          "sports"
+          "notice"
+          "sync"
+          "dashboard";
+        gap: 0;
+        padding-bottom: calc(76px + env(safe-area-inset-bottom));
+      }
+      .app-content, .sidebar { display: contents; }
+      .topbar { grid-area: topbar; margin: 0; }
       .sidebar-section {
         grid-area: sports;
         width: auto;
@@ -2124,7 +2139,8 @@
       .prop-search-game { grid-column: 1; grid-row: auto; text-align: left; }
       .topbar-heading { display: flex; align-items: center; min-height: 40px; }
       .topbar #bell-button, .topbar #settings-button { top: 10px; }
-      .site-footer { margin: 8px 13px 0; }
+      /* The phone grid flattens the page; keep the disclaimer at the bottom instead of an empty grid cell */
+      .site-footer { grid-row: 7; grid-column: 1; margin: 8px 13px 0; }
       /* Embedded on the game page the bell needs a real box: the parent iframe is clipped to its bounding rect */
       html.embed #bell-wrap { display: block; position: fixed; top: 17px; right: 12px; }
       html.embed #bell-button { position: relative; top: auto; right: auto; }
@@ -2419,6 +2435,9 @@
     html[data-theme="light"] .bp-leg-list > li.is-new { animation-name: bp-new-light; }
     @keyframes bp-new-light { from { background-color: rgba(120,170,30,.18); } }
     html[data-theme="light"] .bp-progress i { background: rgba(77,122,11,.65); }
+    @media (max-width: 560px) {
+      .best-parlay { grid-area: deals; margin: 10px 13px 0; }
+    }
     @media (prefers-reduced-motion: reduce) {
       .bp-slide.is-active, .bp-slide.is-leaving, .bp-slide.is-removed, .bp-notice .toast, .bp-notice .toast.leaving { animation: none; }
       .bp-slide.is-leaving, .bp-slide.is-removed { visibility: hidden; opacity: 0; }
@@ -2714,155 +2733,90 @@
     #expert-cards article { scroll-snap-align: start; margin-top: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); }
     #expert-cards ul { padding-left: 20px; margin: 8px 0; }
   </style>
-<style>
-  :root {
-    --canvas-ink: #f5f4e9;
-    --canvas-muted: #b0bcb6;
-    --canvas-bg: #101815;
-    --canvas-panel: #17221e;
-    --canvas-card: #1e2b25;
-    --canvas-border: #394a40;
-    --canvas-lime: #cef083;
-    --desk-serif: Georgia, Cambria, "Times New Roman", serif;
-  }
-  html:not(.embed) body {
-    max-width: none;
-    padding: 0;
-    color: var(--canvas-ink);
-    background: var(--canvas-bg);
-  }
-  html .app-shell, html[data-theme="light"] .app-shell {
-    display: block; max-width: 1400px; padding: 0 clamp(14px, 3.5vw, 52px) 76px;
-    background: transparent; box-shadow: none;
-  }
-  .app-content, .dashboard-grid { display: block; padding: 0; }
-  .app-content .topbar { position: relative; min-height: 0; margin: 0; padding: 15px 0; border-block: 0; background: transparent; backdrop-filter: none; }
-  .topbar-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; }
-  .topbar-heading h1 {
-    margin: 0; overflow: visible; font: bold italic clamp(2rem, 3.4vw, 3.15rem)/1.08 var(--desk-serif);
-    letter-spacing: -.065em;
-  }
-  .desk-wordmark { color: var(--canvas-ink); text-decoration: none; padding-right: .09em; }
-  .desk-wordmark span, .desk-kicker b { color: var(--canvas-lime); }
-  .desk-edition, .desk-kicker, .sidebar-section .sidebar-label { color: var(--canvas-muted); font-size: .68rem; font-weight: 750; text-transform: uppercase; letter-spacing: .14em; }
-  .desk-edition { padding-left: 18px; border-left: 1px solid var(--canvas-border); }
-  .app-content .top-navigation {
-    position: sticky; top: 0; z-index: 4; display: flex; gap: clamp(12px, 2.5vw, 32px);
-    margin: 0; padding: 0; border-block: 1px solid var(--canvas-border); background: var(--canvas-bg);
-  }
-  html .top-navigation a[href], html[data-theme="light"] .top-navigation a[href] {
-    display: inline-flex; align-items: center; min-height: 44px; padding: 0 3px;
-    border: none; border-bottom: 3px solid transparent; border-radius: 0; background: transparent;
-    color: var(--canvas-muted); font-size: .88rem; font-weight: 650; text-decoration: none;
-  }
-  html .top-navigation a[href]:is(:hover,[aria-current]), html[data-theme="light"] .top-navigation a[href]:is(:hover,[aria-current]) { border-bottom-color: var(--canvas-lime); color: var(--canvas-ink); }
-  .sidebar-section { display: flex; align-items: center; gap: 18px; padding: 8px 0; border-bottom: 1px solid var(--canvas-border); }
-  .sidebar-section .sidebar-label { display: block; flex: none; margin: 0; }
-  .sidebar-section #sport-navigation { display: flex; justify-content: flex-start; gap: 5px; overflow-x: auto; min-width: 0; padding: 3px; }
-  #sport-navigation > * { flex: none; }
-  #sport-navigation .sport-nav-button { flex-direction: row; justify-content: center; width: auto; min-height: 38px; gap: 6px; padding: 5px 12px; border: 1px solid transparent; border-radius: 6px; }
-  #sport-navigation .sport-name { display: block; font-size: .79rem; }
-  #sport-navigation .sport-nav-icon { width: 22px; height: 22px; background: transparent; }
-  .dashboard-heading { display: flex; align-items: flex-end; justify-content: space-between; margin: 30px 0 14px; gap: 10px; }
-  .dashboard-heading h2 { margin: 1px 0 0; font: bold clamp(1.95rem, 3.2vw, 2.85rem)/1.08 var(--desk-serif); letter-spacing: -.045em; }
-  #game-list h2 { font-size: clamp(2.65rem, 5.6vw, 4.4rem); }
-  .desk-jump { padding: 8px 0; color: var(--canvas-ink); font-size: .84rem; font-weight: 650; text-underline-offset: 4px; }
-  .desk-jump span { margin-left: 3px; color: var(--canvas-lime); }
-  :is(.dashboard-heading, #best-parlay, #expert-picks, #player-picks, #upcoming-games) { scroll-margin-top: 60px; }
-  .score-layout, .picks-layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(14px, 2vw, 24px); align-items: start; }
-  .score-layout .live-games-panel { min-height: 0; margin: 0; padding: clamp(16px, 2.4vw, 30px); border: 1px solid #496453; border-top: 3px solid #ccef83; border-radius: 12px; background: linear-gradient(108deg,#172a22 18%,#294639); box-shadow: none; }
-  .score-layout .live-stage-art, html[data-theme="light"] .score-layout .live-stage-art { opacity: .18; }
-  .score-layout .live-games-panel::before, .score-layout .live-games-panel::after { display: none; }
-  .live-games-heading h3, .rail-heading h3, #expert-heading, #bp-title { margin: 0; font: bold 1.55rem/1.2 var(--desk-serif); letter-spacing: -.035em; }
-  .live-games-heading span { font: 600 .72rem/1.35 system-ui,sans-serif; }
-  .score-layout #live-games-list { grid-template-columns: repeat(auto-fit,minmax(min(220px,100%),1fr)); }
-  .score-layout .live-game-card { min-height: 0; padding: 12px 16px; border-radius: 7px; background: #10251ef2; box-shadow: none; }
-  .score-layout .live-game-card a { min-height: 0; }
-  .score-layout .live-game-top { margin-bottom: 6px; }
-  .live-game-team strong { font: 750 clamp(1.4rem, 2.2vw, 1.95rem)/1.15 system-ui,sans-serif; font-variant-numeric: tabular-nums; }
-  #live-games-list > .muted { margin: 6px 0; padding: 7px 0; font-size: 1rem; }
-  #live-score-status { position: relative; margin: 12px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
-  .score-layout .right-rail { display: block; min-width: 0; }
-  .score-layout .rail-panel, #best-parlay, #expert-picks { margin: 0; border: 1px solid var(--canvas-border); border-radius: 12px; background: var(--canvas-panel); box-shadow: none; }
-  .score-layout .rail-panel, #expert-picks { padding: clamp(16px, 2vw, 24px); }
-  #upcoming-list { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(85%, 215px); overflow-x: auto; scroll-snap-type: x proximity; }
-  #upcoming-list > * { scroll-snap-align: start; }
-  .upcoming-card .live-score-info { display: block; margin-top: 4px; color: var(--canvas-ink); font-size: .82rem; font-variant-numeric: tabular-nums; }
-  #upcoming-list > p { grid-column: 1 / -1; margin: 0; }
-  #upcoming-list:has(> p:only-child) { grid-auto-columns: 100%; }
-  #bp-title { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-  .bp-head { padding: clamp(16px, 2vw, 24px); gap: 10px; }
-  .bp-brand, .desk-filters { flex-basis: 100%; }
-  .bp-sub { display: block; white-space: normal; margin: 4px 0 0; font-size: .81rem; }
-  .bp-icon { width: 34px; height: 38px; }
-  .bp-select, #expert-view { min-height: 38px; border-radius: 6px; }
-  .desk-filters summary, .desk-filter-note summary { padding: 6px 0; color: var(--canvas-muted); font-size: .8rem; cursor: pointer; }
-  .desk-filters[open] summary { margin-bottom: 4px; }
-  #expert-picks { border-top: 3px solid var(--canvas-muted); }
-  #expert-picks #expert-heading { font-size: 1.55rem; }
-  #expert-view { margin-top: 6px; max-width: 100%; }
-  #expert-status { padding-top: 9px; border-top: 1px solid var(--canvas-border); }
-  #expert-cards { grid-auto-columns: min(94%,350px); }
-  #expert-cards article { background: var(--canvas-card); }
-  #expert-cards a { font-weight: 650; text-underline-offset: 3px; }
-  .main-column #status { width: auto; margin: 0 0 10px; overflow-wrap: anywhere; }
-  #date-filter[hidden], .builder-placeholder, .props-placeholder { display: none; }
-  #best-parlay[hidden] + .builder-placeholder, .prop-market-panel[hidden] + .props-placeholder { display: block; padding: 16px; margin: 0; border-left: 2px solid var(--canvas-border); color: var(--canvas-muted); }
-  .builder-placeholder strong, .props-placeholder strong { display: block; color: var(--canvas-ink); }
-  .site-footer .desk-filter-note { margin-bottom: 12px; }
-  :focus-visible { outline: 2px solid var(--canvas-lime); outline-offset: 3px; }
-  html[data-theme="light"] {
-    --canvas-ink: #182a20; --canvas-muted: #4d6054; --canvas-bg: #f7f6ee; --canvas-panel: #fffef8;
-    --canvas-card: #f4f5eb; --canvas-border: #c3cebf; --canvas-lime: #43661a;
-  }
-  html[data-theme="light"] .score-layout .live-games-panel { border-color: #acbda6; border-top-color: #476c27; background: linear-gradient(110deg,#eef4e6,#dbe8d3); }
-  html[data-theme="light"] .score-layout .live-game-card { background: #fffffff2; }
-  html[data-theme="light"] .app-content .topbar, html[data-theme="light"] .app-content .sidebar-section { background: transparent; }
-  @media (min-width: 850px) and (max-width: 1240px) {
-    .app-content .topbar { display: flex; }
-    .topbar-heading { padding-right: 0; }
-    .topbar-actions { margin: 0; }
-    .topbar #bell-wrap, .topbar #settings-wrap { display: block; position: relative; }
-    .topbar #bell-button, .topbar #settings-button { position: static; }
-    .topbar #bell-panel, .topbar #settings-panel { right: 0; }
-  }
-  @media (max-width: 760px) {
-    .score-layout, .picks-layout { grid-template-columns: minmax(0,1fr); }
-    .sidebar-section { gap: 8px; background: transparent; }
-    .dashboard-heading { margin: 23px 0 11px; }
-    #upcoming-list { grid-auto-columns: min(75%,215px); }
-  }
-  @media (max-width: 560px) {
-    html .app-shell { padding-bottom: calc(130px + env(safe-area-inset-bottom)); }
-    .app-content .topbar { padding: 10px 0 8px; }
-    .desk-edition { display: none; }
-    .app-content .top-navigation { position: fixed; inset: auto 0 0; z-index: 20; justify-content: space-around; gap: 0; padding: 3px 2px calc(3px + env(safe-area-inset-bottom)); }
-    html .top-navigation a[href], html[data-theme="light"] .top-navigation a[href] { font-size: .8rem; }
-    .topbar #settings-button { right: 0; }
-    .topbar #bell-button { right: 48px; }
-    .sidebar-section { border-block: 1px solid var(--canvas-border); padding-block: 4px; }
-    .sidebar-section .sidebar-label { display: none; }
-    .sidebar-section #sport-navigation { min-height: 44px; }
-    .desk-jump { font-size: .77rem; }
-    .site-footer { margin-inline: 0; }
-    :is(.dashboard-heading, #best-parlay, #expert-picks, #player-picks, #upcoming-games) { scroll-margin-top: 8px; }
-  }
-</style>
 </head>
 <body>
-  <a class="skip-link" href="#game-list">Skip to the scoreboard</a>
+  <a class="skip-link" href="#game-list">Skip to the odds</a>
   <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="WiselyBet Market Board home">
+        <img class="brand-mark" src="/icon-192.png" alt="">
+        <span>
+          <span class="brand-name">WISELYBET</span>
+          <span class="brand-caption">MARKET BOARD</span>
+        </span>
+      </a>
+      <section class="sidebar-section" aria-label="Choose a sport">
+        <p class="sidebar-label">Sports</p>
+        <nav id="sport-navigation" aria-label="Sports"></nav>
+        <label class="visually-hidden" for="sport">Choose a sport</label>
+        <select id="sport" class="visually-hidden" disabled>
+          <option>Loading sports…</option>
+        </select>
+      </section>
+      <nav class="sidebar-links" aria-label="Dashboard sections">
+        <a class="sidebar-link" href="#game-list"><span aria-hidden="true">◷</span><span class="link-name">Games</span></a>
+        <a class="sidebar-link" href="#player-picks"><span aria-hidden="true">✦</span><span class="link-name">Player props</span></a>
+        <a class="sidebar-link" href="#upcoming-games"><span aria-hidden="true">▦</span><span class="link-name">Upcoming</span></a>
+        <a class="sidebar-link" href="#followed"><span aria-hidden="true">★</span><span class="link-name">Followed</span></a>
+      </nav>
+      <div class="sidebar-footer"><span class="live-dot" aria-hidden="true"></span><span>Market feed connected</span></div>
+    </aside>
+
     <div class="app-content">
+      <section id="best-parlay" class="best-parlay is-unset" aria-roledescription="carousel" aria-labelledby="bp-title" hidden>
+        <div class="bp-inner">
+          <div class="bp-head">
+            <div class="bp-brand">
+              <span class="bp-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5V6a2 2 0 0 0 0 4v1.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5V10a2 2 0 0 0 0-4z"/><path d="M6.5 6h3M6.5 8h3M6.5 10h2"/></svg></span>
+              <div class="bp-heading">
+                <h2 id="bp-title">Best parlay <span id="bp-sport" class="bp-sport"></span><span id="bp-scope" class="bp-scope" hidden>Live</span></h2>
+                <p id="bp-sub" class="bp-sub">Top player props from your selected games, priced at your sportsbook</p>
+              </div>
+            </div>
+            <div class="bp-pickers">
+              <button id="bp-sport-toggle" type="button" class="bp-select" popovertarget="bp-sport-select" aria-controls="bp-sport-select" aria-expanded="false">All sports</button>
+              <fieldset id="bp-sport-select" class="bp-sport-select" popover><legend>Sports for suggestions</legend><div class="bp-sport-options"></div></fieldset>
+              <select id="bp-side-select" class="bp-select bp-side-select" aria-label="Player prop side"></select>
+              <select id="bp-games-select" class="bp-select bp-side-select" aria-label="Games for parlay suggestions">
+                <option value="live">Live only</option>
+                <option value="upcoming">Upcoming only</option>
+                <option value="both">Both</option>
+              </select>
+              <select id="bp-book" class="bp-select bp-book-select" aria-label="Your sportsbook"><option value="">Your sportsbook…</option></select>
+              <select id="bp-state" class="bp-select bp-state-select" aria-label="Your state" hidden></select>
+              <select id="bp-legs" class="bp-select" aria-label="Number of legs"></select>
+            </div>
+          </div>
+          <div class="bp-ticker">
+            <div id="bp-viewport" class="bp-viewport" aria-live="off"></div>
+            <div class="bp-controls">
+              <button type="button" id="bp-prev" class="bp-nav" aria-label="Previous leg"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button>
+              <span id="bp-counter" class="bp-counter" aria-hidden="true"></span>
+              <button type="button" id="bp-next" class="bp-nav" aria-label="Next leg"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
+              <button type="button" id="bp-pause" class="bp-nav" aria-label="Pause slides"><svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg></button>
+            </div>
+          </div>
+          <div id="bp-notice" class="bp-notice" aria-live="polite"></div>
+          <dl id="bp-stats" class="bp-stats"></dl>
+          <div class="bp-actions">
+            <button type="button" id="bp-more" class="bp-more" aria-expanded="false" aria-controls="bp-details">All legs <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
+            <button type="button" id="bp-track" class="bp-track"><svg viewBox="0 0 16 16" aria-hidden="true"><path class="bp-track-add" d="M8 3.5v9M3.5 8h9"/><path class="bp-track-done" d="m3.5 8.5 3 3 6-7"/></svg><span id="bp-track-label">Add to tracker</span></button>
+          </div>
+          <div id="bp-details" class="bp-details" hidden></div>
+        </div>
+        <div class="bp-progress" aria-hidden="true"><i id="bp-progress-bar"></i></div>
+      </section>
       <header class="topbar">
         <div class="topbar-heading">
-          <h1><a class="desk-wordmark" href="/" aria-label="WiselyBet home">Wisely<span>Bet</span></a></h1>
-          <span class="desk-edition">Matchday edition</span>
+          <p class="eyebrow">Market intelligence · live board</p>
+          <h1>Live Sports Dashboard</h1>
         </div>
         <div class="topbar-actions">
+          <div class="feed-status"><span class="live-dot" aria-hidden="true"></span><span id="status" role="status" aria-live="polite">Loading markets…</span></div>
           <button id="refresh" type="button" disabled>↻ Refresh</button>
           <a id="trial-badge" href="/subscribe" hidden></a>
-          <button id="tour-button" type="button" aria-label="Take the tour">Tour</button>
-          <button id="news-button" type="button" aria-haspopup="dialog">News</button>
+          <button id="tour-button" type="button" aria-label="Take the tour"><span class="tour-icon" aria-hidden="true">❔</span> Tour</button>
+          <button id="news-button" type="button" aria-haspopup="dialog">📰 News</button>
           <div id="bell-wrap">
             <button id="bell-button" type="button" aria-label="Notifications" aria-expanded="false" aria-controls="bell-panel"><span class="bell-glyph" aria-hidden="true">🔔</span><span id="bell-badge" hidden></span></button>
             <div id="bell-panel" role="dialog" aria-label="Last 10 updates" hidden>
@@ -2945,158 +2899,79 @@
       </header>
 
       <nav class="top-navigation" aria-label="Dashboard navigation">
-        <a href="#game-list">Scores</a>
-        <a href="#upcoming-games">Upcoming</a>
-        <a href="#picks-desk">Picks</a>
+        <a href="#game-list">Games</a>
         <a href="#player-picks">Player props</a>
+        <a href="#upcoming-games">Upcoming</a>
         <a href="#followed" id="followed-tab">Followed <span id="followed-count" class="tab-count"></span></a>
       </nav>
 
-      <section class="sidebar-section" aria-label="Choose a sport">
-        <p class="sidebar-label">Leagues</p>
-        <nav id="sport-navigation" aria-label="Sports"></nav>
-        <label class="visually-hidden" for="sport">Choose a sport</label>
-        <select id="sport" class="visually-hidden" disabled>
-          <option value="">Loading sports…</option>
-        </select>
-      </section>
+      <div class="notice">
+        Market prices are not predictions or betting advice. Availability depends on your API plan and configured region.
+      </div>
       <p id="account-sync-status" class="notice" role="status" hidden></p>
 
       <div class="dashboard-grid">
         <main class="main-column">
+          <section id="expert-picks" aria-labelledby="expert-heading">
+            <h2 id="expert-heading">Expert parlay suggestions</h2>
+            <p>Published by analysts, collected with AI. Odds are as published, not live.</p>
+            <label for="expert-view">Show</label>
+            <select id="expert-view">
+              <option value="smart" selected>Smart filter · shorter tickets</option>
+              <option value="all">All published tickets</option>
+            </select>
+            <p id="expert-rule">Two or three legs with a published price implying at least 50% for the whole ticket. This includes the sportsbook margin, not a verified win rate.</p>
+            <p id="expert-status" role="status">Loading expert picks…</p>
+            <div id="expert-cards"></div>
+          </section>
           <div class="dashboard-heading" id="game-list">
             <div>
-              <span class="desk-kicker"><b>01</b> / Matchday</span>
-              <h2>Scoreboard</h2>
+              <h2>Games</h2>
+              <p>Open a game center or choose a fixture for player props.</p>
             </div>
-            <a class="desk-jump" href="#market-board">Browse game odds <span aria-hidden="true">↓</span></a>
-          </div>
-          <div class="score-layout">
-            <section class="live-games-panel" aria-labelledby="live-games-title">
-              <svg class="live-stage-art" viewBox="0 0 1200 480" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-                <defs>
-                  <linearGradient id="stadium-sky" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="#716154" stop-opacity=".78"></stop>
-                    <stop offset=".62" stop-color="#34342a" stop-opacity=".22"></stop>
-                    <stop offset="1" stop-color="#101711" stop-opacity=".08"></stop>
-                  </linearGradient>
-                  <linearGradient id="stadium-field" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="#78964d" stop-opacity=".1"></stop>
-                    <stop offset="1" stop-color="#8caf53" stop-opacity=".42"></stop>
-                  </linearGradient>
-                  <radialGradient id="stadium-light">
-                    <stop offset="0" stop-color="#fff3c9" stop-opacity=".55"></stop>
-                    <stop offset="1" stop-color="#fff3c9" stop-opacity="0"></stop>
-                  </radialGradient>
-                </defs>
-                <path fill="url(#stadium-sky)" d="M0 0h1200v480H0z"></path>
-                <ellipse fill="url(#stadium-light)" cx="225" cy="142" rx="180" ry="115"></ellipse>
-                <ellipse fill="url(#stadium-light)" cx="973" cy="126" rx="205" ry="130"></ellipse>
-                <path class="stage-stand-back" fill="#161b17" fill-opacity=".72" d="M0 175 178 121l133 32 120-50 144 47 153-40 132 43 118-52 222 62v162H0z"></path>
-                <path class="stage-stand-back-rim" fill="#81796a" fill-opacity=".17" d="M0 197 187 144l124 26 122-42 143 43 153-34 132 39 118-45 221 52v19l-222-48-117 42-132-37-153 39-144-40-120 39-125-28L0 264z"></path>
-                <path class="stage-stand-front" fill="#24251d" fill-opacity=".8" d="m0 247 184-46 127 23 122-37 143 38 153-32 132 34 118-40 221 48v99H0z"></path>
-                <path class="stage-stand-front-rim" fill="#d0c7ae" fill-opacity=".2" d="m0 272 184-43 127 21 122-35 143 35 153-30 132 31 118-37 221 45v10l-222-39-117 37-132-31-153 35-144-34-120 34-125-22L0 291z"></path>
-                <path fill="url(#stadium-field)" d="M0 334q300-72 600 0t600 0v146H0z"></path>
-                <path class="stage-lines" fill="none" stroke="#edf2dc" stroke-opacity=".23" stroke-width="2" d="M600 334v146M0 356q300-68 600 0t600 0M0 467h1200"></path>
-                <path class="stage-lines" fill="none" stroke="#edf2dc" stroke-opacity=".18" stroke-width="2" d="M600 358c-50 0-84 30-84 70s34 66 84 66 84-26 84-66-34-70-84-70z"></path>
-                <g class="stage-lights" fill="#f3e7c4" fill-opacity=".7">
-                  <circle cx="142" cy="125" r="3"></circle><circle cx="164" cy="120" r="3"></circle><circle cx="186" cy="116" r="3"></circle><circle cx="208" cy="112" r="3"></circle><circle cx="230" cy="109" r="3"></circle>
-                  <circle cx="894" cy="112" r="3"></circle><circle cx="918" cy="116" r="3"></circle><circle cx="942" cy="120" r="3"></circle><circle cx="966" cy="124" r="3"></circle><circle cx="990" cy="128" r="3"></circle>
-                </g>
-              </svg>
-              <div class="live-games-heading">
-                <h3 id="live-games-title">In play</h3>
-                <span>15-second score checks</span>
-              </div>
-              <div id="live-games-list" aria-live="polite">
-                <p class="muted">Checking for games in progress…</p>
-              </div>
-              <p id="live-score-status" class="live-score-sync" role="status" aria-live="polite">Connecting to live scores…</p>
-            </section>
-            <aside class="right-rail" id="upcoming-games">
-              <section class="rail-panel">
-                <div class="rail-heading">
-                  <h3>Upcoming games</h3>
-                  <span id="upcoming-count"></span>
-                </div>
-                <div id="upcoming-list"><p class="muted">Checking the schedule…</p></div>
-              </section>
-            </aside>
-          </div>
-          <div class="dashboard-heading" id="picks-desk">
-            <div>
-              <span class="desk-kicker"><b>02</b> / Analysis</span>
-              <h2>Picks desk</h2>
-            </div>
-          </div>
-          <div class="picks-layout">
-            <section id="best-parlay" class="best-parlay is-unset" aria-roledescription="carousel" aria-labelledby="bp-title" hidden>
-              <div class="bp-inner">
-                <div class="bp-head">
-                  <div class="bp-brand">
-                    <span class="bp-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h9A1.5 1.5 0 0 1 14 4.5V6a2 2 0 0 0 0 4v1.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5V10a2 2 0 0 0 0-4z"/><path d="M6.5 6h3M6.5 8h3M6.5 10h2"/></svg></span>
-                    <div class="bp-heading">
-                      <h3 id="bp-title">Parlay builder <span id="bp-sport" class="bp-sport"></span><span id="bp-scope" class="bp-scope" hidden>Live</span></h3>
-                      <p id="bp-sub" class="bp-sub">Top player props from your selected games, priced at your sportsbook</p>
-                    </div>
-                  </div>
-                  <div class="bp-pickers">
-                    <select id="bp-book" class="bp-select bp-book-select" aria-label="Your sportsbook"><option value="">Your sportsbook…</option></select>
-                    <select id="bp-state" class="bp-select bp-state-select" aria-label="Your state" hidden></select>
-                    <select id="bp-legs" class="bp-select" aria-label="Number of legs"></select>
-                  </div>
-                  <details class="desk-filters">
-                    <summary>Sports, sides &amp; game timing</summary>
-                    <div class="bp-pickers">
-                      <button id="bp-sport-toggle" type="button" class="bp-select" popovertarget="bp-sport-select" aria-controls="bp-sport-select" aria-expanded="false">All sports</button>
-                      <fieldset id="bp-sport-select" class="bp-sport-select" popover><legend>Sports for suggestions</legend><div class="bp-sport-options"></div></fieldset>
-                      <select id="bp-side-select" class="bp-select bp-side-select" aria-label="Player prop side"></select>
-                      <select id="bp-games-select" class="bp-select bp-side-select" aria-label="Games for parlay suggestions">
-                        <option value="live">Live only</option>
-                        <option value="upcoming">Upcoming only</option>
-                        <option value="both">Both</option>
-                      </select>
-                    </div>
-                  </details>
-                </div>
-                <div class="bp-ticker">
-                  <div id="bp-viewport" class="bp-viewport" aria-live="off"></div>
-                  <div class="bp-controls">
-                    <button type="button" id="bp-prev" class="bp-nav" aria-label="Previous leg"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3-5 5 5 5"/></svg></button>
-                    <span id="bp-counter" class="bp-counter" aria-hidden="true"></span>
-                    <button type="button" id="bp-next" class="bp-nav" aria-label="Next leg"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
-                    <button type="button" id="bp-pause" class="bp-nav" aria-label="Pause slides"><svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z"/></svg></button>
-                  </div>
-                </div>
-                <div id="bp-notice" class="bp-notice" aria-live="polite"></div>
-                <dl id="bp-stats" class="bp-stats"></dl>
-                <div class="bp-actions">
-                  <button type="button" id="bp-more" class="bp-more" aria-expanded="false" aria-controls="bp-details">All legs <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
-                  <button type="button" id="bp-track" class="bp-track"><svg viewBox="0 0 16 16" aria-hidden="true"><path class="bp-track-add" d="M8 3.5v9M3.5 8h9"/><path class="bp-track-done" d="m3.5 8.5 3 3 6-7"/></svg><span id="bp-track-label">Add to tracker</span></button>
-                </div>
-                <div id="bp-details" class="bp-details" hidden></div>
-              </div>
-              <div class="bp-progress" aria-hidden="true"><i id="bp-progress-bar"></i></div>
-            </section>
-            <p class="builder-placeholder"><strong>Parlay builder</strong>Waiting for game markets.</p>
-            <section id="expert-picks" aria-labelledby="expert-heading">
-              <h3 id="expert-heading">From the analysts</h3>
-              <p>AI collects these published parlays. Odds are from each article, not live markets.</p>
-              <label class="visually-hidden" for="expert-view">Expert ticket filter</label>
-              <select id="expert-view">
-                <option value="smart" selected>Smart filter · shorter tickets</option>
-                <option value="all">All published tickets</option>
-              </select>
-              <details class="desk-filter-note" id="expert-rule"><summary>How the smart filter works</summary><p>Two or three legs with a published price implying at least 50% for the whole ticket. This includes the sportsbook margin, not a verified win rate.</p></details>
-              <p id="expert-status" role="status">Loading expert picks…</p>
-              <div id="expert-cards"></div>
-            </section>
-          </div>
-          <div class="dashboard-heading" id="market-board">
-            <div><span class="desk-kicker"><b>03</b> / Markets</span><h2>Game odds</h2></div>
             <p class="last-updated muted">Updated <time id="updatedAt">—</time></p>
           </div>
-          <p id="status" role="status" aria-live="polite">Loading markets…</p>
+          <p id="live-score-status" class="live-score-sync" role="status" aria-live="polite">Connecting to live scores…</p>
+          <section class="live-games-panel" aria-labelledby="live-games-title">
+            <svg class="live-stage-art" viewBox="0 0 1200 480" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+              <defs>
+                <linearGradient id="stadium-sky" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#716154" stop-opacity=".78"></stop>
+                  <stop offset=".62" stop-color="#34342a" stop-opacity=".22"></stop>
+                  <stop offset="1" stop-color="#101711" stop-opacity=".08"></stop>
+                </linearGradient>
+                <linearGradient id="stadium-field" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#78964d" stop-opacity=".1"></stop>
+                  <stop offset="1" stop-color="#8caf53" stop-opacity=".42"></stop>
+                </linearGradient>
+                <radialGradient id="stadium-light">
+                  <stop offset="0" stop-color="#fff3c9" stop-opacity=".55"></stop>
+                  <stop offset="1" stop-color="#fff3c9" stop-opacity="0"></stop>
+                </radialGradient>
+              </defs>
+              <path fill="url(#stadium-sky)" d="M0 0h1200v480H0z"></path>
+              <ellipse fill="url(#stadium-light)" cx="225" cy="142" rx="180" ry="115"></ellipse>
+              <ellipse fill="url(#stadium-light)" cx="973" cy="126" rx="205" ry="130"></ellipse>
+              <path class="stage-stand-back" fill="#161b17" fill-opacity=".72" d="M0 175 178 121l133 32 120-50 144 47 153-40 132 43 118-52 222 62v162H0z"></path>
+              <path class="stage-stand-back-rim" fill="#81796a" fill-opacity=".17" d="M0 197 187 144l124 26 122-42 143 43 153-34 132 39 118-45 221 52v19l-222-48-117 42-132-37-153 39-144-40-120 39-125-28L0 264z"></path>
+              <path class="stage-stand-front" fill="#24251d" fill-opacity=".8" d="m0 247 184-46 127 23 122-37 143 38 153-32 132 34 118-40 221 48v99H0z"></path>
+              <path class="stage-stand-front-rim" fill="#d0c7ae" fill-opacity=".2" d="m0 272 184-43 127 21 122-35 143 35 153-30 132 31 118-37 221 45v10l-222-39-117 37-132-31-153 35-144-34-120 34-125-22L0 291z"></path>
+              <path fill="url(#stadium-field)" d="M0 334q300-72 600 0t600 0v146H0z"></path>
+              <path class="stage-lines" fill="none" stroke="#edf2dc" stroke-opacity=".23" stroke-width="2" d="M600 334v146M0 356q300-68 600 0t600 0M0 467h1200"></path>
+              <path class="stage-lines" fill="none" stroke="#edf2dc" stroke-opacity=".18" stroke-width="2" d="M600 358c-50 0-84 30-84 70s34 66 84 66 84-26 84-66-34-70-84-70z"></path>
+              <g class="stage-lights" fill="#f3e7c4" fill-opacity=".7">
+                <circle cx="142" cy="125" r="3"></circle><circle cx="164" cy="120" r="3"></circle><circle cx="186" cy="116" r="3"></circle><circle cx="208" cy="112" r="3"></circle><circle cx="230" cy="109" r="3"></circle>
+                <circle cx="894" cy="112" r="3"></circle><circle cx="918" cy="116" r="3"></circle><circle cx="942" cy="120" r="3"></circle><circle cx="966" cy="124" r="3"></circle><circle cx="990" cy="128" r="3"></circle>
+              </g>
+            </svg>
+            <div class="live-games-heading">
+              <h2 id="live-games-title">Live Matches</h2>
+              <span>Scores refresh every 15 seconds</span>
+            </div>
+            <div id="live-games-list" aria-live="polite">
+              <p class="muted">Checking for games in progress…</p>
+            </div>
+          </section>
           <div id="date-filter" class="date-filter" hidden>
             <label class="field" id="match-date-label" for="match-date">
               <span>Games by date</span>
@@ -3125,61 +3000,73 @@
           </section>
           <div id="matches" role="region" aria-label="Games" aria-live="polite"></div>
 
-          <div id="player-picks">
-            <section class="panel prop-market-panel" aria-labelledby="player-picks-title" hidden>
-              <div class="panel-heading">
-                <div>
-                  <h2 id="player-picks-title">Player prop odds</h2>
-                  <p>Compare the best Over and Under price for each player and line. Percentages are normalized market-implied probabilities—not internet pick counts or betting recommendations.</p>
-                  <p class="prop-auto-note">Checks every 60 seconds while this page is open. Pre-game prices are cached for 8–15 minutes, never past game time; live prices for up to 60 seconds. Shared cached checks use no provider credits.</p>
-                  <details class="public-research-sample">
-                    <summary>Public research example · October 30, 2026</summary>
-                    <p>Franz Wagner · Magic vs. Raptors · points 22.5: one verified article author backed Under. No matching Reddit or X posts were verified. This past-game sample is not a current pick or a count of all bettors.</p>
-                    <a href="https://rotogrinders.com/articles/nba-player-props-today-best-bets-today-friday-october-30-2026-4221178" target="_blank" rel="noopener noreferrer">Read Nick Galaida's dated RotoGrinders pick</a>
-                  </details>
-                </div>
-                <span class="panel-tag">BEST AVAILABLE PRICE</span>
+          <section id="player-picks" class="panel" hidden>
+            <div class="panel-heading">
+              <div>
+                <h2 id="player-picks-title">Player prop odds</h2>
+                <p>Compare the best Over and Under price for each player and line. Percentages are normalized market-implied probabilities—not internet pick counts or betting recommendations.</p>
+                <p class="prop-auto-note">Checks every 60 seconds while this page is open. Pre-game prices are cached for 8–15 minutes, never past game time; live prices for up to 60 seconds. Shared cached checks use no provider credits.</p>
+                <details class="public-research-sample">
+                  <summary>Public research example · October 30, 2026</summary>
+                  <p>Franz Wagner · Magic vs. Raptors · points 22.5: one verified article author backed Under. No matching Reddit or X posts were verified. This past-game sample is not a current pick or a count of all bettors.</p>
+                  <a href="https://rotogrinders.com/articles/nba-player-props-today-best-bets-today-friday-october-30-2026-4221178" target="_blank" rel="noopener noreferrer">Read Nick Galaida's dated RotoGrinders pick</a>
+                </details>
               </div>
-              <div class="prop-controls">
-                <label class="field" for="prop-event">
-                  <span>Game</span>
-                  <select id="prop-event"></select>
-                </label>
-                <label class="field" for="prop-market">
-                  <span>Player market</span>
-                  <select id="prop-market"></select>
-                </label>
-                <label class="field" for="prop-search">
-                  <span>Find a player</span>
-                  <input id="prop-search" type="search" placeholder="Search any player" autocomplete="off" spellcheck="false"
-                    role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="prop-search-list" />
-                </label>
-                <button id="load-props" type="button">Refresh now</button>
-                <div id="prop-search-results" class="prop-search-results" hidden>
-                  <p id="prop-search-summary" aria-live="polite"></p>
-                  <ul id="prop-search-list" role="listbox" aria-labelledby="prop-search-summary"></ul>
-                </div>
+              <span class="panel-tag">BEST AVAILABLE PRICE</span>
+            </div>
+            <div class="prop-controls">
+              <label class="field" for="prop-event">
+                <span>Game</span>
+                <select id="prop-event"></select>
+              </label>
+              <label class="field" for="prop-market">
+                <span>Player market</span>
+                <select id="prop-market"></select>
+              </label>
+              <label class="field" for="prop-search">
+                <span>Find a player</span>
+                <input id="prop-search" type="search" placeholder="Search any player" autocomplete="off" spellcheck="false"
+                  role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="prop-search-list" />
+              </label>
+              <button id="load-props" type="button">Refresh now</button>
+              <div id="prop-search-results" class="prop-search-results" hidden>
+                <p id="prop-search-summary" aria-live="polite"></p>
+                <ul id="prop-search-list" role="listbox" aria-labelledby="prop-search-summary"></ul>
               </div>
-              <div class="prop-results-heading">
-                <span>Player · line · best price by side</span>
-                <span id="prop-count"></span>
-              </div>
-              <div class="prop-signal-legend" aria-label="Player signal guide">
-                <span class="signal-good">✓ Favorable live signals</span>
-                <span class="signal-warning">⚠ Reported risk</span>
-                <span>ⓘ Limited evidence</span>
-                <span>Hover, focus or tap the icon beside a name for details. Partial coverage, not a form rating.</span>
-              </div>
-              <p id="prop-signal-status" role="status" aria-live="polite"></p>
-              <div id="prop-status" class="muted" role="status" aria-live="polite"></div>
-              <div id="prop-results"></div>
-            </section>
-            <p class="props-placeholder"><strong>Player props</strong>No player markets are available for the current selection.</p>
-          </div>
+            </div>
+            <div class="prop-results-heading">
+              <span>Player · line · best price by side</span>
+              <span id="prop-count"></span>
+            </div>
+            <div class="prop-signal-legend" aria-label="Player signal guide">
+              <span class="signal-good">✓ Favorable live signals</span>
+              <span class="signal-warning">⚠ Reported risk</span>
+              <span>ⓘ Limited evidence</span>
+              <span>Hover, focus or tap the icon beside a name for details. Partial coverage, not a form rating.</span>
+            </div>
+            <p id="prop-signal-status" role="status" aria-live="polite"></p>
+            <div id="prop-status" class="muted" role="status" aria-live="polite"></div>
+            <div id="prop-results"></div>
+          </section>
         </main>
+
+        <aside class="right-rail" id="upcoming-games">
+          <section class="rail-panel">
+            <div class="rail-heading">
+              <h2>Upcoming games</h2>
+              <span id="upcoming-count"></span>
+            </div>
+            <div id="upcoming-list"></div>
+            <p class="rail-note">Select a matchup to jump to its full odds review.</p>
+          </section>
+          <section class="rail-panel">
+            <div class="rail-heading"><h2>Market guide</h2></div>
+            <p class="rail-note">Prices shown are the best available from returned bookmakers. Player probabilities are normalized from both sides of the market when available.</p>
+            <p class="rail-note">This dashboard does not place bets. Check local laws and provider availability.</p>
+          </section>
+        </aside>
       </div>
       <footer class="site-footer">
-        <details class="desk-filter-note"><summary>How to read market prices</summary><p>Prices are the best available from the bookmakers returned for your plan and region. Player probabilities use both sides of the market when available. They are not predictions. This dashboard does not place bets.</p></details>
         <p><strong>Informational only.</strong> WiselyBet shows market odds and live stats. It is not betting advice and does not guarantee outcomes. Must be of legal betting age in your area (18+ or 21+). Gambling involves risk — only wager what you can afford to lose.</p>
         <p>Need help? Call <a href="tel:18004262537">1-800-GAMBLER</a> or visit <a href="https://www.ncpgambling.org" target="_blank" rel="noopener noreferrer">ncpgambling.org</a>.</p>
         <nav class="footer-links" aria-label="Legal and help"><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/responsible-gaming">Responsible gaming</a><button type="button" id="footer-feedback">Send feedback</button><span class="footer-copy">© 2026 WiselyBet</span></nav>
@@ -3614,7 +3501,7 @@
     const dateFilterElement = document.querySelector("#date-filter");
     const dateSelect = document.querySelector("#match-date");
     const teamSearch = document.querySelector("#team-search");
-    const playerPicksElement = document.querySelector(".prop-market-panel");
+    const playerPicksElement = document.querySelector("#player-picks");
     const propEventSelect = document.querySelector("#prop-event");
     const propMarketSelect = document.querySelector("#prop-market");
     const playerPicksTitle = document.querySelector("#player-picks-title");
@@ -4216,9 +4103,6 @@
         }));
       } catch (error) {
         if (requestId !== liveScoreRequest || sport !== sportSelect.value) return;
-        if (!liveGamesElement.querySelector(".live-game-card")) {
-          liveGamesElement.replaceChildren(element("p", "muted", "Live scores are unavailable."));
-        }
         updateLiveScoreStatus(error.message);
       }
     }
@@ -4288,8 +4172,7 @@
       dateSelect.value = "all";
       teamSearch.value = "";
       renderUpcomingGames([]);
-      liveGamesElement.replaceChildren(element("p", "muted", "Checking for games in progress…"));
-      liveScoreStatusElement.textContent = "Connecting to live scores…";
+      renderLiveScores([]);
     }
 
     async function getJson(path) {
@@ -7459,18 +7342,14 @@
     });
     function syncDashboardTab() {
       const followedView = location.hash === "#followed";
-      const leavingFollowed = document.body.classList.contains("view-followed") && !followedView;
       document.body.classList.toggle("view-followed", followedView);
-      const activeHash = ["#best-parlay", "#expert-picks"].includes(location.hash) ? "#picks-desk"
-        : location.hash === "#market-board" ? "#game-list" : location.hash || "#game-list";
-      for (const link of document.querySelectorAll(".top-navigation a")) {
+      const activeHash = location.hash || "#game-list";
+      for (const link of document.querySelectorAll(".top-navigation a, .sidebar-links a")) {
         if (link.getAttribute("href") === activeHash) link.setAttribute("aria-current", "page");
         else link.removeAttribute("aria-current");
       }
       if (followedView) {
         window.scrollTo(0, 0);
-      } else if (leavingFollowed) {
-        document.getElementById(location.hash.slice(1))?.scrollIntoView();
       }
     }
     window.addEventListener("hashchange", syncDashboardTab);
@@ -11745,8 +11624,6 @@
       } catch (error) {
         if (requestId !== oddsRequestId || sport !== sportSelect.value) return;
         clearOddsView();
-        upcomingListElement.replaceChildren(element("p", "muted", "The schedule is temporarily unavailable."));
-        void loadLiveScores();
         updatePlayerPropsControls([]);
         statusElement.className = "error";
         statusElement.textContent = error.message;
@@ -11969,11 +11846,6 @@
       } catch (error) {
         statusElement.className = "error";
         statusElement.textContent = error.message;
-        liveGamesElement.replaceChildren(element("p", "muted", "Live scores are unavailable."));
-        liveScoreStatusElement.textContent = "The league list could not be loaded.";
-        upcomingListElement.replaceChildren(element("p", "muted", "The schedule is temporarily unavailable."));
-        const placeholder = document.querySelector(".builder-placeholder");
-        placeholder.replaceChildren(element("strong", "", "Parlay builder"), "Game markets are unavailable.");
         showBanner(error.message, { retry: initialize });
       }
     }
@@ -12099,7 +11971,7 @@
         { title: "Welcome to WiselyBet", body: "A 60-second tour of how to find a pick, track it live and see how it turned out. You can replay it any time with the ❔ Tour button." },
         { target: ".sidebar-section", title: "Choose a sport", body: "Switch between NBA, NHL, NFL, NCAAF, MLB and WNBA. Everything on the page updates for the sport you pick." },
         { target: "#game-list", title: "Choose a game", body: "Open a game center or select a fixture to browse its player props." },
-        { target: ".top-navigation a[href=\"#player-picks\"]", title: "Browse player props", body: "Pick a game and a market such as Points or Assists to see each player's line, Over/Under prices and market-implied probability.", list: ["Follow ★ saves a player so you can find them fast", "Track 📊 adds the pick to your live tracker with a target"] },
+        { target: ".sidebar-link[href=\"#player-picks\"]", title: "Browse player props", body: "Pick a game and a market such as Points or Assists to see each player's line, Over/Under prices and market-implied probability.", list: ["Follow ★ saves a player so you can find them fast", "Track 📊 adds the pick to your live tracker with a target"] },
         { title: "Track a player pick", demo: "track", body: "Found a player you like? Press Track 📊 on their row. The pick is saved with the line as its target, for example 24.5 points.", list: ["Create a free account to track (guests can preview)", "Group several picks into a parlay to follow them together"] },
         { target: "#tracker-toggle", title: "Keep monitoring it", demo: "monitor", body: "Open the Live tracker at the bottom of the screen. Each parlay has its own tracking window, with its picks, progress and scoring animations kept together. Expand or collapse each window independently.", list: ["Green bar: on pace, gold: close, full: target hit", "When you track a pick, choose a parlay, create one or keep it single", "Pick a sportsbook on a parlay to match its lines and open it there"] },
         { target: "#bell-wrap", title: "Updates throughout the game", demo: "alerts", body: "You don't have to watch the screen. WiselyBet pops a notification and plays a sound as your pick moves, and keeps the last 10 updates in the bell.", list: ["Heads-up when a player is close to the target", "Alert the moment the target is hit", "Parlay summary when every pick has hit or the games end"] },
