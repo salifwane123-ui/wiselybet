@@ -4,8 +4,21 @@ const assert = require("node:assert/strict");
 const { readdirSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { Script } = require("node:vm");
+const { load } = require("cheerio");
 
 const pages = readdirSync(__dirname).filter(name => name.endsWith(".html")).sort();
+
+test("scores, schedule and both pick sources share a dashboard with working section links", () => {
+  const $ = load(readFileSync(join(__dirname, "index.html"), "utf8"));
+  const sections = $("main [id]").map((_, node) => $(node).attr("id")).get();
+  const expected = ["game-list", "live-games-list", "upcoming-games", "picks-desk", "best-parlay", "expert-picks", "market-board"];
+  assert.deepEqual(sections.filter(id => expected.includes(id)), expected);
+  for (const hash of ["#game-list", "#upcoming-games", "#picks-desk", "#player-picks"]) {
+    assert.equal($(`nav[aria-label="Dashboard navigation"] a[href="${hash}"]`).length, 1);
+    assert.equal($(hash).length, 1);
+    assert.equal($(hash).closest("[hidden]").length, 0, `unreachable section: ${hash}`);
+  }
+});
 
 function inlineScripts(html) {
   return [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]

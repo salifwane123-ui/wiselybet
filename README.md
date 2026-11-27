@@ -8,6 +8,7 @@ Live site: https://wiselybet.onrender.com
 
 ## Features
 
+- **Matchday dashboard**: Scores and picks share a page. The scoreboard leads with games in play and the upcoming schedule. **Picks** jumps to the parlay builder and the separate analyst feed; **Browse game odds** opens the full match list. On phones, section links stay at the bottom. Sport, side and game-timing controls are under the builder’s expandable filters.
 - **Odds board**: games and bookmaker odds for basketball, hockey, baseball, football and seven soccer leagues (Premier League, La Liga, Serie A, Bundesliga, Ligue 1, MLS and the Champions League) from the configured odds provider, with live scores and injury reports from ESPN.
 - **Player props**: Over and Under tracking, form signals (good-form and warning icons) and followed players.
 - **Player search**: type a name in **Find a player** to see matching and similarly spelled players from every team in the selected sport, such as "lebrn" for LeBron James or "SGA" for Shai Gilgeous-Alexander. Names come from ESPN rosters (FBS teams for college football), refreshed every 6 hours. Each suggestion shows the team, position, number and the player's listed game; choose one to open that game's props, filtered to the player. Players without a listed game are shown but can't be chosen. Use the arrow keys and Enter to choose, or Escape to close. The same matching also filters the prop cards of the selected game.
